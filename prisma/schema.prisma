@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Proxy {
+  deviceId          String   @id @map("device_id") @db.VarChar(255)
+  name             String
+  location         String?
+  host             String
+  port             Int
+  protocol         String   @default("http")
+  username         String?
+  password         String?
+  active           Boolean  @default(true)
+  lastIp           String?  @map("last_ip")
+  sameIpCount      Int      @default(0) @map("same_ip_count")
+  stabilityStatus  String   @default("Unknown") @map("stability_status")
+  rotationStatus   String?  @default("Unknown") @map("rotation_status")
+  lastRotationAt   DateTime? @map("last_rotation_at")
+  rotationCount     Int      @default(0) @map("rotation_count")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  requests         ProxyRequest[]
+
+  @@index([active])
+  @@index([stabilityStatus])
+  @@index([rotationStatus])
+  @@index([updatedAt])
+  @@map("proxies")
+}
+
+model ProxyRequest {
+  id              String   @id @default(uuid())
+  proxyId         String   @map("proxy_id") @db.VarChar(255)
+  timestamp       DateTime @default(now())
+  targetUrl       String   @map("target_url")
+  status          String
+  httpStatusCode  Int?     @map("http_status_code")
+  responseTimeMs  Int?     @map("response_time_ms")
+  expectedIp      String?  @map("expected_ip")
+  outboundIp      String?  @map("outbound_ip")
+  ipChanged       Boolean  @default(false) @map("ip_changed")
+  errorType       String?  @map("error_type")
+  errorMessage    String?  @map("error_message")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  proxy           Proxy    @relation(fields: [proxyId], references: [deviceId], onDelete: Cascade)
+
+  @@index([proxyId, timestamp])
+  @@index([timestamp])
+  @@index([status])
+  @@index([outboundIp])
+  @@index([expectedIp])
+  @@index([ipChanged])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("proxy_requests")
+}
+
