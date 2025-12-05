@@ -24,6 +24,7 @@ import {
 } from './lib/monitoring';
 import { initGrafanaViews } from './lib/init-grafana-views';
 import { initDatabaseSchema } from './lib/init-db';
+import { waitForDatabase } from './lib/db';
 
 /**
  * Main application entry point
@@ -113,6 +114,17 @@ async function main(): Promise<void> {
 
     // Start health check server
     startServer();
+
+    // Wait for database to be ready (important for Docker startup)
+    // This is critical for Docker startup - MySQL may take time to be ready
+    logger.info('Waiting for database connection...');
+    const dbReady = await waitForDatabase(30); // 30 attempts with exponential backoff (up to ~2 minutes)
+    if (!dbReady) {
+      logger.error('Database is not ready after waiting. Application will continue but database operations may fail.');
+      // Don't exit - let the app start and retry connections on demand
+    } else {
+      logger.info('Database connection established successfully');
+    }
 
     // Initialize database schema (create tables if they don't exist)
     await initDatabaseSchema();

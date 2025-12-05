@@ -17,6 +17,12 @@ import { testProxyWithStats } from '../helpers/test-proxy';
 import { logger } from '../lib/logger';
 import { prismaWithRetry as prisma, prisma as prismaRaw, checkDatabaseHealth } from '../lib/db';
 import { startStabilityCalculation } from './stability-calculator';
+import {
+  checkAutoDeactivation,
+  autoDeactivateProxy,
+  startRecoveryChecking,
+} from './auto-deactivation';
+import { startInactiveProxyRotation } from './ip-rotation';
 import { config } from '../config';
 import { encrypt } from '../lib/encryption';
 import { recordRequest, setActiveProxies } from '../lib/metrics';
@@ -37,6 +43,8 @@ let lastDevicesFetch: Date | null = null;
 let isRunning = false;
 let stabilityInterval: NodeJS.Timeout | null = null;
 let refreshInterval: NodeJS.Timeout | null = null;
+let recoveryInterval: NodeJS.Timeout | null = null;
+let ipRotationInterval: NodeJS.Timeout | null = null;
 
 /**
  * Maps ProxyMetrics error types to database RequestStatus values
@@ -67,6 +75,29 @@ function mapToRequestStatus(metrics: ProxyMetrics): RequestStatus {
     default:
       return 'OTHER';
   }
+}
+
+/**
+ * Maps portal proxy_status to database active boolean
+ * 
+ * @param proxyStatus - Proxy status from portal (e.g., "active", "inactive", "in_maintenance")
+ * @returns Boolean indicating if proxy should be marked as active
+ * 
+ * @example
+ * ```typescript
+ * const isActive = mapProxyStatusToActive('active'); // Returns: true
+ * const isActive = mapProxyStatusToActive('inactive'); // Returns: false
+ * ```
+ */
+export function mapProxyStatusToActive(proxyStatus: string | undefined | null): boolean {
+  if (!proxyStatus) {
+    return false; // Default to inactive if status is missing
+  }
+  
+  const normalizedStatus = proxyStatus.toLowerCase().trim();
+  
+  // Only "active" status maps to true, everything else is inactive
+  return normalizedStatus === 'active';
 }
 
 /**
@@ -127,6 +158,9 @@ async function saveProxyTestToDatabase(
     // Encrypt password before storage
     const encryptedPassword = device.password ? await encrypt(device.password) : null;
 
+    // Map portal proxy_status to active boolean
+    const isActive = mapProxyStatusToActive(device.proxy_status);
+
     if (!proxy) {
       // Create new proxy record with device_id as primary key
       proxy = await prisma.proxy.create({
@@ -139,7 +173,7 @@ async function saveProxyTestToDatabase(
           protocol: 'http',
           username: device.username,
           password: encryptedPassword,
-          active: true,
+          active: isActive,
           lastIp: metrics.outboundIp || null,
           sameIpCount: hasCurrentIp ? 1 : 0,
           rotationStatus: 'OK',
@@ -148,7 +182,7 @@ async function saveProxyTestToDatabase(
         },
       });
     } else {
-      // Update proxy info if needed
+      // Update proxy info including active status from portal
       await prisma.proxy.update({
         where: { deviceId: device.device_id },
         data: {
@@ -158,6 +192,7 @@ async function saveProxyTestToDatabase(
           port: device.port,
           username: device.username,
           password: encryptedPassword,
+          active: isActive, // Sync active status from portal
         },
       });
     }
@@ -305,6 +340,19 @@ async function saveProxyTestToDatabase(
         'IP rotation detected'
       );
     }
+
+    // Check for auto-deactivation if request failed
+    if (!metrics.success && config.autoDeactivation.enabled) {
+      const deactivationCheck = await checkAutoDeactivation(device.device_id);
+      if (deactivationCheck.shouldDeactivate) {
+        await autoDeactivateProxy(device.device_id, deactivationCheck.reason || 'unknown', {
+          consecutiveFailures: deactivationCheck.consecutiveFailures,
+          failureRate: deactivationCheck.failureRate,
+        });
+        // Stop testing this device if it was auto-deactivated
+        stopDeviceTesting(device.device_id);
+      }
+    }
   } catch (error) {
     logger.error(
       {
@@ -417,6 +465,35 @@ function startDeviceTesting(device: Device): void {
       return;
     }
 
+    // Check if proxy is still active before testing
+    // Note: If proxy doesn't exist yet, allow first test to create it
+    try {
+      const proxy = await prisma.proxy.findUnique({
+        where: { deviceId },
+        select: { active: true },
+      });
+
+      // Only stop if proxy exists AND is inactive
+      // If proxy doesn't exist, allow first test to create it
+      if (proxy && !proxy.active) {
+        logger.debug(
+          { deviceId, active: proxy.active },
+          'Proxy is inactive, stopping testing'
+        );
+        stopDeviceTesting(deviceId);
+        return;
+      }
+    } catch (error) {
+      logger.error(
+        {
+          deviceId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        'Failed to check proxy active status'
+      );
+      // Continue testing if check fails (don't stop on transient errors)
+    }
+
     const testStartTime = Date.now();
     
     try {
@@ -436,6 +513,28 @@ function startDeviceTesting(device: Device): void {
     if (!deviceTestingFlags.get(deviceId)) {
       logger.debug({ deviceId }, 'Device testing stopped after test, exiting loop');
       return;
+    }
+
+    // Check if proxy became inactive during test
+    // Note: If proxy doesn't exist yet (first test), allow it to be created
+    try {
+      const proxy = await prisma.proxy.findUnique({
+        where: { deviceId },
+        select: { active: true },
+      });
+
+      // Only stop if proxy exists AND is inactive
+      // If proxy doesn't exist yet, it will be created by the test
+      if (proxy && !proxy.active) {
+        logger.debug(
+          { deviceId, active: proxy.active },
+          'Proxy became inactive during test, stopping'
+        );
+        stopDeviceTesting(deviceId);
+        return;
+      }
+    } catch (error) {
+      // Continue if check fails
     }
     
     // Calculate test duration
@@ -547,8 +646,9 @@ async function getDevicesWithRefresh(): Promise<Device[]> {
  * 
  * This function:
  * 1. Fetches latest device list (with cache refresh if needed)
- * 2. Stops testing for devices that no longer exist
- * 3. Starts testing for newly added devices
+ * 2. Syncs active status for all proxies from portal
+ * 3. Stops testing for devices that no longer exist or are inactive
+ * 4. Starts testing for newly added devices
  * 
  * Called:
  * - On initial startup
@@ -559,20 +659,172 @@ async function getDevicesWithRefresh(): Promise<Device[]> {
 async function refreshDeviceTesters(): Promise<void> {
   const devices = await getDevicesWithRefresh();
   const currentDeviceIds = new Set(devices.map((d) => d.device_id));
+  const deviceMap = new Map(devices.map((d) => [d.device_id, d]));
 
-  // Stop testers for devices that no longer exist
+  // Sync active status for all proxies from portal
+  try {
+    const allProxies = await prisma.proxy.findMany({
+      select: { deviceId: true, active: true },
+    });
+
+    const updatePromises = allProxies
+      .filter((proxy) => {
+        const device = deviceMap.get(proxy.deviceId);
+        if (!device) return false;
+        const isActive = mapProxyStatusToActive(device.proxy_status);
+        // Only update if status changed to avoid unnecessary writes
+        return proxy.active !== isActive;
+      })
+      .map(async (proxy) => {
+        const device = deviceMap.get(proxy.deviceId);
+        if (!device) return;
+        
+        const isActive = mapProxyStatusToActive(device.proxy_status);
+        await prisma.proxy.update({
+          where: { deviceId: proxy.deviceId },
+          data: { active: isActive },
+        });
+        
+        logger.info(
+          {
+            deviceId: proxy.deviceId,
+            previousActive: proxy.active,
+            newActive: isActive,
+            portalStatus: device.proxy_status,
+          },
+          'Synced proxy active status from portal'
+        );
+      });
+
+    await Promise.all(updatePromises);
+  } catch (error) {
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      'Failed to sync proxy active status from portal'
+    );
+  }
+
+  // Stop testers for devices that no longer exist, are inactive in portal, or auto-deactivated
   for (const deviceId of deviceIntervals.keys()) {
-    if (!currentDeviceIds.has(deviceId)) {
+    const device = deviceMap.get(deviceId);
+    const portalActive = device ? mapProxyStatusToActive(device.proxy_status) : false;
+    
+    // Also check database active status (may be auto-deactivated)
+    let dbActive = true;
+    try {
+      const proxy = await prisma.proxy.findUnique({
+        where: { deviceId },
+        select: { active: true },
+      });
+      dbActive = proxy?.active ?? false;
+    } catch (error) {
+      // If check fails, assume active to avoid stopping unnecessarily
+    }
+    
+    if (!currentDeviceIds.has(deviceId) || !portalActive || !dbActive) {
       stopDeviceTesting(deviceId);
-      logger.info({ deviceId }, 'Stopped testing removed device');
+      logger.info(
+        {
+          deviceId,
+          reason: !currentDeviceIds.has(deviceId)
+            ? 'removed'
+            : !portalActive
+            ? 'inactive_in_portal'
+            : 'auto_deactivated',
+        },
+        'Stopped testing device'
+      );
     }
   }
 
-  // Start testers for new devices
+  // Start testers for new active devices (both portal and DB must be active)
+  // Also create proxy records for devices that don't exist yet
   for (const device of devices) {
-    if (!deviceIntervals.has(device.device_id)) {
+    const portalActive = mapProxyStatusToActive(device.proxy_status);
+    
+    // Check if proxy exists in database
+    let proxy = null;
+    let dbActive = true;
+    try {
+      proxy = await prisma.proxy.findUnique({
+        where: { deviceId: device.device_id },
+        select: { active: true },
+      });
+      dbActive = proxy?.active ?? true; // Default to true if proxy doesn't exist yet
+    } catch (error) {
+      // If check fails, assume active
+    }
+    
+    // Create proxy record if it doesn't exist and device is active in portal
+    // This is critical for first startup when no proxies exist in the database
+    if (!proxy && portalActive) {
+      try {
+        const encryptedPassword = device.password ? await encrypt(device.password) : null;
+        await prisma.proxy.create({
+          data: {
+            deviceId: device.device_id,
+            name: device.name,
+            location: device.state || device.city || null,
+            host: device.relay_server_ip_address,
+            port: device.port,
+            protocol: 'http',
+            username: device.username,
+            password: encryptedPassword,
+            active: portalActive, // Set based on portal status
+            lastIp: null,
+            sameIpCount: 0,
+            rotationStatus: 'OK',
+            lastRotationAt: null,
+            rotationCount: 0,
+          },
+        });
+        logger.info(
+          { deviceId: device.device_id, deviceName: device.name },
+          'Created proxy record for new device'
+        );
+        dbActive = portalActive; // Now it exists and is active
+      } catch (error: any) {
+        // Handle duplicate key errors gracefully (might happen in race conditions)
+        if (error?.code === 'P2002' || error?.message?.includes('Unique constraint')) {
+          logger.debug(
+            { deviceId: device.device_id },
+            'Proxy record already exists (race condition), continuing...'
+          );
+          // Try to fetch it again
+          try {
+            const existingProxy = await prisma.proxy.findUnique({
+              where: { deviceId: device.device_id },
+              select: { active: true },
+            });
+            dbActive = existingProxy?.active ?? portalActive;
+          } catch {
+            // If fetch fails, assume active
+            dbActive = portalActive;
+          }
+        } else {
+          logger.error(
+            {
+              deviceId: device.device_id,
+              deviceName: device.name,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              errorCode: error?.code,
+            },
+            'Failed to create proxy record'
+          );
+          // Continue anyway - don't block other proxies from being created
+        }
+      }
+    }
+    
+    // Start testing if device is active in both portal and DB, and not already testing
+    if (!deviceIntervals.has(device.device_id) && portalActive && dbActive) {
       startDeviceTesting(device);
-      logger.info({ deviceId: device.device_id, deviceName: device.name }, 'Started testing device');
+      logger.info(
+        { deviceId: device.device_id, deviceName: device.name },
+        'Started testing device'
+      );
     }
   }
 
@@ -595,6 +847,7 @@ async function refreshDeviceTesters(): Promise<void> {
  * 1. Fetches all devices and starts testing each one
  * 2. Sets up periodic device list refresh (default: every 6 hours)
  * 3. Starts stability calculation service (default: every 10 minutes)
+ * 4. Starts auto-recovery checking service (default: every 5 minutes)
  * 
  * Each device is tested independently every N seconds (default: 5 seconds).
  * Tests run continuously until `stopContinuousTesting()` is called.
@@ -628,11 +881,58 @@ export async function startContinuousTesting(): Promise<void> {
     // Start stability calculation
     stabilityInterval = startStabilityCalculation();
 
+    // Helper function to start testing for a device
+    const startTestingForDevice = async (deviceId: string) => {
+      try {
+        const devices = await getAllDevices();
+        const device = devices.find((d) => d.device_id === deviceId);
+        if (device) {
+          const portalActive = mapProxyStatusToActive(device.proxy_status);
+          if (portalActive && !deviceIntervals.has(deviceId)) {
+            startDeviceTesting(device);
+            logger.info(
+              { deviceId, deviceName: device.name },
+              'Started testing proxy'
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            deviceId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+          'Failed to start testing proxy'
+        );
+      }
+    };
+
+    // Start auto-recovery checking with callback to start testing reactivated proxies
+    if (config.autoRecovery.enabled) {
+      recoveryInterval = startRecoveryChecking(async (deviceId: string) => {
+        await startTestingForDevice(deviceId);
+      });
+    }
+
+    // Start IP rotation service for inactive proxies
+    if (config.ipRotation.enabled) {
+      ipRotationInterval = startInactiveProxyRotation(
+        getAllDevices,
+        async (device: Device) => {
+          // When a proxy becomes active after rotation, start testing
+          await startTestingForDevice(device.device_id);
+        }
+      );
+    }
+
     logger.info(
       {
         testIntervalMs: config.testing.intervalMs,
         refreshIntervalMs: config.refresh.intervalMs,
         activeDevices: deviceIntervals.size,
+        autoDeactivationEnabled: config.autoDeactivation.enabled,
+        autoRecoveryEnabled: config.autoRecovery.enabled,
+        ipRotationEnabled: config.ipRotation.enabled,
       },
       'Continuous testing started'
     );
@@ -653,6 +953,7 @@ export async function startContinuousTesting(): Promise<void> {
  * - Stops all device testing loops
  * - Clears device refresh interval
  * - Clears stability calculation interval
+ * - Clears recovery checking interval
  * 
  * Safe to call multiple times (idempotent).
  * 
@@ -678,6 +979,15 @@ export function stopContinuousTesting(): void {
   if (stabilityInterval) {
     clearInterval(stabilityInterval);
     stabilityInterval = null;
+  }
+
+  if (recoveryInterval) {
+    clearInterval(recoveryInterval);
+    recoveryInterval = null;
+  }
+  if (ipRotationInterval) {
+    clearInterval(ipRotationInterval);
+    ipRotationInterval = null;
   }
 
   logger.info('Continuous testing stopped');

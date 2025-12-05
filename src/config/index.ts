@@ -36,6 +36,24 @@ interface Config {
   stability: {
     checkIntervalMs: number;
   };
+  autoDeactivation: {
+    enabled: boolean;
+    consecutiveFailureThreshold: number;
+    failureRateThreshold: number;
+    failureRateWindowSize: number;
+  };
+  autoRecovery: {
+    enabled: boolean;
+    checkIntervalMs: number;
+    consecutiveSuccessThreshold: number;
+  };
+  ipRotation: {
+    enabled: boolean;
+    checkIntervalMs: number;
+    waitAfterRotationMs: number;
+    rotationCooldownMs: number;
+    preferUniqueRotation: boolean;
+  };
   runtime: {
     minRunHours: number;
     runMode: 'infinite' | 'fixed';
@@ -93,6 +111,47 @@ function validateConfig(): Config {
     10
   ); // 1 hour default
 
+  // Auto-deactivation configuration
+  const autoDeactivationEnabled = process.env.AUTO_DEACTIVATION_ENABLED !== 'false'; // Default: true
+  const consecutiveFailureThreshold = parseInt(
+    process.env.AUTO_DEACTIVATION_CONSECUTIVE_FAILURES || '20',
+    10
+  );
+  const failureRateThreshold = parseFloat(
+    process.env.AUTO_DEACTIVATION_FAILURE_RATE || '0.9'
+  ); // 90% failure rate
+  const failureRateWindowSize = parseInt(
+    process.env.AUTO_DEACTIVATION_FAILURE_RATE_WINDOW || '50',
+    10
+  ); // Last 50 requests
+
+  // Auto-recovery configuration
+  const autoRecoveryEnabled = process.env.AUTO_RECOVERY_ENABLED !== 'false'; // Default: true
+  const recoveryCheckIntervalMs = parseInt(
+    process.env.AUTO_RECOVERY_CHECK_INTERVAL_MS || '300000',
+    10
+  ); // 5 minutes default
+  const consecutiveSuccessThreshold = parseInt(
+    process.env.AUTO_RECOVERY_CONSECUTIVE_SUCCESSES || '5',
+    10
+  );
+
+  // IP rotation configuration
+  const ipRotationEnabled = process.env.IP_ROTATION_ENABLED !== 'false'; // Default: true
+  const ipRotationCheckIntervalMs = parseInt(
+    process.env.IP_ROTATION_CHECK_INTERVAL_MS || '60000',
+    10
+  ); // 1 minute default
+  const waitAfterRotationMs = parseInt(
+    process.env.IP_ROTATION_WAIT_AFTER_ROTATION_MS || '5000',
+    10
+  ); // 5 seconds as per requirement
+  const rotationCooldownMs = parseInt(
+    process.env.IP_ROTATION_COOLDOWN_MS || '300000',
+    10
+  ); // 5 minutes cooldown between rotation attempts
+  const preferUniqueRotation = process.env.IP_ROTATION_PREFER_UNIQUE === 'true'; // Default: false
+
   // Validation
   if (testIntervalMs < 1000) {
     throw new Error('TEST_INTERVAL_MS must be at least 1000ms (1 second)');
@@ -108,6 +167,30 @@ function validateConfig(): Config {
   }
   if (runMode !== 'infinite' && runMode !== 'fixed') {
     throw new Error('RUN_MODE must be either "infinite" or "fixed"');
+  }
+  if (consecutiveFailureThreshold < 1) {
+    throw new Error('AUTO_DEACTIVATION_CONSECUTIVE_FAILURES must be at least 1');
+  }
+  if (failureRateThreshold < 0 || failureRateThreshold > 1) {
+    throw new Error('AUTO_DEACTIVATION_FAILURE_RATE must be between 0 and 1');
+  }
+  if (failureRateWindowSize < 1) {
+    throw new Error('AUTO_DEACTIVATION_FAILURE_RATE_WINDOW must be at least 1');
+  }
+  if (recoveryCheckIntervalMs < 1000) {
+    throw new Error('AUTO_RECOVERY_CHECK_INTERVAL_MS must be at least 1000ms');
+  }
+  if (consecutiveSuccessThreshold < 1) {
+    throw new Error('AUTO_RECOVERY_CONSECUTIVE_SUCCESSES must be at least 1');
+  }
+  if (ipRotationCheckIntervalMs < 1000) {
+    throw new Error('IP_ROTATION_CHECK_INTERVAL_MS must be at least 1000ms');
+  }
+  if (waitAfterRotationMs < 1000) {
+    throw new Error('IP_ROTATION_WAIT_AFTER_ROTATION_MS must be at least 1000ms');
+  }
+  if (rotationCooldownMs < 0) {
+    throw new Error('IP_ROTATION_COOLDOWN_MS must be at least 0');
   }
 
   return {
@@ -131,6 +214,24 @@ function validateConfig(): Config {
     },
     stability: {
       checkIntervalMs: stabilityCheckIntervalMs,
+    },
+    autoDeactivation: {
+      enabled: autoDeactivationEnabled,
+      consecutiveFailureThreshold,
+      failureRateThreshold,
+      failureRateWindowSize,
+    },
+    autoRecovery: {
+      enabled: autoRecoveryEnabled,
+      checkIntervalMs: recoveryCheckIntervalMs,
+      consecutiveSuccessThreshold,
+    },
+    ipRotation: {
+      enabled: ipRotationEnabled,
+      checkIntervalMs: ipRotationCheckIntervalMs,
+      waitAfterRotationMs,
+      rotationCooldownMs,
+      preferUniqueRotation,
     },
     runtime: {
       minRunHours,

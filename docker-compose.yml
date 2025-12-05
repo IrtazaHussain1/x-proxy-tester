@@ -12,12 +12,13 @@ services:
       - "3310:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./scripts:/docker-entrypoint-initdb.d
+      - ./scripts/init-grafana-views.sh:/docker-entrypoint-initdb.d/init-grafana-views.sh:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
-      interval: 10s
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 20
+      start_period: 60s
     networks:
       - proxy-network
 
@@ -82,8 +83,8 @@ services:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 120s
 
   grafana:
     image: grafana/grafana:latest
@@ -91,6 +92,8 @@ services:
     restart: unless-stopped
     depends_on:
       mysql:
+        condition: service_healthy
+      app:
         condition: service_healthy
     ports:
       - "3312:3000"
@@ -100,11 +103,14 @@ services:
       - GF_INSTALL_PLUGINS=
       - GF_SERVER_ROOT_URL=http://localhost:3312
       - GF_SERVER_HTTP_PORT=3000
-      - GF_DATABASE_TYPE=mysql
-      - GF_DATABASE_HOST=mysql:3306
-      - GF_DATABASE_NAME=${MYSQL_DATABASE:-xproxy_tester}
-      - GF_DATABASE_USER=${MYSQL_USER:-xproxy}
-      - GF_DATABASE_PASSWORD=${MYSQL_PASSWORD:-xproxy}
+      # Use SQLite for Grafana's internal database (default, simpler, no connection issues)
+      # MySQL is still used as a datasource for querying proxy data via provisioning
+      # Commenting out MySQL config to use SQLite default
+      # - GF_DATABASE_TYPE=mysql
+      # - GF_DATABASE_HOST=mysql:3306
+      # - GF_DATABASE_NAME=${MYSQL_DATABASE:-xproxy_tester}
+      # - GF_DATABASE_USER=${MYSQL_USER:-xproxy}
+      # - GF_DATABASE_PASSWORD=${MYSQL_PASSWORD:-xproxy}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning

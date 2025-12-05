@@ -1,7 +1,7 @@
 import { getDevices, getDevicesWithMetadata } from '../api/devices';
 import type { Device } from '../types';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 1000;
 let _allDevices: Device[] = [];
 
 /**

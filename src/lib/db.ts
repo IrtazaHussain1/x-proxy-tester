@@ -97,6 +97,8 @@ const prisma = new PrismaClient({
       url: process.env.DATABASE_URL,
     },
   },
+  // Add connection pool configuration for better startup resilience
+  // Connection timeout is handled by retry logic in waitForDatabase
 });
 
 // Configure connection pool (via DATABASE_URL query params or defaults)
@@ -126,6 +128,50 @@ export async function testConnection(): Promise<boolean> {
     return true;
   } catch (error) {
     logger.error({ error }, 'Database connection test failed');
+    return false;
+  }
+}
+
+/**
+ * Wait for database to be ready with retries
+ * Useful for Docker startup when DB might not be ready immediately
+ */
+export async function waitForDatabase(
+  maxAttempts: number = 30
+): Promise<boolean> {
+  logger.info('Waiting for database to be ready...');
+  
+  try {
+    // Use retryWithBackoff for proper retry logic
+    await retryWithBackoff(
+      async () => {
+        await prisma.$queryRaw`SELECT 1`;
+        return true;
+      },
+      'wait_for_database',
+      maxAttempts
+    );
+    
+    // Test that we can actually connect and query
+    await retryWithBackoff(
+      async () => {
+        await prisma.$queryRaw`SELECT DATABASE()`;
+        return true;
+      },
+      'wait_for_database_verify',
+      3
+    );
+    
+    logger.info('Database is ready and verified');
+    return true;
+  } catch (error: any) {
+    logger.error(
+      {
+        attempts: maxAttempts,
+        error: error?.message || 'Connection failed',
+      },
+      'Database connection failed after all retries'
+    );
     return false;
   }
 }
