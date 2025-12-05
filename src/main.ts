@@ -13,6 +13,17 @@ import 'dotenv/config';
 import { startContinuousTesting, stopContinuousTesting } from './services/continuous-proxy-tester';
 import { logger } from './lib/logger';
 import { config } from './config';
+import { startServer } from './server';
+import { startPeriodicArchival } from './services/archival';
+import {
+  startAlertMonitoring,
+  registerAlertHandler,
+  consoleAlertHandler,
+  createWebhookAlertHandler,
+  createSlackAlertHandler,
+} from './lib/monitoring';
+import { initGrafanaViews } from './lib/init-grafana-views';
+import { initDatabaseSchema } from './lib/init-db';
 
 /**
  * Main application entry point
@@ -100,8 +111,63 @@ async function main(): Promise<void> {
       'XProxy Tester Application Starting'
     );
 
+    // Start health check server
+    startServer();
+
+    // Initialize database schema (create tables if they don't exist)
+    await initDatabaseSchema();
+
+    // Initialize Grafana views (after database schema is ready)
+    await initGrafanaViews();
+
     // Start continuous testing
     await startContinuousTesting();
+
+    // Start periodic data archival (if enabled)
+    const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
+    const archivalIntervalMs = parseInt(process.env.ARCHIVAL_INTERVAL_MS || String(24 * 60 * 60 * 1000), 10);
+    const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || '30', 10);
+    
+    if (archivalEnabled) {
+      startPeriodicArchival(archivalIntervalMs, retentionDays);
+      logger.info(
+        {
+          retentionDays,
+          intervalHours: archivalIntervalMs / (60 * 60 * 1000),
+        },
+        'Periodic data archival enabled'
+      );
+    }
+
+    // Set up alert monitoring
+    const alertMonitoringEnabled = process.env.ENABLE_ALERT_MONITORING !== 'false';
+    const alertIntervalMs = parseInt(process.env.ALERT_CHECK_INTERVAL_MS || '60000', 10);
+    
+    if (alertMonitoringEnabled) {
+      // Register console handler (always enabled for logging)
+      registerAlertHandler(consoleAlertHandler);
+
+      // Register webhook handler if URL provided
+      if (process.env.ALERT_WEBHOOK_URL) {
+        registerAlertHandler(createWebhookAlertHandler(process.env.ALERT_WEBHOOK_URL));
+        logger.info('Webhook alert handler registered');
+      }
+
+      // Register Slack handler if webhook URL provided
+      if (process.env.SLACK_WEBHOOK_URL) {
+        registerAlertHandler(createSlackAlertHandler(process.env.SLACK_WEBHOOK_URL));
+        logger.info('Slack alert handler registered');
+      }
+
+      startAlertMonitoring(alertIntervalMs);
+      logger.info(
+        {
+          intervalMs: alertIntervalMs,
+          intervalSeconds: alertIntervalMs / 1000,
+        },
+        'Alert monitoring enabled'
+      );
+    }
 
     // Set up signal handlers
     process.on('SIGINT', () => handleShutdownRequest('SIGINT'));

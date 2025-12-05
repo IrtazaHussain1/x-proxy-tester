@@ -6,11 +6,12 @@ echo "🔍 Testing MySQL connection..."
 echo ""
 
 # Try different common configurations
+# Using 127.0.0.1 instead of localhost to force TCP/IP connection (avoids socket issues on macOS)
 CONFIGS=(
-  "root:root@localhost:3306"
-  "root:@localhost:3306"
-  "root:password@localhost:3306"
-  "root:mysql@localhost:3306"
+  "root:root@127.0.0.1:3306"
+  "root:@127.0.0.1:3306"
+  "root:password@127.0.0.1:3306"
+  "root:mysql@127.0.0.1:3306"
 )
 
 for config in "${CONFIGS[@]}"; do
@@ -44,8 +45,8 @@ MYSQL_USER=${MYSQL_USER:-root}
 read -sp "MySQL password: " MYSQL_PASS
 echo ""
 
-read -p "MySQL host (default: localhost): " MYSQL_HOST
-MYSQL_HOST=${MYSQL_HOST:-localhost}
+read -p "MySQL host (default: 127.0.0.1): " MYSQL_HOST
+MYSQL_HOST=${MYSQL_HOST:-127.0.0.1}
 
 read -p "MySQL port (default: 3306): " MYSQL_PORT
 MYSQL_PORT=${MYSQL_PORT:-3306}

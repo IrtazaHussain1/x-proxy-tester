@@ -1,0 +1,13 @@
+apiVersion: 1
+
+# Alerting configuration
+# This file configures Grafana alerting settings
+
+alerting:
+  enabled: true
+  execute_alerts: true
+  evaluation_timeout_seconds: 30
+  max_attempts: 3
+  min_interval_seconds: 10
+  # Configure notification channels here or via UI
+

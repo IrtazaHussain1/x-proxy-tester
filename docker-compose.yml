@@ -1,0 +1,130 @@
+services:
+  mysql:
+    image: mysql:9.0
+    container_name: x-proxy-tester-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-xproxy_tester}
+      MYSQL_USER: ${MYSQL_USER:-xproxy}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-xproxy}
+    ports:
+      - "3310:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proxy-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x-proxy-tester-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: mysql://${MYSQL_USER:-xproxy}:${MYSQL_PASSWORD:-xproxy}@mysql:3306/${MYSQL_DATABASE:-xproxy_tester}
+      
+      # XProxy API
+      XPROXY_API_URL: ${XPROXY_API_URL:-https://jmui.vercel.app}
+      XPROXY_API_ENDPOINT: ${XPROXY_API_ENDPOINT:-/api/phones}
+      XPROXY_API_TOKEN: ${XPROXY_API_TOKEN}
+      XPROXY_API_TIMEOUT_MS: ${XPROXY_API_TIMEOUT_MS:-30000}
+      
+      # Testing
+      TEST_TARGET_URL: ${TEST_TARGET_URL:-https://api.ipify.org?format=json}
+      TEST_INTERVAL_MS: ${TEST_INTERVAL_MS:-5000}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-30000}
+      ROTATION_THRESHOLD: ${ROTATION_THRESHOLD:-10}
+      
+      # Refresh
+      PROXY_REFRESH_INTERVAL_MS: ${PROXY_REFRESH_INTERVAL_MS:-21600000}
+      
+      # Stability
+      STABILITY_CHECK_INTERVAL_MS: ${STABILITY_CHECK_INTERVAL_MS:-600000}
+      
+      # Runtime
+      MIN_RUN_HOURS: ${MIN_RUN_HOURS:-72}
+      RUN_MODE: ${RUN_MODE:-infinite}
+      MONITOR_CHECK_INTERVAL_MS: ${MONITOR_CHECK_INTERVAL_MS:-3600000}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      
+      # Encryption
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT}
+      
+      # Health Check
+      HEALTH_CHECK_PORT: ${HEALTH_CHECK_PORT:-3000}
+      
+      # Archival
+      ENABLE_ARCHIVAL: ${ENABLE_ARCHIVAL:-true}
+      DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-30}
+      ARCHIVAL_INTERVAL_MS: ${ARCHIVAL_INTERVAL_MS:-86400000}
+      ARCHIVAL_BATCH_SIZE: ${ARCHIVAL_BATCH_SIZE:-1000}
+    ports:
+      - "3311:3000"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - proxy-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: x-proxy-tester-grafana
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "3312:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=
+      - GF_SERVER_ROOT_URL=http://localhost:3312
+      - GF_SERVER_HTTP_PORT=3000
+      - GF_DATABASE_TYPE=mysql
+      - GF_DATABASE_HOST=mysql:3306
+      - GF_DATABASE_NAME=${MYSQL_DATABASE:-xproxy_tester}
+      - GF_DATABASE_USER=${MYSQL_USER:-xproxy}
+      - GF_DATABASE_PASSWORD=${MYSQL_PASSWORD:-xproxy}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - proxy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  mysql_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  proxy-network:
+    driver: bridge
+

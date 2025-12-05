@@ -15,9 +15,11 @@
 import { getAllDevices, updateDevices } from '../helpers/devices';
 import { testProxyWithStats } from '../helpers/test-proxy';
 import { logger } from '../lib/logger';
-import { prisma } from '../lib/db';
+import { prismaWithRetry as prisma, prisma as prismaRaw, checkDatabaseHealth } from '../lib/db';
 import { startStabilityCalculation } from './stability-calculator';
 import { config } from '../config';
+import { encrypt } from '../lib/encryption';
+import { recordRequest, setActiveProxies } from '../lib/metrics';
 import type { Device, ProxyMetrics, RequestStatus, RotationStatus } from '../types';
 
 /**
@@ -96,6 +98,19 @@ async function saveProxyTestToDatabase(
   device: Device,
   metrics: ProxyMetrics
 ): Promise<void> {
+  // Check database connection before proceeding
+  const dbHealth = await checkDatabaseHealth();
+  if (!dbHealth.connected) {
+    logger.error(
+      {
+        deviceId: device.device_id,
+        error: dbHealth.error || 'Database not connected',
+      },
+      'Database not connected, skipping save operation'
+    );
+    return;
+  }
+
   try {
     // Expected IP is the device's IP address
     const expectedIp = device.ip_address;
@@ -109,6 +124,9 @@ async function saveProxyTestToDatabase(
       where: { deviceId: device.device_id },
     });
 
+    // Encrypt password before storage
+    const encryptedPassword = device.password ? await encrypt(device.password) : null;
+
     if (!proxy) {
       // Create new proxy record with device_id as primary key
       proxy = await prisma.proxy.create({
@@ -120,7 +138,7 @@ async function saveProxyTestToDatabase(
           port: device.port,
           protocol: 'http',
           username: device.username,
-          password: device.password,
+          password: encryptedPassword,
           active: true,
           lastIp: metrics.outboundIp || null,
           sameIpCount: hasCurrentIp ? 1 : 0,
@@ -139,7 +157,7 @@ async function saveProxyTestToDatabase(
           host: device.relay_server_ip_address,
           port: device.port,
           username: device.username,
-          password: device.password,
+          password: encryptedPassword,
         },
       });
     }
@@ -198,9 +216,10 @@ async function saveProxyTestToDatabase(
       expectedIp === metrics.outboundIp;
 
     // Use transaction to ensure data consistency
-    await prisma.$transaction([
+    // Use callback form instead of array form to work properly with retry logic
+    await prismaRaw.$transaction(async (tx) => {
       // Update proxy with latest IP info
-      prisma.proxy.update({
+      await tx.proxy.update({
         where: { deviceId: proxy.deviceId },
         data: {
           lastIp: metrics.outboundIp || null,
@@ -209,9 +228,10 @@ async function saveProxyTestToDatabase(
           lastRotationAt,
           rotationCount,
         },
-      }),
+      });
+      
       // Save the test request
-      prisma.proxyRequest.create({
+      await tx.proxyRequest.create({
         data: {
           proxyId: proxy.deviceId,
           timestamp: metrics.timestamp,
@@ -225,8 +245,8 @@ async function saveProxyTestToDatabase(
           errorType: metrics.errorType || null,
           errorMessage: metrics.errorMessage || null,
         },
-      }),
-    ]);
+      });
+    });
 
     // Log IP mismatch if expected and returned are different
     if (!ipMatchesExpected && expectedIp && metrics.outboundIp) {
@@ -316,8 +336,27 @@ async function saveProxyTestToDatabase(
  * ```
  */
 async function testAndSaveDevice(device: Device): Promise<void> {
+  // Check database connection before testing
+  const dbHealth = await checkDatabaseHealth();
+  if (!dbHealth.connected) {
+    logger.warn(
+      {
+        deviceId: device.device_id,
+        error: dbHealth.error || 'Database not connected',
+      },
+      'Database not connected, skipping device test'
+    );
+    // Record failed request due to DB issue
+    recordRequest(false, 0);
+    return;
+  }
+
   try {
     const metrics = await testProxyWithStats(device);
+    
+    // Record metrics
+    recordRequest(metrics.success, metrics.responseTimeMs);
+    
     await saveProxyTestToDatabase(device, metrics);
   } catch (error) {
     logger.error(
@@ -328,6 +367,8 @@ async function testAndSaveDevice(device: Device): Promise<void> {
       },
       'Failed to test device'
     );
+    // Record failed request
+    recordRequest(false, 0);
   }
 }
 
@@ -534,6 +575,9 @@ async function refreshDeviceTesters(): Promise<void> {
       logger.info({ deviceId: device.device_id, deviceName: device.name }, 'Started testing device');
     }
   }
+
+  // Update metrics
+  setActiveProxies(deviceIntervals.size);
 
   logger.info(
     {

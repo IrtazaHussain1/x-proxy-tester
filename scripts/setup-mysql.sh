@@ -26,8 +26,8 @@ MYSQL_USER=${MYSQL_USER:-root}
 read -sp "Enter MySQL password: " MYSQL_PASSWORD
 echo ""
 
-read -p "Enter MySQL host (default: localhost): " MYSQL_HOST
-MYSQL_HOST=${MYSQL_HOST:-localhost}
+read -p "Enter MySQL host (default: 127.0.0.1): " MYSQL_HOST
+MYSQL_HOST=${MYSQL_HOST:-127.0.0.1}
 
 read -p "Enter MySQL port (default: 3306): " MYSQL_PORT
 MYSQL_PORT=${MYSQL_PORT:-3306}

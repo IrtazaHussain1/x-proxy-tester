@@ -13,7 +13,7 @@
  * @module services/stability-calculator
  */
 
-import { prisma } from '../lib/db';
+import { prismaWithRetry as prisma } from '../lib/db';
 import { logger } from '../lib/logger';
 import { config } from '../config';
 import type { StabilityStatus } from '../types';

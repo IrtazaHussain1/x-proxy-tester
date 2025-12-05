@@ -1,0 +1,20 @@
+apiVersion: 1
+
+datasources:
+  - name: XProxy Tester MySQL
+    type: mysql
+    access: proxy
+    url: mysql:3306
+    database: xproxy_tester
+    user: xproxy
+    secureJsonData:
+      password: xproxy
+    jsonData:
+      maxOpenConns: 100
+      maxIdleConns: 100
+      connMaxLifetime: 14400
+      timezone: UTC
+    isDefault: true
+    editable: true
+    uid: xproxy-tester-mysql
+

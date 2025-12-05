@@ -1,0 +1,14 @@
+apiVersion: 1
+
+providers:
+  - name: 'XProxy Tester Dashboards'
+    orgId: 1
+    folder: 'XProxy Tester'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true
+

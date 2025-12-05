@@ -1,0 +1,143 @@
+apiVersion: 1
+
+groups:
+  - name: XProxy Tester Alerts
+    folder: XProxy Tester
+    interval: 1m
+    rules:
+      - uid: low_success_rate
+        title: Low Success Rate
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: xproxy-tester-mysql
+            model:
+              rawSql: |
+                SELECT
+                  UNIX_TIMESTAMP(NOW()) as time_sec,
+                  COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value
+                FROM proxy_requests
+                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+              format: time_series
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Success rate is below 90%"
+          description: "Success rate is {{ $values.A }}%, which is below the 90% threshold"
+        labels:
+          severity: warning
+        alertRuleUID: low_success_rate
+
+      - uid: high_error_rate
+        title: High Error Rate
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: xproxy-tester-mysql
+            model:
+              rawSql: |
+                SELECT
+                  UNIX_TIMESTAMP(NOW()) as time_sec,
+                  COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value
+                FROM proxy_requests
+                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+              format: time_series
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Error rate exceeds 10%"
+          description: "Error rate is {{ $values.A }}%, which exceeds the 10% threshold"
+        labels:
+          severity: critical
+        alertRuleUID: high_error_rate
+
+      - uid: no_active_proxies
+        title: No Active Proxies
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: xproxy-tester-mysql
+            model:
+              rawSql: |
+                SELECT
+                  UNIX_TIMESTAMP(NOW()) as time_sec,
+                  COUNT(*) as value
+                FROM proxies
+                WHERE active = true
+              format: time_series
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 1m
+        annotations:
+          summary: "No active proxies detected"
+          description: "There are no active proxies in the system"
+        labels:
+          severity: critical
+        alertRuleUID: no_active_proxies
+
+      - uid: high_unstable_count
+        title: High Unstable Proxy Count
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: xproxy-tester-mysql
+            model:
+              rawSql: |
+                SELECT
+                  UNIX_TIMESTAMP(NOW()) as time_sec,
+                  COUNT(*) as value
+                FROM proxies
+                WHERE active = true AND stability_status IN ('UnstableHourly', 'UnstableDaily')
+              format: time_series
+        noDataState: NoData
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "High number of unstable proxies"
+          description: "There are {{ $values.A }} unstable proxies, which exceeds the threshold"
+        labels:
+          severity: warning
+        alertRuleUID: high_unstable_count
+
+      - uid: slow_response_time
+        title: Slow Response Time
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: xproxy-tester-mysql
+            model:
+              rawSql: |
+                SELECT
+                  UNIX_TIMESTAMP(NOW()) as time_sec,
+                  AVG(response_time_ms) as value
+                FROM proxy_requests
+                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                  AND response_time_ms IS NOT NULL
+              format: time_series
+        noDataState: NoData
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "Average response time is high"
+          description: "Average response time is {{ $values.A }}ms, which exceeds 3000ms"
+        labels:
+          severity: warning
+        alertRuleUID: slow_response_time
+
