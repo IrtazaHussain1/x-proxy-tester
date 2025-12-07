@@ -11,6 +11,11 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { getHealthStatus, getReadiness, getLiveness } from './api/health';
 import { exportPrometheusMetrics } from './lib/metrics';
 import { logger } from './lib/logger';
+import {
+  getTestingStatusHandler,
+  startTestingHandler,
+  stopTestingHandler,
+} from './api/testing';
 
 const PORT = parseInt(process.env.HEALTH_CHECK_PORT || '3000', 10);
 
@@ -23,7 +28,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (method === 'OPTIONS') {
@@ -49,6 +54,18 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const metrics = exportPrometheusMetrics();
       res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4' });
       res.end(metrics);
+    } else if (url === '/api/testing/status' && method === 'GET') {
+      const status = await getTestingStatusHandler();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(status, null, 2));
+    } else if (url === '/api/testing/start' && method === 'POST') {
+      const result = await startTestingHandler();
+      res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result, null, 2));
+    } else if (url === '/api/testing/stop' && method === 'POST') {
+      const result = await stopTestingHandler();
+      res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result, null, 2));
     } else if (url === '/' && method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
@@ -60,6 +77,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
             readiness: '/ready',
             liveness: '/live',
             metrics: '/metrics',
+            testing: {
+              status: 'GET /api/testing/status',
+              start: 'POST /api/testing/start',
+              stop: 'POST /api/testing/stop',
+            },
           },
         })
       );
@@ -89,6 +111,11 @@ export function startServer(): void {
           readiness: `http://localhost:${PORT}/ready`,
           liveness: `http://localhost:${PORT}/live`,
           metrics: `http://localhost:${PORT}/metrics`,
+          testing: {
+            status: `http://localhost:${PORT}/api/testing/status`,
+            start: `http://localhost:${PORT}/api/testing/start`,
+            stop: `http://localhost:${PORT}/api/testing/stop`,
+          },
         },
       },
       'Health check server started'
