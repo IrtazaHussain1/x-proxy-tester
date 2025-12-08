@@ -196,7 +196,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT SUM(rotation_count) as value FROM proxies WHERE active = true AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)",
+          "rawSql": "SELECT IFNULL(SUM(rotation_count), 0) as value FROM proxies WHERE active = true AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)",
           "refId": "A"
         }
       ],

@@ -223,23 +223,40 @@ async function saveProxyTestToDatabase(
       // rotationCount stays the same
     } else if (!hasPreviousIp) {
       // First request with IP - start counting
+      // Can't determine rotation status yet (need previous IP to compare)
       sameIpCount = 1;
-      rotationStatus = 'Rotated'; // First IP, can't determine rotation yet
+      rotationStatus = 'Unknown'; // First IP, can't determine rotation yet
       lastRotationAt = null; // No rotation yet
       // rotationCount stays 0 (first IP, not a rotation)
     } else if (ipChangedFromPrevious) {
-      // IP changed - rotation detected, reset counter
+      // IP changed - actual rotation detected!
       sameIpCount = 1; // Start counting from 1 (this is the first request with new IP)
-      rotationStatus = 'Rotated'; // Reset to Rotated when rotation is detected
+      rotationStatus = 'Rotated'; // Mark as Rotated when actual rotation is detected
       lastRotationAt = new Date(); // Record rotation timestamp
       rotationCount = (proxy.rotationCount || 0) + 1; // Increment rotation count
     } else {
-      // Same IP as previous - increment counter
+      // Same IP as previous - no rotation occurred
       sameIpCount = (proxy.sameIpCount || 0) + 1;
       
       // Flag as NoRotation if IP hasn't changed after threshold attempts
-      rotationStatus = sameIpCount >= rotationThreshold ? 'NoRotation' : 'Rotated';
-      lastRotationAt = proxy.lastRotationAt || null; // Keep previous rotation timestamp
+      // Otherwise keep previous status (could be 'Rotated' from last actual rotation, or 'Unknown')
+      if (sameIpCount >= rotationThreshold) {
+        rotationStatus = 'NoRotation';
+      } else {
+        // Keep previous status - if it was 'Rotated', it means rotation is still healthy
+        // (hasn't exceeded threshold yet since last rotation)
+        const previousStatus = (proxy.rotationStatus as RotationStatus) || 'Unknown';
+        
+        // Fix inconsistency: if status is 'Rotated' but lastRotationAt is null, set to 'Unknown'
+        // This handles old data where rotation was set without timestamp
+        if (previousStatus === 'Rotated' && !proxy.lastRotationAt) {
+          rotationStatus = 'Unknown';
+          lastRotationAt = null;
+        } else {
+          rotationStatus = previousStatus;
+          lastRotationAt = proxy.lastRotationAt || null; // Keep previous rotation timestamp
+        }
+      }
       // rotationCount stays the same
     }
 
@@ -775,7 +792,7 @@ async function refreshDeviceTesters(): Promise<void> {
             active: portalActive, // Set based on portal status
             lastIp: null,
             sameIpCount: 0,
-            rotationStatus: 'Rotated',
+            rotationStatus: 'Unknown', // New proxy - haven't tested rotation yet
             lastRotationAt: null,
             rotationCount: 0,
           },
