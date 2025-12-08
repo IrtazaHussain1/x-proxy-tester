@@ -72,7 +72,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  response_time_ms as value\nFROM proxy_requests\nWHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)\n  AND response_time_ms IS NOT NULL\nORDER BY response_time_ms\nLIMIT 1 OFFSET (SELECT FLOOR(COUNT(*) * 0.95) FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND response_time_ms IS NOT NULL)",
+          "rawSql": "SELECT\n  response_time_ms as value\nFROM (\n  SELECT\n    response_time_ms,\n    ROW_NUMBER() OVER (ORDER BY response_time_ms) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM proxy_requests\n  WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)\n    AND response_time_ms IS NOT NULL\n) ranked\nWHERE row_num = FLOOR(total_count * 0.95) + 1\nLIMIT 1",
           "format": "table"
         }
       ],
@@ -119,7 +119,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  response_time_ms as value\nFROM proxy_requests\nWHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)\n  AND response_time_ms IS NOT NULL\nORDER BY response_time_ms\nLIMIT 1 OFFSET (SELECT FLOOR(COUNT(*) * 0.99) FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND response_time_ms IS NOT NULL)",
+          "rawSql": "SELECT\n  response_time_ms as value\nFROM (\n  SELECT\n    response_time_ms,\n    ROW_NUMBER() OVER (ORDER BY response_time_ms) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM proxy_requests\n  WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)\n    AND response_time_ms IS NOT NULL\n) ranked\nWHERE row_num = FLOOR(total_count * 0.99) + 1\nLIMIT 1",
           "format": "table"
         }
       ],

@@ -167,7 +167,7 @@ This document verifies that all requirements from the original ticket are implem
 - ✅ `ROTATION_THRESHOLD = 10` (configurable via environment variable)
 - ✅ Tracks `sameIpCount` - increments when IP stays the same
 - ✅ Sets `rotationStatus = 'NoRotation'` when `sameIpCount >= ROTATION_THRESHOLD`
-- ✅ Resets to `'OK'` when rotation is detected
+- ✅ Resets to `'Rotated'` when rotation is detected
 
 **Code Reference**: 
 - `src/config/index.ts` - Line 75: `ROTATION_THRESHOLD = 10`

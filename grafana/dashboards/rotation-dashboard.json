@@ -1,215 +1,439 @@
 {
-  "title": "XProxy Tester - IP Rotation Analysis",
-  "tags": [
-    "x-proxy-tester",
-    "rotation"
-  ],
-  "timezone": "browser",
-  "schemaVersion": 38,
-  "version": 1,
-  "refresh": "30s",
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 4,
+  "links": [],
   "panels": [
     {
-      "id": 1,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 0,
         "y": 0
       },
-      "type": "stat",
-      "title": "Proxies with Rotation",
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND rotation_status = 'Rotating'",
-          "format": "table"
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND rotation_status = 'Rotated'",
+          "refId": "A"
         }
       ],
+      "title": "Proxies with Rotation",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "value": null,
-                "color": "green"
+                "color": "green",
+                "value": 0
               }
             ]
           }
-        }
-      }
-    },
-    {
-      "id": 2,
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 8,
         "y": 0
       },
-      "type": "stat",
-      "title": "Proxies with No Rotation",
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
+          "format": "table",
           "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND rotation_status = 'NoRotation'",
-          "format": "table"
+          "refId": "A"
         }
       ],
+      "title": "Proxies with No Rotation",
+      "type": "stat"
+    },
+    {
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "value": null,
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
-                "value": 1,
-                "color": "yellow"
-              },
-              {
-                "value": 10,
-                "color": "red"
+                "color": "red",
+                "value": 80
               }
             ]
-          }
-        }
-      }
-    },
-    {
-      "id": 3,
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 16,
         "y": 0
       },
-      "type": "stat",
-      "title": "Total Rotations (24h)",
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
+          "format": "table",
           "rawSql": "SELECT SUM(rotation_count) as value FROM proxies WHERE active = true AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)",
-          "format": "table"
+          "refId": "A"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": {
-            "mode": "thresholds"
-          }
-        }
-      }
+      "title": "Total Rotations (24h)",
+      "type": "stat"
     },
     {
-      "id": 4,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 4
       },
-      "type": "timeseries",
-      "title": "Rotation Events Over Time",
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(last_rotation_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(*) as rotation_count\nFROM proxies\nWHERE active = true\n  AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  AND last_rotation_at IS NOT NULL\nGROUP BY time_sec\nORDER BY time_sec",
           "format": "time_series",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(last_rotation_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(*) as rotation_count\nFROM proxies\nWHERE active = true\n  AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  AND last_rotation_at IS NOT NULL\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": {
-            "mode": "palette-classic"
-          }
-        }
-      }
+      "title": "Rotation Events Over Time",
+      "type": "timeseries"
     },
     {
-      "id": 5,
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
         "y": 4
       },
-      "type": "piechart",
-      "title": "Rotation Status Distribution",
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT rotation_status as metric, COUNT(*) as value FROM proxies WHERE active = true GROUP BY rotation_status",
           "format": "table",
+          "rawSql": "SELECT rotation_status as metric, COUNT(*) as value FROM proxies WHERE active = true GROUP BY rotation_status",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Rotation Status Distribution",
+      "type": "piechart"
     },
     {
-      "id": 6,
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
         "y": 12
       },
-      "type": "table",
-      "title": "Proxies with High Same IP Count (Potential Rotation Issues)",
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  name,\n  location,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  rotation_status,\n  last_rotation_at,\n  updated_at\nFROM proxies\nWHERE active = true\n  AND same_ip_count >= 10\nORDER BY same_ip_count DESC\nLIMIT 20",
           "format": "table",
+          "rawSql": "SELECT\n  name,\n  location,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  rotation_status,\n  last_rotation_at,\n  updated_at\nFROM proxies\nWHERE active = true\n  AND same_ip_count >= 10\nORDER BY same_ip_count DESC\nLIMIT 20",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Proxies with High Same IP Count (Potential Rotation Issues)",
+      "type": "table"
     }
   ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": [
+    "x-proxy-tester",
+    "rotation"
+  ],
+  "templating": {
+    "list": []
+  },
   "time": {
     "from": "now-24h",
     "to": "now"
   },
   "timepicker": {},
-  "templating": {
-    "list": []
-  },
-  "annotations": {
-    "list": []
-  },
-  "editable": true,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
-  "links": [],
-  "liveNow": false,
-  "weekStart": ""
+  "timezone": "browser",
+  "title": "XProxy Tester - IP Rotation Analysis",
+  "uid": "742b29f3-6420-4d6d-ac43-b5ce3be1eb45",
+  "version": 1
 }

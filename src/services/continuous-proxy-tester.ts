@@ -18,8 +18,8 @@ import { logger } from '../lib/logger';
 import { prismaWithRetry as prisma, prisma as prismaRaw, checkDatabaseHealth } from '../lib/db';
 import { startStabilityCalculation } from './stability-calculator';
 import {
-  checkAutoDeactivation,
-  autoDeactivateProxy,
+  // checkAutoDeactivation,
+  // autoDeactivateProxy,
   startRecoveryChecking,
 } from './auto-deactivation';
 import { startInactiveProxyRotation } from './ip-rotation';
@@ -176,7 +176,7 @@ async function saveProxyTestToDatabase(
           active: isActive,
           lastIp: metrics.outboundIp || null,
           sameIpCount: hasCurrentIp ? 1 : 0,
-          rotationStatus: 'OK',
+          rotationStatus: 'Rotated',
           lastRotationAt: null,
           rotationCount: 0,
         },
@@ -224,13 +224,13 @@ async function saveProxyTestToDatabase(
     } else if (!hasPreviousIp) {
       // First request with IP - start counting
       sameIpCount = 1;
-      rotationStatus = 'OK'; // First IP, can't determine rotation yet
+      rotationStatus = 'Rotated'; // First IP, can't determine rotation yet
       lastRotationAt = null; // No rotation yet
       // rotationCount stays 0 (first IP, not a rotation)
     } else if (ipChangedFromPrevious) {
       // IP changed - rotation detected, reset counter
       sameIpCount = 1; // Start counting from 1 (this is the first request with new IP)
-      rotationStatus = 'OK'; // Reset to OK when rotation is detected
+      rotationStatus = 'Rotated'; // Reset to Rotated when rotation is detected
       lastRotationAt = new Date(); // Record rotation timestamp
       rotationCount = (proxy.rotationCount || 0) + 1; // Increment rotation count
     } else {
@@ -238,7 +238,7 @@ async function saveProxyTestToDatabase(
       sameIpCount = (proxy.sameIpCount || 0) + 1;
       
       // Flag as NoRotation if IP hasn't changed after threshold attempts
-      rotationStatus = sameIpCount >= rotationThreshold ? 'NoRotation' : 'OK';
+      rotationStatus = sameIpCount >= rotationThreshold ? 'NoRotation' : 'Rotated';
       lastRotationAt = proxy.lastRotationAt || null; // Keep previous rotation timestamp
       // rotationCount stays the same
     }
@@ -322,7 +322,7 @@ async function saveProxyTestToDatabase(
           rotationCount,
           lastRotationAt: lastRotationAt?.toISOString(),
         },
-        '✅ Rotation detected: IP changed, status reset to OK'
+        '✅ Rotation detected: IP changed, status reset to Rotated'
       );
     }
     
@@ -342,17 +342,17 @@ async function saveProxyTestToDatabase(
     }
 
     // Check for auto-deactivation if request failed
-    if (!metrics.success && config.autoDeactivation.enabled) {
-      const deactivationCheck = await checkAutoDeactivation(device.device_id);
-      if (deactivationCheck.shouldDeactivate) {
-        await autoDeactivateProxy(device.device_id, deactivationCheck.reason || 'unknown', {
-          consecutiveFailures: deactivationCheck.consecutiveFailures,
-          failureRate: deactivationCheck.failureRate,
-        });
-        // Stop testing this device if it was auto-deactivated
-        stopDeviceTesting(device.device_id);
-      }
-    }
+    // if (!metrics.success && config.autoDeactivation.enabled) {
+    //   const deactivationCheck = await checkAutoDeactivation(device.device_id);
+    //   if (deactivationCheck.shouldDeactivate) {
+    //     // await autoDeactivateProxy(device.device_id, deactivationCheck.reason || 'unknown', {
+    //     //   consecutiveFailures: deactivationCheck.consecutiveFailures,
+    //     //   failureRate: deactivationCheck.failureRate,
+    //     // });
+    //     // // Stop testing this device if it was auto-deactivated
+    //     // stopDeviceTesting(device.device_id);
+    //   }
+    // }
   } catch (error) {
     logger.error(
       {
@@ -775,7 +775,7 @@ async function refreshDeviceTesters(): Promise<void> {
             active: portalActive, // Set based on portal status
             lastIp: null,
             sameIpCount: 0,
-            rotationStatus: 'OK',
+            rotationStatus: 'Rotated',
             lastRotationAt: null,
             rotationCount: 0,
           },

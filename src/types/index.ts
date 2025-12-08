@@ -19,7 +19,7 @@ export interface XProxyApiResponse {
 }
 
 export type StabilityStatus = 'Unknown' | 'Stable' | 'UnstableHourly' | 'UnstableDaily';
-export type RotationStatus = 'OK' | 'NoRotation' | 'Unknown';
+export type RotationStatus = 'Rotated' | 'NoRotation' | 'Unknown';
 export type RequestStatus = 'SUCCESS' | 'TIMEOUT' | 'CONNECTION_ERROR' | 'HTTP_ERROR' | 'DNS_ERROR' | 'OTHER';
 export type ErrorType = 'TIMEOUT' | 'CONNECTION_REFUSED' | 'CONNECTION_RESET' | 'DNS_ERROR' | 'HTTP_ERROR' | 'TLS_ERROR' | 'OTHER';
 

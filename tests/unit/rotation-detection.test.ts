@@ -54,7 +54,7 @@ describe('Rotation Detection Logic', () => {
   it('should flag as NoRotation when threshold exceeded', () => {
     const rotationThreshold = 10;
     const sameIpCount = 10;
-    const rotationStatus = sameIpCount >= rotationThreshold ? 'NoRotation' : 'OK';
+    const rotationStatus = sameIpCount >= rotationThreshold ? 'NoRotation' : 'Rotated';
 
     expect(rotationStatus).toBe('NoRotation');
   });
