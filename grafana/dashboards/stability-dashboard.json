@@ -1,231 +1,455 @@
 {
-  "title": "XProxy Tester - Stability Analysis",
-  "tags": [
-    "x-proxy-tester",
-    "stability"
-  ],
-  "timezone": "browser",
-  "schemaVersion": 38,
-  "version": 1,
-  "refresh": "30s",
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 3,
+  "links": [],
   "panels": [
     {
-      "id": 1,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 0,
         "y": 0
       },
-      "type": "stat",
-      "title": "Stable Proxies",
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
+          "format": "table",
           "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'Stable'",
-          "format": "table"
+          "refId": "A"
         }
       ],
+      "title": "Stable Proxies",
+      "type": "stat"
+    },
+    {
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "value": null,
-                "color": "green"
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
               }
             ]
-          }
-        }
       }
     },
-    {
-      "id": 2,
+        "overrides": []
+      },
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 8,
         "y": 0
       },
-      "type": "stat",
-      "title": "Unstable Hourly",
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
+          "format": "table",
           "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableHourly'",
-          "format": "table"
+          "refId": "A"
         }
       ],
+      "title": "Unstable Hourly",
+      "type": "stat"
+    },
+    {
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "value": null,
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
-                "value": 1,
-                "color": "yellow"
+                "color": "yellow",
+                "value": 1
               },
               {
-                "value": 5,
-                "color": "red"
+                "color": "red",
+                "value": 5
               }
             ]
           }
-        }
-      }
+        },
+        "overrides": []
     },
-    {
-      "id": 3,
       "gridPos": {
         "h": 4,
         "w": 8,
         "x": 16,
         "y": 0
       },
-      "type": "stat",
-      "title": "Unstable Daily",
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
+          "format": "table",
           "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableDaily'",
-          "format": "table"
+          "refId": "A"
         }
       ],
+      "title": "Unstable Daily",
+      "type": "stat"
+    },
+    {
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "value": null,
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
-                "value": 1,
-                "color": "yellow"
-              },
-              {
-                "value": 5,
-                "color": "red"
+                "color": "red",
+                "value": 80
               }
             ]
-          }
-        }
-      }
+          },
+          "unit": "short"
     },
-    {
-      "id": 4,
+        "overrides": []
+      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 4
       },
-      "type": "timeseries",
-      "title": "Stability Trend Over Time",
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN stability_status = 'Stable' THEN 1 END) as stable,\n  COUNT(CASE WHEN stability_status = 'UnstableHourly' THEN 1 END) as unstable_hourly,\n  COUNT(CASE WHEN stability_status = 'UnstableDaily' THEN 1 END) as unstable_daily\nFROM proxies\nWHERE active = true AND updated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\nGROUP BY time_sec\nORDER BY time_sec",
           "format": "time_series",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN stability_status = 'Stable' THEN 1 END) as stable,\n  COUNT(CASE WHEN stability_status = 'UnstableHourly' THEN 1 END) as unstable_hourly,\n  COUNT(CASE WHEN stability_status = 'UnstableDaily' THEN 1 END) as unstable_daily\nFROM proxies\nWHERE active = true AND updated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": {
-            "mode": "palette-classic"
-          }
-        }
-      }
+      "title": "Stability Trend Over Time",
+      "type": "timeseries"
     },
     {
-      "id": 5,
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+    },
+    {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
         "y": 4
       },
-      "type": "table",
-      "title": "Top Unstable Proxies",
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  name,\n  location,\n  stability_status,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  updated_at\nFROM proxies\nWHERE active = true AND stability_status IN ('UnstableHourly', 'UnstableDaily')\nORDER BY updated_at DESC\nLIMIT 20",
           "format": "table",
+          "rawSql": "SELECT\n  name,\n  location,\n  stability_status,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  updated_at\nFROM proxies\nWHERE active = true AND stability_status IN ('UnstableHourly', 'UnstableDaily')\nORDER BY updated_at DESC\nLIMIT 20",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Top Unstable Proxies",
+      "type": "table"
     },
     {
-      "id": 6,
+      "datasource": {
+        "type": "mysql"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+    },
+    {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
         "y": 12
       },
-      "type": "bargauge",
-      "title": "Stability Status by Location",
+      "id": 6,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  location,\n  stability_status,\n  COUNT(*) as count\nFROM proxies\nWHERE active = true\nGROUP BY location, stability_status\nORDER BY location, stability_status",
           "format": "table",
+          "rawSql": "SELECT\n  location,\n  stability_status,\n  COUNT(*) as count\nFROM proxies\nWHERE active = true\nGROUP BY location, stability_status\nORDER BY location, stability_status",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Stability Status by Location",
+      "type": "bargauge"
     }
   ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": [
+    "x-proxy-tester",
+    "stability"
+  ],
+  "templating": {
+    "list": []
+  },
   "time": {
     "from": "now-24h",
     "to": "now"
   },
   "timepicker": {},
-  "templating": {
-    "list": []
-  },
-  "annotations": {
-    "list": []
-  },
-  "editable": true,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
-  "links": [],
-  "liveNow": false,
-  "weekStart": ""
+  "timezone": "browser",
+  "title": "XProxy Tester - Stability Analysis",
+  "uid": "6f1557bf-b3a6-4300-be5e-0f7364fc5f01",
+  "version": 1
 }

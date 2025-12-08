@@ -1,10 +1,6 @@
 /**
  * Commands API Module
- * 
- * Handles sending commands to XProxy Portal API for device actions
- * such as IP rotation.
- * 
- * @module api/commands
+ * Handles sending commands to XProxy Portal API for device actions.
  */
 
 import { AxiosError } from 'axios';
@@ -36,16 +32,19 @@ export async function sendCommand(
 ): Promise<CommandResponse> {
   const client = getXProxyClient();
 
+  // Use retry with exponential backoff for resilience
   return retryWithBackoff(
     async () => {
-      recordApiCall();
+      recordApiCall(); // Track API call metrics
       try {
+        // Build command request payload
         const commandRequest: CommandRequest = {
           deviceId,
           action,
           params,
         };
 
+        // Send POST request to XProxy Portal API
         const response = await client.post<CommandResponse>(
           COMMANDS_ENDPOINT,
           commandRequest
@@ -53,7 +52,7 @@ export async function sendCommand(
 
         return response.data;
       } catch (error) {
-        recordApiError();
+        recordApiError(); // Track API error metrics
         if (error instanceof AxiosError) {
           if (error.response) {
             throw new Error(

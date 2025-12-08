@@ -256,7 +256,7 @@ SELECT
   END as stability_score,
   -- Rotation component (0-10 points)
   CASE 
-    WHEN p.rotation_status = 'OK' THEN 10
+    WHEN p.rotation_status = 'Rotated' THEN 10
     WHEN p.rotation_status = 'NoRotation' THEN 0
     ELSE 5
   END as rotation_score,
@@ -278,7 +278,7 @@ SELECT
       ELSE 0
     END +
     CASE 
-      WHEN p.rotation_status = 'OK' THEN 10
+      WHEN p.rotation_status = 'Rotated' THEN 10
       WHEN p.rotation_status = 'NoRotation' THEN 0
       ELSE 5
     END

@@ -114,10 +114,7 @@ Key environment variables (see `env.example` for full list):
 
 ## Documentation
 
-- **Requirements Status**: `REQUIREMENTS_STATUS.md`
-- **Architecture**: `docs/ARCHITECTURE.md`
-- **Deployment**: `docs/DEPLOYMENT.md`
-- **Grafana Setup**: `grafana/README.md`
+- **Grafana Setup**: `grafana/README.md` - Complete guide for Grafana dashboards, data sources, and alerting
 
 ## License
 

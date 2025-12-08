@@ -18,8 +18,8 @@ import { logger } from '../lib/logger';
 import { prismaWithRetry as prisma, prisma as prismaRaw, checkDatabaseHealth } from '../lib/db';
 import { startStabilityCalculation } from './stability-calculator';
 import {
-  checkAutoDeactivation,
-  autoDeactivateProxy,
+  // checkAutoDeactivation,
+  // autoDeactivateProxy,
   startRecoveryChecking,
 } from './auto-deactivation';
 import { startInactiveProxyRotation } from './ip-rotation';
@@ -176,7 +176,7 @@ async function saveProxyTestToDatabase(
           active: isActive,
           lastIp: metrics.outboundIp || null,
           sameIpCount: hasCurrentIp ? 1 : 0,
-          rotationStatus: 'OK',
+          rotationStatus: 'Rotated',
           lastRotationAt: null,
           rotationCount: 0,
         },
@@ -223,23 +223,40 @@ async function saveProxyTestToDatabase(
       // rotationCount stays the same
     } else if (!hasPreviousIp) {
       // First request with IP - start counting
+      // Can't determine rotation status yet (need previous IP to compare)
       sameIpCount = 1;
-      rotationStatus = 'OK'; // First IP, can't determine rotation yet
+      rotationStatus = 'Unknown'; // First IP, can't determine rotation yet
       lastRotationAt = null; // No rotation yet
       // rotationCount stays 0 (first IP, not a rotation)
     } else if (ipChangedFromPrevious) {
-      // IP changed - rotation detected, reset counter
+      // IP changed - actual rotation detected!
       sameIpCount = 1; // Start counting from 1 (this is the first request with new IP)
-      rotationStatus = 'OK'; // Reset to OK when rotation is detected
+      rotationStatus = 'Rotated'; // Mark as Rotated when actual rotation is detected
       lastRotationAt = new Date(); // Record rotation timestamp
       rotationCount = (proxy.rotationCount || 0) + 1; // Increment rotation count
     } else {
-      // Same IP as previous - increment counter
+      // Same IP as previous - no rotation occurred
       sameIpCount = (proxy.sameIpCount || 0) + 1;
       
       // Flag as NoRotation if IP hasn't changed after threshold attempts
-      rotationStatus = sameIpCount >= rotationThreshold ? 'NoRotation' : 'OK';
-      lastRotationAt = proxy.lastRotationAt || null; // Keep previous rotation timestamp
+      // Otherwise keep previous status (could be 'Rotated' from last actual rotation, or 'Unknown')
+      if (sameIpCount >= rotationThreshold) {
+        rotationStatus = 'NoRotation';
+      } else {
+        // Keep previous status - if it was 'Rotated', it means rotation is still healthy
+        // (hasn't exceeded threshold yet since last rotation)
+        const previousStatus = (proxy.rotationStatus as RotationStatus) || 'Unknown';
+        
+        // Fix inconsistency: if status is 'Rotated' but lastRotationAt is null, set to 'Unknown'
+        // This handles old data where rotation was set without timestamp
+        if (previousStatus === 'Rotated' && !proxy.lastRotationAt) {
+          rotationStatus = 'Unknown';
+          lastRotationAt = null;
+        } else {
+          rotationStatus = previousStatus;
+          lastRotationAt = proxy.lastRotationAt || null; // Keep previous rotation timestamp
+        }
+      }
       // rotationCount stays the same
     }
 
@@ -322,7 +339,7 @@ async function saveProxyTestToDatabase(
           rotationCount,
           lastRotationAt: lastRotationAt?.toISOString(),
         },
-        '✅ Rotation detected: IP changed, status reset to OK'
+        '✅ Rotation detected: IP changed, status reset to Rotated'
       );
     }
     
@@ -342,17 +359,17 @@ async function saveProxyTestToDatabase(
     }
 
     // Check for auto-deactivation if request failed
-    if (!metrics.success && config.autoDeactivation.enabled) {
-      const deactivationCheck = await checkAutoDeactivation(device.device_id);
-      if (deactivationCheck.shouldDeactivate) {
-        await autoDeactivateProxy(device.device_id, deactivationCheck.reason || 'unknown', {
-          consecutiveFailures: deactivationCheck.consecutiveFailures,
-          failureRate: deactivationCheck.failureRate,
-        });
-        // Stop testing this device if it was auto-deactivated
-        stopDeviceTesting(device.device_id);
-      }
-    }
+    // if (!metrics.success && config.autoDeactivation.enabled) {
+    //   const deactivationCheck = await checkAutoDeactivation(device.device_id);
+    //   if (deactivationCheck.shouldDeactivate) {
+    //     // await autoDeactivateProxy(device.device_id, deactivationCheck.reason || 'unknown', {
+    //     //   consecutiveFailures: deactivationCheck.consecutiveFailures,
+    //     //   failureRate: deactivationCheck.failureRate,
+    //     // });
+    //     // // Stop testing this device if it was auto-deactivated
+    //     // stopDeviceTesting(device.device_id);
+    //   }
+    // }
   } catch (error) {
     logger.error(
       {
@@ -775,7 +792,7 @@ async function refreshDeviceTesters(): Promise<void> {
             active: portalActive, // Set based on portal status
             lastIp: null,
             sameIpCount: 0,
-            rotationStatus: 'OK',
+            rotationStatus: 'Unknown', // New proxy - haven't tested rotation yet
             lastRotationAt: null,
             rotationCount: 0,
           },

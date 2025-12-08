@@ -1,10 +1,6 @@
 /**
  * Circuit Breaker Module
- * 
  * Implements circuit breaker pattern for resilient API calls.
- * Prevents cascading failures by opening circuit after threshold failures.
- * 
- * @module lib/circuit-breaker
  */
 
 import { logger } from './logger';
@@ -45,30 +41,25 @@ export class CircuitBreaker {
     }
   ) {}
 
-  /**
-   * Execute function with circuit breaker protection
-   */
   async execute<T>(fn: () => Promise<T>): Promise<T> {
-    // Check if circuit should be reset
+    // Check if circuit should be reset (transition from OPEN to HALF_OPEN after timeout)
     this.checkReset();
 
+    // If circuit is open, reject immediately without calling the function
     if (this.state === 'OPEN') {
       throw new Error(`Circuit breaker ${this.name} is OPEN - too many failures`);
     }
 
     try {
       const result = await fn();
-      this.onSuccess();
+      this.onSuccess(); // Record success and potentially close circuit
       return result;
     } catch (error) {
-      this.onFailure();
+      this.onFailure(); // Record failure and potentially open circuit
       throw error;
     }
   }
 
-  /**
-   * Handle successful execution
-   */
   private onSuccess(): void {
     this.successes++;
     this.lastSuccessTime = Date.now();
