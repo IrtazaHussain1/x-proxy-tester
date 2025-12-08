@@ -1,12 +1,6 @@
 /**
  * Main Application Entry Point
- * 
- * Starts continuous proxy testing with runtime management:
- * - Enforces minimum runtime (default: 72 hours)
- * - Supports infinite mode (runs until manually stopped)
- * - Monitors runtime and prevents shutdown before minimum hours
- * 
- * @module main
+ * Starts continuous proxy testing with runtime management.
  */
 
 import 'dotenv/config';
@@ -41,25 +35,20 @@ async function main(): Promise<void> {
   const minRunMs = config.runtime.minRunHours * 60 * 60 * 1000;
   let shutdownRequested = false;
 
-  /**
-   * Check if minimum runtime has been met
-   */
+  // Check if the application has run for the minimum required hours
   function hasMetMinimumRuntime(): boolean {
     const elapsedMs = Date.now() - startTime;
     return elapsedMs >= minRunMs;
   }
 
-  /**
-   * Get remaining time until minimum runtime is met
-   */
+  // Calculate how many milliseconds remain until minimum runtime is met
   function getRemainingTimeMs(): number {
     const elapsedMs = Date.now() - startTime;
     return Math.max(0, minRunMs - elapsedMs);
   }
 
-  /**
-   * Handle shutdown request with runtime check
-   */
+  // Handle shutdown signals (SIGINT/SIGTERM) with runtime protection
+  // In fixed mode, blocks shutdown until minimum runtime is met
   function handleShutdownRequest(signal: string): void {
     if (shutdownRequested) {
       logger.warn('Shutdown already in progress, ignoring signal');
@@ -112,11 +101,11 @@ async function main(): Promise<void> {
       'XProxy Tester Application Starting'
     );
 
-    // Start health check server
+    // Start HTTP server for health checks and metrics endpoints
     startServer();
 
     // Wait for database to be ready (important for Docker startup)
-    // This is critical for Docker startup - MySQL may take time to be ready
+    // MySQL container may take time to initialize, so we retry with exponential backoff
     logger.info('Waiting for database connection...');
     const dbReady = await waitForDatabase(30); // 30 attempts with exponential backoff (up to ~2 minutes)
     if (!dbReady) {

@@ -1,12 +1,6 @@
 /**
  * Testing Control API
- * 
- * Provides endpoints for manually controlling proxy testing:
- * - Start testing
- * - Stop testing
- * - Get testing status
- * 
- * @module api/testing
+ * Provides endpoints for manually controlling proxy testing.
  */
 
 import { startContinuousTesting, stopContinuousTesting, getTestingStatus } from '../services/continuous-proxy-tester';
@@ -25,9 +19,7 @@ export interface TestingControlResponse {
   status?: TestingStatusResponse;
 }
 
-/**
- * Get current testing status
- */
+// Get current testing status (whether testing is running and how many devices are active)
 export async function getTestingStatusHandler(): Promise<TestingStatusResponse> {
   const status = getTestingStatus();
   return {
@@ -38,13 +30,12 @@ export async function getTestingStatusHandler(): Promise<TestingStatusResponse> 
   };
 }
 
-/**
- * Start testing
- */
+// Start proxy testing - begins continuous testing of all active proxies
 export async function startTestingHandler(): Promise<TestingControlResponse> {
   try {
     const currentStatus = getTestingStatus();
     
+    // Prevent starting if already running
     if (currentStatus.isRunning) {
       return {
         success: false,
@@ -56,6 +47,7 @@ export async function startTestingHandler(): Promise<TestingControlResponse> {
       };
     }
 
+    // Start the continuous testing service
     await startContinuousTesting();
     const newStatus = getTestingStatus();
     
@@ -83,13 +75,12 @@ export async function startTestingHandler(): Promise<TestingControlResponse> {
   }
 }
 
-/**
- * Stop testing
- */
+// Stop proxy testing - stops all continuous testing loops
 export async function stopTestingHandler(): Promise<TestingControlResponse> {
   try {
     const currentStatus = getTestingStatus();
     
+    // Prevent stopping if already stopped
     if (!currentStatus.isRunning) {
       return {
         success: false,
@@ -101,6 +92,7 @@ export async function stopTestingHandler(): Promise<TestingControlResponse> {
       };
     }
 
+    // Stop the continuous testing service
     stopContinuousTesting();
     const newStatus = getTestingStatus();
     

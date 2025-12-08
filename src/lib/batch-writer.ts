@@ -1,10 +1,9 @@
 /**
  * Batch Writer Module
  * 
+ * NOTE: Currently unused - kept for future performance optimization.
  * Provides batching functionality for database writes to improve performance.
  * Accumulates writes and flushes them in batches.
- * 
- * @module lib/batch-writer
  */
 
 import { Prisma } from '@prisma/client';
@@ -29,9 +28,6 @@ class BatchWriter {
     this.flushIntervalMs = flushIntervalMs;
   }
 
-  /**
-   * Add item to batch
-   */
   add(item: BatchItem): void {
     this.batch.push(item);
 
@@ -48,9 +44,6 @@ class BatchWriter {
     }
   }
 
-  /**
-   * Flush batch to database
-   */
   async flush(): Promise<void> {
     if (this.batch.length === 0) {
       return;
@@ -106,16 +99,10 @@ class BatchWriter {
     }
   }
 
-  /**
-   * Force flush and wait for completion
-   */
   async forceFlush(): Promise<void> {
     await this.flush();
   }
 
-  /**
-   * Get current batch size
-   */
   getBatchSize(): number {
     return this.batch.length;
   }

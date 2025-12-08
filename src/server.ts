@@ -1,10 +1,6 @@
 /**
  * HTTP Server Module
- * 
  * Lightweight HTTP server for health checks and metrics endpoints.
- * Exposes /health, /ready, /live, and /metrics endpoints.
- * 
- * @module server
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'http';
@@ -19,18 +15,17 @@ import {
 
 const PORT = parseInt(process.env.HEALTH_CHECK_PORT || '3000', 10);
 
-/**
- * Handle HTTP requests
- */
+// Handle incoming HTTP requests and route to appropriate handlers
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = req.url || '/';
   const method = req.method || 'GET';
 
-  // Set CORS headers
+  // Set CORS headers to allow cross-origin requests
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Handle CORS preflight requests
   if (method === 'OPTIONS') {
     res.writeHead(200);
     res.end();
@@ -38,34 +33,42 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   try {
+    // Health check endpoint - returns overall application health status
     if (url === '/health' && method === 'GET') {
       const health = await getHealthStatus();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(health, null, 2));
+    // Readiness probe - checks if app is ready to accept traffic
     } else if (url === '/ready' && method === 'GET') {
       const ready = await getReadiness();
       res.writeHead(ready ? 200 : 503, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ready }));
+    // Liveness probe - checks if app is still running
     } else if (url === '/live' && method === 'GET') {
       const alive = await getLiveness();
       res.writeHead(alive ? 200 : 503, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ alive }));
+    // Prometheus metrics endpoint - exports metrics in Prometheus format
     } else if (url === '/metrics' && method === 'GET') {
       const metrics = exportPrometheusMetrics();
       res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4' });
       res.end(metrics);
+    // Get current testing status (running/stopped, active devices count)
     } else if (url === '/api/testing/status' && method === 'GET') {
       const status = await getTestingStatusHandler();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(status, null, 2));
+    // Start proxy testing via API
     } else if (url === '/api/testing/start' && method === 'POST') {
       const result = await startTestingHandler();
       res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result, null, 2));
+    // Stop proxy testing via API
     } else if (url === '/api/testing/stop' && method === 'POST') {
       const result = await stopTestingHandler();
       res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result, null, 2));
+    // Root endpoint - returns API documentation with available endpoints
     } else if (url === '/' && method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
@@ -96,12 +99,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 }
 
-/**
- * Start HTTP server
- */
+// Start the HTTP server for health checks and metrics
 export function startServer(): void {
   const server = createServer(handleRequest);
 
+  // Listen on configured port and log available endpoints
   server.listen(PORT, () => {
     logger.info(
       {
