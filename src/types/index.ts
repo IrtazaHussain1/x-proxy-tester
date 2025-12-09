@@ -22,6 +22,7 @@ export type StabilityStatus = 'Unknown' | 'Stable' | 'UnstableHourly' | 'Unstabl
 export type RotationStatus = 'Rotated' | 'NoRotation' | 'Unknown';
 export type RequestStatus = 'SUCCESS' | 'TIMEOUT' | 'CONNECTION_ERROR' | 'HTTP_ERROR' | 'DNS_ERROR' | 'OTHER';
 export type ErrorType = 'TIMEOUT' | 'CONNECTION_REFUSED' | 'CONNECTION_RESET' | 'DNS_ERROR' | 'HTTP_ERROR' | 'TLS_ERROR' | 'OTHER';
+export type RequestSource = 'continuous' | 'periodic_rotation' | 'manual';
 
 export interface ProxyTestResult {
   success: boolean;
