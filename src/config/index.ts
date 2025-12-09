@@ -53,6 +53,7 @@ interface Config {
     waitAfterRotationMs: number;
     rotationCooldownMs: number;
     preferUniqueRotation: boolean;
+    periodicRotationIntervalMs: number;
   };
   runtime: {
     minRunHours: number;
@@ -151,6 +152,10 @@ function validateConfig(): Config {
     10
   ); // 5 minutes cooldown between rotation attempts
   const preferUniqueRotation = process.env.IP_ROTATION_PREFER_UNIQUE === 'true'; // Default: false
+  const periodicRotationIntervalMs = parseInt(
+    process.env.PERIODIC_IP_ROTATION_INTERVAL_MS || '600000',
+    10
+  ); // 10 minutes (600000ms) default for periodic rotation
 
   // Validation
   if (testIntervalMs < 1000) {
@@ -192,6 +197,9 @@ function validateConfig(): Config {
   if (rotationCooldownMs < 0) {
     throw new Error('IP_ROTATION_COOLDOWN_MS must be at least 0');
   }
+  if (periodicRotationIntervalMs < 1000) {
+    throw new Error('PERIODIC_IP_ROTATION_INTERVAL_MS must be at least 1000ms (1 second)');
+  }
 
   return {
     database: {
@@ -232,6 +240,7 @@ function validateConfig(): Config {
       waitAfterRotationMs,
       rotationCooldownMs,
       preferUniqueRotation,
+      periodicRotationIntervalMs,
     },
     runtime: {
       minRunHours,
