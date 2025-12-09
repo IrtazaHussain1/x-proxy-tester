@@ -19,6 +19,7 @@ import {
 import { initGrafanaViews } from './lib/init-grafana-views';
 import { initDatabaseSchema } from './lib/init-db';
 import { waitForDatabase } from './lib/db';
+import { startPeriodicIpRotation, stopPeriodicIpRotation, cleanupWorkers } from './services/ip-rotation';
 
 /**
  * Main application entry point
@@ -60,6 +61,8 @@ async function main(): Promise<void> {
     if (config.runtime.runMode === 'infinite') {
       // Infinite mode: allow immediate shutdown
       logger.info(`Received ${signal}, shutting down gracefully...`);
+      stopPeriodicIpRotation();
+      cleanupWorkers();
       stopContinuousTesting();
       process.exit(0);
     } else {
@@ -73,6 +76,8 @@ async function main(): Promise<void> {
           },
           `Received ${signal}, minimum runtime met, shutting down gracefully...`
         );
+        stopPeriodicIpRotation();
+        cleanupWorkers();
         stopContinuousTesting();
         process.exit(0);
       } else {
@@ -123,6 +128,18 @@ async function main(): Promise<void> {
 
     // Start continuous testing
     await startContinuousTesting();
+
+    // Start periodic IP rotation service (sends rotation commands every 10 seconds)
+    startPeriodicIpRotation(
+      config.ipRotation.periodicRotationIntervalMs
+    );
+    logger.info(
+      {
+        intervalMs: config.ipRotation.periodicRotationIntervalMs,
+        intervalSeconds: config.ipRotation.periodicRotationIntervalMs / 1000,
+      },
+      'Periodic IP rotation service started'
+    );
 
     // Start periodic data archival (if enabled)
     const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
@@ -195,6 +212,8 @@ async function main(): Promise<void> {
             },
             'Minimum runtime met, shutting down...'
           );
+          stopPeriodicIpRotation();
+          cleanupWorkers();
           stopContinuousTesting();
           process.exit(0);
         } else {

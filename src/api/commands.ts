@@ -8,7 +8,7 @@ import { getXProxyClient } from '../clients/xproxyClient';
 import { COMMANDS_ENDPOINT } from './endpoints';
 import { retryWithBackoff } from '../lib/circuit-breaker';
 import { recordApiCall, recordApiError } from '../lib/metrics';
-import type { CommandRequest, CommandResponse } from '../types';
+import type { CommandResponse } from '../types';
 
 /**
  * Send a command to a device via XProxy Portal API
@@ -37,11 +37,11 @@ export async function sendCommand(
     async () => {
       recordApiCall(); // Track API call metrics
       try {
-        // Build command request payload
-        const commandRequest: CommandRequest = {
-          deviceId,
+        // Build command request payload (API expects snake_case: device_id)
+        const commandRequest = {
+          device_id: deviceId,
           action,
-          params,
+          ...(params && Object.keys(params).length > 0 ? params : {}),
         };
 
         // Send POST request to XProxy Portal API
