@@ -55,6 +55,13 @@ interface Config {
     preferUniqueRotation: boolean;
     periodicRotationIntervalMs: number;
   };
+  ipRotationTesting: {
+    enabled: boolean;
+    rotationIntervalMs: number;
+    waitAfterRotationMs: number;
+    testConcurrency: number;
+    batchSize: number;
+  };
   runtime: {
     minRunHours: number;
     runMode: 'infinite' | 'fixed';
@@ -157,6 +164,25 @@ function validateConfig(): Config {
     10
   ); // 10 minutes (600000ms) default for periodic rotation
 
+  // IP rotation testing configuration
+  const ipRotationTestingEnabled = process.env.IP_ROTATION_TESTING_ENABLED !== 'false'; // Default: true
+  const ipRotationTestingIntervalMs = parseInt(
+    process.env.IP_ROTATION_TESTING_INTERVAL_MS || '600000',
+    10
+  ); // 10 minutes default
+  const ipRotationTestingWaitAfterRotationMs = parseInt(
+    process.env.IP_ROTATION_TESTING_WAIT_AFTER_ROTATION_MS || '5000',
+    10
+  ); // 5 seconds default
+  const ipRotationTestingConcurrency = parseInt(
+    process.env.IP_ROTATION_TESTING_CONCURRENCY || '20',
+    10
+  ); // 20 concurrent operations default (for 4GB/2vCPU)
+  const ipRotationTestingBatchSize = parseInt(
+    process.env.IP_ROTATION_TESTING_BATCH_SIZE || '50',
+    10
+  ); // 50 proxies per batch default
+
   // Validation
   if (testIntervalMs < 1000) {
     throw new Error('TEST_INTERVAL_MS must be at least 1000ms (1 second)');
@@ -200,6 +226,18 @@ function validateConfig(): Config {
   if (periodicRotationIntervalMs < 1000) {
     throw new Error('PERIODIC_IP_ROTATION_INTERVAL_MS must be at least 1000ms (1 second)');
   }
+  if (ipRotationTestingIntervalMs < 60000) {
+    throw new Error('IP_ROTATION_TESTING_INTERVAL_MS must be at least 60000ms (1 minute)');
+  }
+  if (ipRotationTestingWaitAfterRotationMs < 1000) {
+    throw new Error('IP_ROTATION_TESTING_WAIT_AFTER_ROTATION_MS must be at least 1000ms');
+  }
+  if (ipRotationTestingConcurrency < 1) {
+    throw new Error('IP_ROTATION_TESTING_CONCURRENCY must be at least 1');
+  }
+  if (ipRotationTestingBatchSize < 1) {
+    throw new Error('IP_ROTATION_TESTING_BATCH_SIZE must be at least 1');
+  }
 
   return {
     database: {
@@ -241,6 +279,13 @@ function validateConfig(): Config {
       rotationCooldownMs,
       preferUniqueRotation,
       periodicRotationIntervalMs,
+    },
+    ipRotationTesting: {
+      enabled: ipRotationTestingEnabled,
+      rotationIntervalMs: ipRotationTestingIntervalMs,
+      waitAfterRotationMs: ipRotationTestingWaitAfterRotationMs,
+      testConcurrency: ipRotationTestingConcurrency,
+      batchSize: ipRotationTestingBatchSize,
     },
     runtime: {
       minRunHours,

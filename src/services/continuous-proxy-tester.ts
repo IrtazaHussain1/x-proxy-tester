@@ -124,7 +124,7 @@ export function mapProxyStatusToActive(proxyStatus: string | undefined | null): 
  * });
  * ```
  */
-async function saveProxyTestToDatabase(
+export async function saveProxyTestToDatabase(
   device: Device,
   metrics: ProxyMetrics
 ): Promise<void> {
@@ -862,7 +862,7 @@ async function refreshDeviceTesters(): Promise<void> {
           },
           'Created proxy record for new device'
         );
-        dbActive = portalActive; // Now it exists and is active
+        dbActive = portalActive; // Set based on actual portal status
       } catch (error: any) {
         // Handle duplicate key errors gracefully (might happen in race conditions)
         if (error?.code === 'P2002' || error?.message?.includes('Unique constraint')) {
