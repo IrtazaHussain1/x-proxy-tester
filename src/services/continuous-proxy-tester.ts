@@ -26,7 +26,7 @@ import { startInactiveProxyRotation } from './ip-rotation';
 import { config } from '../config';
 import { encrypt } from '../lib/encryption';
 import { recordRequest, setActiveProxies } from '../lib/metrics';
-import type { Device, ProxyMetrics, RequestStatus, RotationStatus } from '../types';
+import type { Device, ProxyMetrics, RequestStatus, RotationStatus, RequestSource } from '../types';
 
 /**
  * Module-level state management
@@ -112,6 +112,7 @@ export function mapProxyStatusToActive(proxyStatus: string | undefined | null): 
  * 
  * @param device - Device object with proxy credentials and metadata
  * @param metrics - Test metrics including response time, status, and outbound IP
+ * @param source - Source of the test request: 'continuous' | 'periodic_rotation' | 'manual' (default: 'continuous')
  * 
  * @throws Logs errors but doesn't throw to prevent test cycle interruption
  * 
@@ -122,12 +123,13 @@ export function mapProxyStatusToActive(proxyStatus: string | undefined | null): 
  *   outboundIp: '1.2.3.4',
  *   responseTimeMs: 1500,
  *   // ... other metrics
- * });
+ * }, 'continuous');
  * ```
  */
 export async function saveProxyTestToDatabase(
   device: Device,
-  metrics: ProxyMetrics
+  metrics: ProxyMetrics,
+  source: RequestSource = 'continuous'
 ): Promise<void> {
   // Check database connection before proceeding
   const dbHealth = await checkDatabaseHealth();
@@ -135,9 +137,10 @@ export async function saveProxyTestToDatabase(
     logger.error(
       {
         deviceId: device.device_id,
+        workflow: 'continuous',
         error: dbHealth.error || 'Database not connected',
       },
-      'Database not connected, skipping save operation'
+      'Database not connected, skipping save operation (continuous workflow)'
     );
     return;
   }
@@ -296,6 +299,7 @@ export async function saveProxyTestToDatabase(
           ipChanged: ipChangedFromPrevious, // Changed from previous request (rotation)
           errorType: metrics.errorType || null,
           errorMessage: metrics.errorMessage || null,
+          source: source, // Track the source workflow
         },
       });
     });
@@ -374,9 +378,10 @@ export async function saveProxyTestToDatabase(
     logger.error(
       {
         deviceId: device.device_id,
+        workflow: source,
         error: error instanceof Error ? error.message : 'Unknown error',
       },
-      'Failed to save proxy test to database'
+      `Failed to save proxy test to database (${source} workflow)`
     );
   }
 }
@@ -420,17 +425,18 @@ async function testAndSaveDevice(device: Device): Promise<void> {
     const metrics = await testProxyWithStats(device);
     
     // Record metrics
-    recordRequest(metrics.success, metrics.responseTimeMs);
+    recordRequest(metrics.success, metrics.responseTimeMs, 'continuous');
     
-    await saveProxyTestToDatabase(device, metrics);
+    await saveProxyTestToDatabase(device, metrics, 'continuous');
   } catch (error) {
     logger.error(
       {
         deviceId: device.device_id,
         deviceName: device.name,
+        workflow: 'continuous',
         error: error instanceof Error ? error.message : 'Unknown error',
       },
-      'Failed to test device'
+      'Failed to test device (continuous workflow)'
     );
     // Record failed request
     recordRequest(false, 0);

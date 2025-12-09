@@ -130,10 +130,11 @@ async function rotateAllProxies(
 
   logger.info(
     {
+      workflow: 'periodic_rotation',
       total,
       concurrency,
     },
-    'Starting IP rotation for all active proxies'
+    'Starting IP rotation for all active proxies (periodic rotation workflow)'
   );
 
   const rotationStartTime = Date.now();
@@ -156,9 +157,10 @@ async function rotateAllProxies(
         {
           deviceId: device.device_id,
           deviceName: device.name,
+          workflow: 'periodic_rotation',
           error: error instanceof Error ? error.message : 'Unknown error',
         },
-        'Unexpected error during IP rotation'
+        'Unexpected error during IP rotation (periodic rotation workflow)'
       );
     } finally {
       semaphore.release();
@@ -171,6 +173,7 @@ async function rotateAllProxies(
 
   logger.info(
     {
+      workflow: 'periodic_rotation',
       total,
       successful,
       failed,
@@ -178,7 +181,7 @@ async function rotateAllProxies(
       durationMs: rotationDuration,
       durationSeconds: (rotationDuration / 1000).toFixed(2),
     },
-    'IP rotation cycle completed'
+    'IP rotation cycle completed (periodic rotation workflow)'
   );
 
   return { total, successful, failed };
@@ -194,17 +197,18 @@ async function testAndSaveProxy(device: Device): Promise<void> {
     const metrics = await testProxyWithStats(device);
     
     // Record metrics
-    recordRequest(metrics.success, metrics.responseTimeMs);
+    recordRequest(metrics.success, metrics.responseTimeMs, 'periodic_rotation');
     
-    await saveProxyTestToDatabase(device, metrics);
+    await saveProxyTestToDatabase(device, metrics, 'periodic_rotation');
   } catch (error) {
     logger.error(
       {
         deviceId: device.device_id,
         deviceName: device.name,
+        workflow: 'periodic_rotation',
         error: error instanceof Error ? error.message : 'Unknown error',
       },
-      'Failed to test proxy during rotation testing cycle'
+      'Failed to test proxy during rotation testing cycle (periodic rotation workflow)'
     );
     recordRequest(false, 0);
   }
@@ -229,10 +233,11 @@ async function extensivelyTestAllProxies(
 
   logger.info(
     {
+      workflow: 'periodic_rotation',
       total,
       concurrency,
     },
-    'Starting extensive testing of all proxies'
+    'Starting extensive testing of all proxies (periodic rotation workflow)'
   );
 
   const testStartTime = Date.now();
@@ -251,9 +256,10 @@ async function extensivelyTestAllProxies(
         {
           deviceId: device.device_id,
           deviceName: device.name,
+          workflow: 'periodic_rotation',
           error: error instanceof Error ? error.message : 'Unknown error',
         },
-        'Failed to test proxy'
+        'Failed to test proxy (periodic rotation workflow)'
       );
     } finally {
       semaphore.release();
@@ -270,6 +276,7 @@ async function extensivelyTestAllProxies(
 
   logger.info(
     {
+      workflow: 'periodic_rotation',
       total,
       successful,
       failed,
@@ -278,7 +285,7 @@ async function extensivelyTestAllProxies(
       durationMs: testDuration,
       durationSeconds: (testDuration / 1000).toFixed(2),
     },
-    'Extensive testing cycle completed'
+    'Extensive testing cycle completed (periodic rotation workflow)'
   );
 
   return { total, successful, failed, avgResponseTime };
@@ -295,7 +302,10 @@ async function extensivelyTestAllProxies(
 async function executeRotationCycle(): Promise<void> {
   const cycleStartTime = Date.now();
 
-  logger.info('🔄 Starting IP rotation testing cycle');
+  logger.info(
+    { workflow: 'periodic_rotation' },
+    '🔄 Starting IP rotation testing cycle (periodic rotation workflow)'
+  );
 
   try {
     // Fetch all devices from portal
@@ -307,16 +317,20 @@ async function executeRotationCycle(): Promise<void> {
     );
 
     if (activeDevices.length === 0) {
-      logger.warn('No active devices found, skipping rotation cycle');
+      logger.warn(
+        { workflow: 'periodic_rotation' },
+        'No active devices found, skipping rotation cycle (periodic rotation workflow)'
+      );
       return;
     }
 
     logger.info(
       {
+        workflow: 'periodic_rotation',
         totalDevices: allDevices.length,
         activeDevices: activeDevices.length,
       },
-      'Fetched devices for rotation cycle'
+      'Fetched devices for rotation cycle (periodic rotation workflow)'
     );
 
     // Step 1: Rotate IPs for all active proxies
@@ -347,22 +361,24 @@ async function executeRotationCycle(): Promise<void> {
     // Log cycle summary
     logger.info(
       {
+        workflow: 'periodic_rotation',
         cycleDurationMs: cycleDuration,
         cycleDurationSeconds: (cycleDuration / 1000).toFixed(2),
         rotationStats,
         testStats,
       },
-      '✅ IP rotation testing cycle completed successfully'
+      '✅ IP rotation testing cycle completed successfully (periodic rotation workflow)'
     );
   } catch (error) {
     const cycleDuration = Date.now() - cycleStartTime;
     logger.error(
       {
+        workflow: 'periodic_rotation',
         error: error instanceof Error ? error.message : 'Unknown error',
         errorStack: error instanceof Error ? error.stack : undefined,
         cycleDurationMs: cycleDuration,
       },
-      '❌ IP rotation testing cycle failed'
+      '❌ IP rotation testing cycle failed (periodic rotation workflow)'
     );
   }
 }

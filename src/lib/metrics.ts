@@ -20,6 +20,10 @@ interface Metrics {
   databaseErrors: number;
   apiCalls: number;
   apiErrors: number;
+  // Source-specific metrics
+  continuousRequests: number;
+  periodicRotationRequests: number;
+  manualRequests: number;
 }
 
 const metrics: Metrics = {
@@ -32,17 +36,37 @@ const metrics: Metrics = {
   databaseErrors: 0,
   apiCalls: 0,
   apiErrors: 0,
+  continuousRequests: 0,
+  periodicRotationRequests: 0,
+  manualRequests: 0,
 };
 
 /**
  * Record a proxy request
+ * 
+ * @param success - Whether the request was successful
+ * @param durationMs - Request duration in milliseconds
+ * @param source - Optional source of the request ('continuous' | 'periodic_rotation' | 'manual')
  */
-export function recordRequest(success: boolean, durationMs: number): void {
+export function recordRequest(
+  success: boolean,
+  durationMs: number,
+  source?: 'continuous' | 'periodic_rotation' | 'manual'
+): void {
   metrics.totalRequests++;
   if (success) {
     metrics.successfulRequests++;
   } else {
     metrics.failedRequests++;
+  }
+  
+  // Track source-specific metrics
+  if (source === 'continuous') {
+    metrics.continuousRequests++;
+  } else if (source === 'periodic_rotation') {
+    metrics.periodicRotationRequests++;
+  } else if (source === 'manual') {
+    metrics.manualRequests++;
   }
   
   // Keep only last 1000 durations for percentile calculation
@@ -215,5 +239,8 @@ export function resetMetrics(): void {
   metrics.databaseErrors = 0;
   metrics.apiCalls = 0;
   metrics.apiErrors = 0;
+  metrics.continuousRequests = 0;
+  metrics.periodicRotationRequests = 0;
+  metrics.manualRequests = 0;
 }
 
