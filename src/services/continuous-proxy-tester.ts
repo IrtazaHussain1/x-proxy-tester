@@ -125,7 +125,7 @@ export function mapProxyStatusToActive(proxyStatus: string | undefined | null): 
  * });
  * ```
  */
-async function saveProxyTestToDatabase(
+export async function saveProxyTestToDatabase(
   device: Device,
   metrics: ProxyMetrics
 ): Promise<void> {
