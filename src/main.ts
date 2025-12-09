@@ -5,6 +5,7 @@
 
 import 'dotenv/config';
 import { startContinuousTesting, stopContinuousTesting } from './services/continuous-proxy-tester';
+import { startIpRotationTesting, stopIpRotationTesting } from './services/ip-rotation-testing';
 import { logger } from './lib/logger';
 import { config } from './config';
 import { startServer } from './server';
@@ -19,7 +20,7 @@ import {
 import { initGrafanaViews } from './lib/init-grafana-views';
 import { initDatabaseSchema } from './lib/init-db';
 import { waitForDatabase } from './lib/db';
-import { startPeriodicIpRotation, stopPeriodicIpRotation, cleanupWorkers } from './services/ip-rotation';
+import { stopPeriodicIpRotation, cleanupWorkers } from './services/ip-rotation';
 
 /**
  * Main application entry point
@@ -64,7 +65,9 @@ async function main(): Promise<void> {
       stopPeriodicIpRotation();
       cleanupWorkers();
       stopContinuousTesting();
-      process.exit(0);
+      void stopIpRotationTesting().then(() => {
+        process.exit(0);
+      });
     } else {
       // Fixed mode: check if minimum runtime met
       if (hasMetMinimumRuntime()) {
@@ -79,7 +82,9 @@ async function main(): Promise<void> {
         stopPeriodicIpRotation();
         cleanupWorkers();
         stopContinuousTesting();
-        process.exit(0);
+        void stopIpRotationTesting().then(() => {
+          process.exit(0);
+        });
       } else {
         const remainingHours = (getRemainingTimeMs() / (60 * 60 * 1000)).toFixed(2);
         logger.warn(
@@ -129,18 +134,20 @@ async function main(): Promise<void> {
     // Start continuous testing
     await startContinuousTesting();
 
-    // Start periodic IP rotation service (sends rotation commands at configured interval)
-    // Default: 10 minutes, configurable via PERIODIC_IP_ROTATION_INTERVAL_MS env var
-    startPeriodicIpRotation(
-      config.ipRotation.periodicRotationIntervalMs
-    );
-    logger.info(
-      {
-        intervalMs: config.ipRotation.periodicRotationIntervalMs,
-        intervalSeconds: config.ipRotation.periodicRotationIntervalMs / 1000,
-      },
-      'Periodic IP rotation service started'
-    );
+    // Start IP rotation testing service (runs alongside continuous testing)
+    if (config.ipRotationTesting.enabled) {
+      startIpRotationTesting();
+      logger.info(
+        {
+          rotationIntervalMs: config.ipRotationTesting.rotationIntervalMs,
+          rotationIntervalMinutes: (config.ipRotationTesting.rotationIntervalMs / 60000).toFixed(1),
+          testConcurrency: config.ipRotationTesting.testConcurrency,
+        },
+        'IP rotation testing service started'
+      );
+    } else {
+      logger.info('IP rotation testing service is disabled');
+    }
 
     // Start periodic data archival (if enabled)
     const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
@@ -216,7 +223,9 @@ async function main(): Promise<void> {
           stopPeriodicIpRotation();
           cleanupWorkers();
           stopContinuousTesting();
-          process.exit(0);
+          void stopIpRotationTesting().then(() => {
+            process.exit(0);
+          });
         } else {
           const remainingHours = (getRemainingTimeMs() / (60 * 60 * 1000)).toFixed(2);
           logger.debug(
