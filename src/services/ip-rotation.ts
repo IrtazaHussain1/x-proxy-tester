@@ -1,8 +1,8 @@
 /**
  * IP Rotation Service
  * 
- * This service handles automatic IP rotation for inactive proxies using worker threads.
- * When a proxy becomes inactive in the portal, it automatically:
+ * This service handles automatic IP rotation for all proxies using worker threads.
+ * It automatically:
  * 1. Sends rotate IP or rotate unique IP command (in worker thread)
  * 2. Waits for the rotation to complete
  * 3. Checks if proxy has become active
@@ -19,7 +19,6 @@ import { join } from 'path';
 import { logger } from '../lib/logger';
 import { prismaWithRetry as prisma } from '../lib/db';
 import { config } from '../config';
-import { mapProxyStatusToActive } from './continuous-proxy-tester';
 import { getAllDevices } from '../helpers/devices';
 import { rotateIp } from '../api/commands';
 import type { Device } from '../types';
@@ -97,7 +96,7 @@ function getWorker(): Worker {
 }
 
 /**
- * Rotate IP for an inactive proxy using a worker thread
+ * Rotate IP for a proxy using a worker thread
  * 
  * @param deviceId - Device ID to rotate IP for
  * @param useUniqueRotation - Whether to use unique IP rotation (default: false)
@@ -174,7 +173,7 @@ export async function rotateIpForInactiveProxy(
 }
 
 /**
- * Check for inactive proxies and attempt IP rotation
+ * Check for proxies and attempt IP rotation (for all proxies, not just inactive)
  * 
  * @param devices - Array of all devices from portal
  * @param onProxyActivated - Callback when proxy becomes active (to start testing)
@@ -188,21 +187,17 @@ export async function checkAndRotateInactiveProxies(
   }
 
   try {
-    const inactiveDevices = devices.filter(
-      (d) => !mapProxyStatusToActive(d.proxy_status)
-    );
-
-    if (inactiveDevices.length === 0) {
-      return; // No inactive devices
+    if (devices.length === 0) {
+      return; // No devices
     }
 
     logger.debug(
-      { count: inactiveDevices.length },
-      'Checking inactive proxies for IP rotation'
+      { count: devices.length },
+      'Checking all proxies for IP rotation'
     );
 
-    // Check each inactive device
-    const rotationPromises = inactiveDevices.map(async (device) => {
+    // Check each device (all proxies, not just inactive)
+    const rotationPromises = devices.map(async (device) => {
       // Check if rotation is already in progress
       if (rotationInProgress.has(device.device_id)) {
         return;
@@ -255,7 +250,7 @@ export async function checkAndRotateInactiveProxies(
             deviceId: device.device_id,
             error: error instanceof Error ? error.message : 'Unknown error',
           },
-          'Failed to check/rotate inactive proxy'
+          'Failed to check/rotate proxy'
         );
       }
     });
@@ -266,13 +261,13 @@ export async function checkAndRotateInactiveProxies(
       {
         error: error instanceof Error ? error.message : 'Unknown error',
       },
-      'Failed to check and rotate inactive proxies'
+      'Failed to check and rotate proxies'
     );
   }
 }
 
 /**
- * Start periodic checking for inactive proxies and trigger IP rotation
+ * Start periodic checking for all proxies and trigger IP rotation
  * 
  * @param getDevices - Function to get current device list
  * @param onProxyActivated - Callback when proxy becomes active (to start testing)
@@ -284,7 +279,7 @@ export function startInactiveProxyRotation(
 ): NodeJS.Timeout {
   logger.info(
     { intervalMs: config.ipRotation.checkIntervalMs },
-    'Starting periodic inactive proxy IP rotation'
+    'Starting periodic IP rotation for all proxies'
   );
 
   // Check immediately
@@ -303,7 +298,7 @@ export function startInactiveProxyRotation(
         {
           error: error instanceof Error ? error.message : 'Unknown error',
         },
-        'Failed to check inactive proxies for rotation'
+        'Failed to check proxies for rotation'
       );
     }
   }, config.ipRotation.checkIntervalMs);

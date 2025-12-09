@@ -24,7 +24,6 @@ import {
 } from './auto-deactivation';
 import { startInactiveProxyRotation } from './ip-rotation';
 import { config } from '../config';
-import { encrypt } from '../lib/encryption';
 import { recordRequest, setActiveProxies } from '../lib/metrics';
 import type { Device, ProxyMetrics, RequestStatus, RotationStatus } from '../types';
 
@@ -155,26 +154,42 @@ async function saveProxyTestToDatabase(
       where: { deviceId: device.device_id },
     });
 
-    // Encrypt password before storage
-    const encryptedPassword = device.password ? await encrypt(device.password) : null;
-
     // Map portal proxy_status to active boolean
     const isActive = mapProxyStatusToActive(device.proxy_status);
 
+    // Parse API timestamps if available
+    const apiUpdatedAt = device.updated_at ? new Date(device.updated_at) : null;
+    const lastIpRotation = device.last_ip_rotation ? new Date(device.last_ip_rotation) : null;
+    
     if (!proxy) {
       // Create new proxy record with device_id as primary key
       proxy = await prisma.proxy.create({
         data: {
           deviceId: device.device_id,
           name: device.name,
+          model: device.model || null,
           location: device.state || device.city || null,
+          country: device.country || null,
+          state: device.state || null,
+          city: device.city || null,
+          street: device.street || null,
+          latitude: device.latitude || null,
+          longitude: device.longitude || null,
           host: device.relay_server_ip_address,
           port: device.port,
           protocol: 'http',
           username: device.username,
-          password: encryptedPassword,
+          password: device.password || null,
           active: isActive,
-          lastIp: metrics.outboundIp || null,
+          deviceIp: device.ip_address || null,
+          wsStatus: device.ws_status || null,
+          relayServerId: device.relay_server_id || null,
+          downloadNetSpeed: device.download_net_speed || null,
+          uploadNetSpeed: device.upload_net_speed || null,
+          lastIpRotation: lastIpRotation,
+          apiCreatedAt: device.created_at ? new Date(device.created_at) : null,
+          apiUpdatedAt: apiUpdatedAt,
+          lastOutboundIp: metrics.outboundIp || null,
           sameIpCount: hasCurrentIp ? 1 : 0,
           rotationStatus: 'Rotated',
           lastRotationAt: null,
@@ -182,29 +197,43 @@ async function saveProxyTestToDatabase(
         },
       });
     } else {
-      // Update proxy info including active status from portal
+      // Update proxy info including active status from portal and all API fields
       await prisma.proxy.update({
         where: { deviceId: device.device_id },
         data: {
           name: device.name,
+          model: device.model || null,
           location: device.state || device.city || null,
+          country: device.country || null,
+          state: device.state || null,
+          city: device.city || null,
+          street: device.street || null,
+          latitude: device.latitude || null,
+          longitude: device.longitude || null,
           host: device.relay_server_ip_address,
           port: device.port,
           username: device.username,
-          password: encryptedPassword,
+          password: device.password || null,
           active: isActive, // Sync active status from portal
+          deviceIp: device.ip_address || null,
+          wsStatus: device.ws_status || null,
+          relayServerId: device.relay_server_id || null,
+          downloadNetSpeed: device.download_net_speed || null,
+          uploadNetSpeed: device.upload_net_speed || null,
+          lastIpRotation: lastIpRotation,
+          apiUpdatedAt: apiUpdatedAt,
         },
       });
     }
 
-    // Check if IP changed from previous request (rotation detection)
-    const hasPreviousIp = proxy.lastIp !== null && proxy.lastIp !== undefined;
+    // Check if outbound IP changed from previous request (rotation detection)
+    const hasPreviousOutboundIp = proxy.lastOutboundIp !== null && proxy.lastOutboundIp !== undefined;
     
-    // IP changed if we have both IPs and they're different
+    // Outbound IP changed if we have both IPs and they're different
     const ipChangedFromPrevious = 
-      hasPreviousIp && 
+      hasPreviousOutboundIp && 
       hasCurrentIp &&
-      proxy.lastIp !== metrics.outboundIp;
+      proxy.lastOutboundIp !== metrics.outboundIp;
     
     // Get rotation threshold from config
     const rotationThreshold = config.testing.rotationThreshold;
@@ -216,12 +245,12 @@ async function saveProxyTestToDatabase(
     let rotationCount: number = proxy.rotationCount || 0;
     
     if (!hasCurrentIp) {
-      // No IP returned - can't determine rotation
+      // No outbound IP returned - can't determine rotation
       sameIpCount = proxy.sameIpCount || 0;
       rotationStatus = (proxy.rotationStatus as RotationStatus) || 'Unknown';
       lastRotationAt = proxy.lastRotationAt || null;
       // rotationCount stays the same
-    } else if (!hasPreviousIp) {
+    } else if (!hasPreviousOutboundIp) {
       // First request with IP - start counting
       // Can't determine rotation status yet (need previous IP to compare)
       sameIpCount = 1;
@@ -229,11 +258,12 @@ async function saveProxyTestToDatabase(
       lastRotationAt = null; // No rotation yet
       // rotationCount stays 0 (first IP, not a rotation)
     } else if (ipChangedFromPrevious) {
-      // IP changed - actual rotation detected!
+      // IP changed - automatic rotation detected (not manual)
       sameIpCount = 1; // Start counting from 1 (this is the first request with new IP)
       rotationStatus = 'Rotated'; // Mark as Rotated when actual rotation is detected
       lastRotationAt = new Date(); // Record rotation timestamp
       rotationCount = (proxy.rotationCount || 0) + 1; // Increment rotation count
+      // Note: This is automatic rotation, so we don't update manual rotation fields
     } else {
       // Same IP as previous - no rotation occurred
       sameIpCount = (proxy.sameIpCount || 0) + 1;
@@ -260,7 +290,7 @@ async function saveProxyTestToDatabase(
       // rotationCount stays the same
     }
 
-    // Check if returned IP matches expected IP (device.ip_address)
+    // Check if returned outbound IP matches expected device IP (device.ip_address from /devices API)
     const ipMatchesExpected = 
       expectedIp !== undefined && 
       expectedIp !== null &&
@@ -270,16 +300,24 @@ async function saveProxyTestToDatabase(
     // Use transaction to ensure data consistency
     // Use callback form instead of array form to work properly with retry logic
     await prismaRaw.$transaction(async (tx) => {
-      // Update proxy with latest IP info
+      // Update proxy with latest outbound IP info
+      // If this is automatic rotation (outbound IP changed), clear manual rotation flag
+      const updateData: any = {
+        lastOutboundIp: metrics.outboundIp || null,
+        sameIpCount,
+        rotationStatus,
+        lastRotationAt,
+        rotationCount,
+      };
+      
+      // Clear manual rotation flag if this is automatic rotation
+      if (ipChangedFromPrevious) {
+        updateData.isManualRotation = false;
+      }
+      
       await tx.proxy.update({
         where: { deviceId: proxy.deviceId },
-        data: {
-          lastIp: metrics.outboundIp || null,
-          sameIpCount,
-          rotationStatus,
-          lastRotationAt,
-          rotationCount,
-        },
+        data: updateData,
       });
       
       // Save the test request
@@ -300,17 +338,17 @@ async function saveProxyTestToDatabase(
       });
     });
 
-    // Log IP mismatch if expected and returned are different
+    // Log IP mismatch if expected device IP and returned outbound IP are different
     if (!ipMatchesExpected && expectedIp && metrics.outboundIp) {
       logger.warn(
         {
           deviceId: device.device_id,
           deviceName: device.name,
-          expectedIp,
-          returnedIp: metrics.outboundIp,
+          expectedDeviceIp: expectedIp,
+          returnedOutboundIp: metrics.outboundIp,
           ipChanged: ipChangedFromPrevious,
         },
-        'IP mismatch: expected vs returned'
+        'IP mismatch: expected device IP vs returned outbound IP'
       );
     }
 
@@ -322,7 +360,7 @@ async function saveProxyTestToDatabase(
           deviceName: device.name,
           sameIpCount,
           rotationThreshold,
-          lastIp: metrics.outboundIp,
+          lastOutboundIp: metrics.outboundIp,
         },
         `⚠️ Proxy flagged: IP has not changed after ${sameIpCount} attempts (threshold: ${rotationThreshold})`
       );
@@ -334,8 +372,8 @@ async function saveProxyTestToDatabase(
         {
           deviceId: device.device_id,
           deviceName: device.name,
-          previousIp: proxy.lastIp,
-          newIp: metrics.outboundIp,
+          previousOutboundIp: proxy.lastOutboundIp,
+          newOutboundIp: metrics.outboundIp,
           rotationCount,
           lastRotationAt: lastRotationAt?.toISOString(),
         },
@@ -349,8 +387,8 @@ async function saveProxyTestToDatabase(
         {
           deviceId: device.device_id,
           deviceName: device.name,
-          previousIp: proxy.lastIp,
-          newIp: metrics.outboundIp,
+          previousOutboundIp: proxy.lastOutboundIp,
+          newOutboundIp: metrics.outboundIp,
           rotationCount,
           lastRotationAt: lastRotationAt?.toISOString(),
         },
@@ -774,23 +812,42 @@ async function refreshDeviceTesters(): Promise<void> {
       // If check fails, assume active
     }
     
-    // Create proxy record if it doesn't exist and device is active in portal
-    // This is critical for first startup when no proxies exist in the database
-    if (!proxy && portalActive) {
+    // Create proxy record if it doesn't exist (for ALL devices, not just active)
+    // This ensures we have a complete record of all devices in the database
+    if (!proxy) {
       try {
-        const encryptedPassword = device.password ? await encrypt(device.password) : null;
+        // Parse API timestamps if available
+        const apiCreatedAt = device.created_at ? new Date(device.created_at) : null;
+        const apiUpdatedAt = device.updated_at ? new Date(device.updated_at) : null;
+        const lastIpRotation = device.last_ip_rotation ? new Date(device.last_ip_rotation) : null;
+        
         await prisma.proxy.create({
           data: {
             deviceId: device.device_id,
             name: device.name,
+            model: device.model || null,
             location: device.state || device.city || null,
+            country: device.country || null,
+            state: device.state || null,
+            city: device.city || null,
+            street: device.street || null,
+            latitude: device.latitude || null,
+            longitude: device.longitude || null,
             host: device.relay_server_ip_address,
             port: device.port,
             protocol: 'http',
             username: device.username,
-            password: encryptedPassword,
+            password: device.password || null,
             active: portalActive, // Set based on portal status
-            lastIp: null,
+            deviceIp: device.ip_address || null,
+            wsStatus: device.ws_status || null,
+            relayServerId: device.relay_server_id || null,
+            downloadNetSpeed: device.download_net_speed || null,
+            uploadNetSpeed: device.upload_net_speed || null,
+            lastIpRotation: lastIpRotation,
+            apiCreatedAt: apiCreatedAt,
+            apiUpdatedAt: apiUpdatedAt,
+            lastOutboundIp: null,
             sameIpCount: 0,
             rotationStatus: 'Unknown', // New proxy - haven't tested rotation yet
             lastRotationAt: null,
@@ -798,7 +855,11 @@ async function refreshDeviceTesters(): Promise<void> {
           },
         });
         logger.info(
-          { deviceId: device.device_id, deviceName: device.name },
+          { 
+            deviceId: device.device_id, 
+            deviceName: device.name,
+            active: portalActive 
+          },
           'Created proxy record for new device'
         );
         dbActive = portalActive; // Now it exists and is active
@@ -832,6 +893,48 @@ async function refreshDeviceTesters(): Promise<void> {
           );
           // Continue anyway - don't block other proxies from being created
         }
+      }
+    } else {
+      // Update existing proxy with latest API data (for all devices, not just active)
+      try {
+        // Parse API timestamps if available
+        const apiUpdatedAt = device.updated_at ? new Date(device.updated_at) : null;
+        const lastIpRotation = device.last_ip_rotation ? new Date(device.last_ip_rotation) : null;
+        
+        await prisma.proxy.update({
+          where: { deviceId: device.device_id },
+          data: {
+            name: device.name,
+            model: device.model || null,
+            location: device.state || device.city || null,
+            country: device.country || null,
+            state: device.state || null,
+            city: device.city || null,
+            street: device.street || null,
+            latitude: device.latitude || null,
+            longitude: device.longitude || null,
+            host: device.relay_server_ip_address,
+            port: device.port,
+            username: device.username,
+            password: device.password || null,
+            active: portalActive, // Sync active status from portal
+            deviceIp: device.ip_address || null,
+            wsStatus: device.ws_status || null,
+            relayServerId: device.relay_server_id || null,
+            downloadNetSpeed: device.download_net_speed || null,
+            uploadNetSpeed: device.upload_net_speed || null,
+            lastIpRotation: lastIpRotation,
+            apiUpdatedAt: apiUpdatedAt,
+          },
+        });
+      } catch (error) {
+        logger.error(
+          {
+            deviceId: device.device_id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+          'Failed to update proxy record with API data'
+        );
       }
     }
     
@@ -931,7 +1034,7 @@ export async function startContinuousTesting(): Promise<void> {
       });
     }
 
-    // Start IP rotation service for inactive proxies
+    // Start IP rotation service for all proxies
     if (config.ipRotation.enabled) {
       ipRotationInterval = startInactiveProxyRotation(
         getAllDevices,

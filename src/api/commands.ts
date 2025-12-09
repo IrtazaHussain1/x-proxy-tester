@@ -8,6 +8,8 @@ import { getXProxyClient } from '../clients/xproxyClient';
 import { COMMANDS_ENDPOINT } from './endpoints';
 import { retryWithBackoff } from '../lib/circuit-breaker';
 import { recordApiCall, recordApiError } from '../lib/metrics';
+import { prismaWithRetry as prisma } from '../lib/db';
+import { logger } from '../lib/logger';
 import type { CommandResponse } from '../types';
 
 /**
@@ -76,24 +78,79 @@ export async function sendCommand(
 }
 
 /**
- * Send rotate IP command to a device
+ * Track manual rotation in database
+ * This is called when /commands API endpoint is used to manually rotate IP
+ * (as opposed to automatic rotation detected during testing)
+ * 
+ * @param deviceId - Device ID that was rotated via /commands API
+ * @param isUnique - Whether it was a unique rotation command
+ */
+async function trackManualRotation(deviceId: string, isUnique: boolean = false): Promise<void> {
+  try {
+    await prisma.proxy.update({
+      where: { deviceId },
+      data: {
+        lastManualRotationAt: new Date(),
+        manualRotationCount: { increment: 1 },
+        isManualRotation: true, // Flag that last rotation was via /commands API
+      },
+    });
+    logger.info(
+      {
+        deviceId,
+        rotationType: isUnique ? 'unique' : 'standard',
+      },
+      'Tracked manual IP rotation from /commands API'
+    );
+  } catch (error) {
+    // Log error but don't throw - rotation command should still succeed
+    logger.error(
+      {
+        deviceId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      'Failed to track manual rotation in database'
+    );
+  }
+}
+
+/**
+ * Send rotate IP command to a device via /commands API
+ * ALL calls to /commands API for rotation are tracked as manual rotation
  * 
  * @param deviceId - Device ID to rotate IP for
  * @returns Command response from API
  * @throws Error if API call fails
  */
 export async function rotateIp(deviceId: string): Promise<CommandResponse> {
-  return sendCommand(deviceId, 'airplane_mode_rotate');
+  const response = await sendCommand(deviceId, 'airplane_mode_rotate');
+  
+  // Track manual rotation - ALL /commands API calls for rotation are considered manual
+  // This tracks how many times the /commands API rotation worked
+  if (response.success) {
+    await trackManualRotation(deviceId, false);
+  }
+  
+  return response;
 }
 
 /**
- * Send rotate unique IP command to a device
+ * Send rotate unique IP command to a device via /commands API
+ * ALL calls to /commands API for rotation are tracked as manual rotation
  * 
  * @param deviceId - Device ID to rotate unique IP for
  * @returns Command response from API
  * @throws Error if API call fails
  */
 export async function rotateUniqueIp(deviceId: string): Promise<CommandResponse> {
-  return sendCommand(deviceId, 'airplane_mode_rotate_unique');
+  const response = await sendCommand(deviceId, 'airplane_mode_rotate_unique');
+  
+  // Track manual rotation - ALL /commands API calls for rotation are considered manual
+  // This tracks how many times the /commands API rotation worked
+  if (response.success) {
+    await trackManualRotation(deviceId, true);
+  }
+  
+  return response;
 }
 

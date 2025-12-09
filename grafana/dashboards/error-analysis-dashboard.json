@@ -285,7 +285,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  p.name,\n  p.location,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate,\n  GROUP_CONCAT(DISTINCT pr.error_type) as error_types\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\nGROUP BY p.device_id, p.name, p.location\nHAVING error_count > 0\nORDER BY error_count DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  p.name,\n  p.location,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate,\n  GROUP_CONCAT(DISTINCT pr.error_type) as error_types,\n  GROUP_CONCAT(DISTINCT pr.error_message SEPARATOR ' | ') as error_messages\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  AND pr.status != 'SUCCESS'\nGROUP BY p.device_id, p.name, p.location\nHAVING error_count > 0\nORDER BY error_count DESC\nLIMIT 20",
           "format": "table",
           "refId": "A"
         }
