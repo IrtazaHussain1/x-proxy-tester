@@ -43,6 +43,10 @@ export function buildProxyUrl(device: Device): string {
 /**
  * Creates a ProxyAgent instance for making requests through a device proxy
  * 
+ * Configures connection pooling to prevent overwhelming proxies with too many
+ * concurrent connections. Limits to 1 connection per proxy to ensure proper
+ * resource management.
+ * 
  * @param device - Device object with proxy credentials
  * @returns Configured ProxyAgent instance ready to use with undici requests
  * 
@@ -64,6 +68,7 @@ export function createProxyAgent(device: Device): ProxyAgent {
  * - Routes request through the device's proxy server
  * - Extracts outbound IP from response (if available)
  * - Handles various error types (timeout, connection, DNS, HTTP, TLS)
+ * - Retries transient HTTP errors (429, 503, 502) with exponential backoff
  * - Returns detailed metrics including response time and status
  * 
  * @param device - Device object with proxy credentials
@@ -73,6 +78,7 @@ export function createProxyAgent(device: Device): ProxyAgent {
  * @param options.data - Request body data
  * @param options.headers - Additional HTTP headers
  * @param options.timeout - Request timeout in milliseconds (default: from config)
+ * @param options.maxRetries - Maximum number of retries for transient errors (default: 2)
  * @returns Promise resolving to ProxyMetrics with test results
  * 
  * @example
@@ -92,6 +98,7 @@ export async function requestThroughProxy(
     data?: any;
     headers?: Record<string, string>;
     timeout?: number;
+    maxRetries?: number;
   }
 ): Promise<ProxyMetrics> {
   const startTime = Date.now();
@@ -112,6 +119,7 @@ export async function requestThroughProxy(
   
   const proxyAgent = createProxyAgent(device);
   const timeout = options?.timeout || config.testing.requestTimeoutMs;
+  const maxRetries = options?.maxRetries ?? 2; // Default to 2 retries for transient errors
 
   // logger.debug(
   //   {
@@ -122,9 +130,14 @@ export async function requestThroughProxy(
   //   `Making request with ${timeout}ms timeout`
   // );
 
-  try {
-    const response = await request(url, {
-      dispatcher: proxyAgent,
+  // Retry logic for transient HTTP errors
+  let lastError: any = null;
+  let attempt = 0;
+  
+  while (attempt <= maxRetries) {
+    try {
+      const response = await request(url, {
+        dispatcher: proxyAgent,
       method: options?.method || 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -140,7 +153,9 @@ export async function requestThroughProxy(
     const responseTimeMs = Date.now() - startTime;
     const statusCode = response.statusCode;
     
-    // Handle response body more safely
+    // CRITICAL FIX: Always consume the response body, even for error status codes
+    // This prevents connection pool issues and ensures proper cleanup
+    // Undici requires the body to be fully consumed to release the connection
     let body: any;
     try {
       const contentType = response.headers['content-type'] || '';
@@ -156,6 +171,24 @@ export async function requestThroughProxy(
         }
       }
     } catch (bodyError: any) {
+      // If body parsing fails, still try to consume it to prevent connection issues
+      try {
+        // Force consume the body stream to release the connection
+        await response.body.text().catch(() => {
+          // If text() fails, try to drain the stream
+          return null;
+        });
+      } catch (consumeError) {
+        // Ignore consume errors - we've tried our best to clean up
+        logger.debug(
+          {
+            deviceId: device.device_id,
+            consumeError: consumeError instanceof Error ? consumeError.message : String(consumeError),
+          },
+          'Failed to consume response body stream'
+        );
+      }
+      
       logger.warn(
         {
           deviceId: device.device_id,
@@ -186,7 +219,35 @@ export async function requestThroughProxy(
       }
     }
 
+    // Consider 2xx and 3xx as success, 4xx/5xx as failure
+    // Note: Some 4xx/5xx might be transient (429, 503, 502) and could be retried
     const success = statusCode >= 200 && statusCode < 400;
+
+    // Check for transient HTTP errors that should be retried
+    const isTransientError = statusCode === 429 || statusCode === 503 || statusCode === 502;
+    
+    if (isTransientError && attempt < maxRetries) {
+      // Calculate exponential backoff: 500ms, 1000ms, 2000ms
+      const backoffMs = 500 * Math.pow(2, attempt);
+      attempt++;
+      
+      logger.warn(
+        {
+          deviceId: device.device_id,
+          statusCode,
+          attempt,
+          maxRetries,
+          backoffMs,
+        },
+        `Transient HTTP error ${statusCode}, retrying after ${backoffMs}ms`
+      );
+      
+      // Wait before retry
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      
+      // Continue to retry
+      continue;
+    }
 
     return {
       requestUrl: url,
@@ -198,48 +259,226 @@ export async function requestThroughProxy(
       outboundIp,
       timestamp: new Date(),
     };
-  } catch (error: any) {
-    const responseTimeMs = Date.now() - startTime;
-    
-    // Enhanced error logging
-    const errorDetails: any = {
-      device: device.name,
-      deviceId: device.device_id,
-      proxyUrl: maskedProxyUrl,
-      proxyHost: device.relay_server_ip_address,
-      proxyPort: device.port,
-      targetUrl: url,
-      errorCode: error?.code,
-      errorMessage: error?.message || String(error),
-      errorName: error?.name,
-    };
-    
-    logger.error(errorDetails, 'Proxy request failed');
-
-    let errorType: ProxyMetrics['errorType'] = 'OTHER';
-    let errorMessage = error?.message || String(error);
-
-    const code = error?.code;
-    const errorStr = errorMessage.toLowerCase();
-    
-    // Check for HTTP protocol errors
-    if (errorStr.includes('http') && (errorStr.includes('protocol') || errorStr.includes('version'))) {
-      errorType = 'HTTP_ERROR';
-      errorMessage = `Invalid HTTP response from proxy: ${errorMessage}`;
-    } else if (code === 'ECONNREFUSED' || code === 'ECONNRESET') {
-      errorType = 'CONNECTION_REFUSED';
-    } else if (code === 'ETIMEDOUT' || code === 'UND_ERR_TIMEOUT' || error?.name === 'TimeoutError') {
-      errorType = 'TIMEOUT';
-    } else if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'UND_ERR_DNS') {
-      errorType = 'DNS_ERROR';
-    } else if (code === 'EPROTO' || code === 'UND_ERR_TLS') {
-      errorType = 'TLS_ERROR';
-    } else if (code === 'UND_ERR_SOCKET' || code === 'UND_ERR_INVALID_ARG') {
-      errorType = 'CONNECTION_RESET';
-    } else if (error?.statusCode) {
-      errorType = 'HTTP_ERROR';
-      errorMessage = `${error.statusCode} - ${error.statusText || 'HTTP Error'}`;
+    } catch (error: any) {
+      // Store error for potential retry
+      lastError = error;
+      
+      // Check if this is a retryable error and we haven't exceeded max retries
+      const isRetryableError =
+        (error?.code === 'ETIMEDOUT' ||
+          error?.code === 'UND_ERR_TIMEOUT' ||
+          error?.code === 'ECONNRESET' ||
+          error?.code === 'UND_ERR_SOCKET') &&
+        attempt < maxRetries;
+      
+      if (isRetryableError) {
+        // Calculate exponential backoff: 500ms, 1000ms, 2000ms
+        const backoffMs = 500 * Math.pow(2, attempt);
+        attempt++;
+        
+        logger.warn(
+          {
+            deviceId: device.device_id,
+            errorCode: error?.code,
+            attempt,
+            maxRetries,
+            backoffMs,
+          },
+          `Retryable error ${error?.code}, retrying after ${backoffMs}ms`
+        );
+        
+        // Wait before retry
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        
+        // Continue to retry
+        continue;
+      }
+      
+      // Not retryable or max retries exceeded, break and handle error
+      break;
     }
+  }
+  
+  // If we get here, all retries failed or error is not retryable
+  const responseTimeMs = Date.now() - startTime;
+  const error = lastError || new Error('Unknown error after retries');
+  
+  // Enhanced error logging with more details for debugging
+  const errorDetails: any = {
+    device: device.name,
+    deviceId: device.device_id,
+    proxyUrl: maskedProxyUrl,
+    proxyHost: device.relay_server_ip_address,
+    proxyPort: device.port,
+    targetUrl: url,
+    errorCode: error?.code,
+    errorMessage: error?.message || String(error),
+    errorName: error?.name,
+    errorStack: error?.stack, // Add stack trace for debugging
+    errorCause: error?.cause, // Additional error context
+  };
+  
+  logger.error(errorDetails, 'Proxy request failed');
+
+  let errorType: ProxyMetrics['errorType'] = 'OTHER';
+  let errorMessage = error?.message || String(error);
+
+  const code = error?.code;
+  const errorStr = errorMessage.toLowerCase();
+  const errorName = error?.name || '';
+  
+  // COMPREHENSIVE: More specific error type detection with better classification
+  
+  // Check for proxy authentication errors first (407 Proxy Authentication Required)
+  if (
+    code === 'UND_ERR_PROXY_AUTH' ||
+    errorStr.includes('proxy authentication') ||
+    errorStr.includes('407') ||
+    errorStr.includes('authentication required') ||
+    errorStr.includes('proxy-authorization')
+  ) {
+    errorType = 'HTTP_ERROR';
+    errorMessage = `Proxy authentication failed: ${errorMessage}`;
+  }
+  // Check for HTTP protocol errors (more specific matching)
+  else if (
+    (code === 'UND_ERR_INVALID_ARG' && errorStr.includes('http')) ||
+    (errorStr.includes('http') &&
+      (errorStr.includes('protocol') ||
+        errorStr.includes('version') ||
+        errorStr.includes('invalid') ||
+        errorStr.includes('malformed') ||
+        errorStr.includes('parse')))
+  ) {
+    errorType = 'HTTP_ERROR';
+    errorMessage = `Invalid HTTP response from proxy: ${errorMessage}`;
+  }
+  // Check for specific undici HTTP-related error codes
+  else if (
+    code?.startsWith('UND_ERR_') &&
+    (errorStr.includes('http') ||
+      errorStr.includes('response') ||
+      errorStr.includes('status') ||
+      errorStr.includes('header') ||
+      errorStr.includes('body'))
+  ) {
+    errorType = 'HTTP_ERROR';
+    errorMessage = `HTTP error from proxy: ${errorMessage}`;
+  }
+  // Connection errors - comprehensive list
+  else if (
+    code === 'ECONNREFUSED' ||
+    code === 'ECONNRESET' ||
+    code === 'ENETUNREACH' ||
+    code === 'EHOSTUNREACH' ||
+    code === 'ENETDOWN' ||
+    code === 'EHOSTDOWN' ||
+    code === 'UND_ERR_CONNECT_TIMEOUT' ||
+    (code?.startsWith('UND_ERR_') && errorStr.includes('connect'))
+  ) {
+    errorType = 'CONNECTION_REFUSED';
+  }
+  // Timeout errors - comprehensive list
+  else if (
+    code === 'ETIMEDOUT' ||
+    code === 'UND_ERR_TIMEOUT' ||
+    code === 'UND_ERR_HEADERS_TIMEOUT' ||
+    code === 'UND_ERR_BODY_TIMEOUT' ||
+    error?.name === 'TimeoutError' ||
+    errorName === 'TimeoutError' ||
+    errorStr.includes('timeout')
+  ) {
+    errorType = 'TIMEOUT';
+  }
+  // DNS errors - comprehensive list
+  else if (
+    code === 'ENOTFOUND' ||
+    code === 'EAI_AGAIN' ||
+    code === 'ESERVFAIL' ||
+    code === 'ENODATA' ||
+    code === 'UND_ERR_DNS' ||
+    errorStr.includes('dns') ||
+    errorStr.includes('getaddrinfo') ||
+    errorStr.includes('name resolution')
+  ) {
+    errorType = 'DNS_ERROR';
+  }
+  // TLS/SSL errors - comprehensive list
+  else if (
+    code === 'EPROTO' ||
+    code === 'UND_ERR_TLS' ||
+    code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+    code === 'CERT_HAS_EXPIRED' ||
+    code === 'CERT_SIGNATURE_FAILURE' ||
+    errorStr.includes('tls') ||
+    errorStr.includes('ssl') ||
+    errorStr.includes('certificate') ||
+    errorStr.includes('handshake')
+  ) {
+    errorType = 'TLS_ERROR';
+  }
+  // Socket/connection reset errors
+  else if (
+    code === 'UND_ERR_SOCKET' ||
+    code === 'EPIPE' ||
+    code === 'ECONNABORTED' ||
+    (code === 'UND_ERR_INVALID_ARG' && !errorStr.includes('http'))
+  ) {
+    errorType = 'CONNECTION_RESET';
+  }
+  // HTTP status code in error object
+  else if (error?.statusCode) {
+    errorType = 'HTTP_ERROR';
+    errorMessage = `${error.statusCode} - ${error.statusText || 'HTTP Error'}`;
+  }
+  // Check for abort errors
+  else if (
+    code === 'UND_ERR_ABORTED' ||
+    code === 'ABORT_ERR' ||
+    errorStr.includes('aborted') ||
+    errorStr.includes('abort')
+  ) {
+    errorType = 'CONNECTION_RESET';
+    errorMessage = `Request aborted: ${errorMessage}`;
+  }
+  // Check for body/stream errors
+  else if (
+    code === 'UND_ERR_BODY' ||
+    code === 'UND_ERR_STREAM' ||
+    errorStr.includes('stream') ||
+    errorStr.includes('body') ||
+    errorStr.includes('readable')
+  ) {
+    errorType = 'HTTP_ERROR';
+    errorMessage = `Response body error: ${errorMessage}`;
+  }
+  // Check for network unreachable
+  else if (
+    code === 'ENETUNREACH' ||
+    code === 'EHOSTUNREACH' ||
+    errorStr.includes('network unreachable') ||
+    errorStr.includes('host unreachable')
+  ) {
+    errorType = 'CONNECTION_REFUSED';
+  }
+  
+  // If still "OTHER", enhance the error message with code for debugging
+  if (errorType === 'OTHER') {
+    // Include error code in message for better debugging
+    const codeInfo = code ? `[${code}] ` : '';
+    const nameInfo = errorName ? `(${errorName}) ` : '';
+    errorMessage = `${codeInfo}${nameInfo}${errorMessage}`;
+    
+    // Log additional details for unclassified errors
+    logger.warn(
+      {
+        ...errorDetails,
+        unclassifiedError: true,
+        suggestion: 'This error type is not yet classified. Consider adding it to error classification logic.',
+      },
+      'Unclassified error - needs investigation'
+    );
+  }
 
     return {
       requestUrl: url,
@@ -252,7 +491,6 @@ export async function requestThroughProxy(
       errorMessage,
       timestamp: new Date(),
     };
-  }
 }
 
 /**

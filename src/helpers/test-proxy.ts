@@ -103,21 +103,54 @@ export async function testProxyWithStats(
     return metrics;
   } catch (error) {
     const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const proxyUrl = buildProxyUrl(device);
     const maskedProxyUrl = proxyUrl.replace(/:[^:@]+@/, ':****@');
+    
+    // Extract comprehensive error information
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    const errorCode = (error as any)?.code;
+    const errorName = errorObj.name;
+    const errorMessage = errorObj.message || 'Unknown error';
+    const errorStack = errorObj.stack;
 
+    // Enhanced error logging with all available details
     logger.error(
       {
         device: `${device.name} (${device.device_id})`,
         proxyUrl: maskedProxyUrl,
         proxyHost: `${device.relay_server_ip_address}:${device.port}`,
         totalTimeMs: duration,
-        error: errorMessage,
+        errorCode,
+        errorName,
+        errorMessage,
+        errorStack,
         expectedIp: expected,
+        errorCause: (error as any)?.cause,
       },
-      'Proxy test exception'
+      'Proxy test exception - unhandled error in test wrapper'
     );
+
+    // Try to classify the error if possible
+    let errorType: 'OTHER' | 'TIMEOUT' | 'CONNECTION_REFUSED' | 'DNS_ERROR' | 'HTTP_ERROR' | 'TLS_ERROR' | 'CONNECTION_RESET' = 'OTHER';
+    let classifiedMessage = errorMessage;
+    
+    const errorStr = errorMessage.toLowerCase();
+    
+    // Quick classification attempt
+    if (errorCode === 'ETIMEDOUT' || errorCode === 'UND_ERR_TIMEOUT' || errorName === 'TimeoutError' || errorStr.includes('timeout')) {
+      errorType = 'TIMEOUT';
+    } else if (errorCode === 'ECONNREFUSED' || errorCode === 'ECONNRESET' || errorStr.includes('connection')) {
+      errorType = 'CONNECTION_REFUSED';
+    } else if (errorCode === 'ENOTFOUND' || errorCode === 'EAI_AGAIN' || errorStr.includes('dns') || errorStr.includes('getaddrinfo')) {
+      errorType = 'DNS_ERROR';
+    } else if (errorCode === 'EPROTO' || errorCode === 'UND_ERR_TLS' || errorStr.includes('tls') || errorStr.includes('ssl')) {
+      errorType = 'TLS_ERROR';
+    }
+    
+    // Include error code in message if available for better debugging
+    if (errorType === 'OTHER' && errorCode) {
+      classifiedMessage = `[${errorCode}] ${errorMessage}`;
+    }
 
     // Return error metrics
     return {
@@ -126,8 +159,8 @@ export async function testProxyWithStats(
       proxyPort: device.port,
       responseTimeMs: duration,
       success: false,
-      errorType: 'OTHER',
-      errorMessage,
+      errorType,
+      errorMessage: classifiedMessage,
       timestamp: new Date(),
     };
   }
@@ -159,14 +192,52 @@ export async function testMultipleProxies(
       return result.value;
     } else {
       const device = devices[index];
+      const error = result.reason;
+      const errorCode = error?.code;
+      const errorName = error?.name;
+      const errorMessage = error?.message || 'Unknown error';
+      
+      // Try to classify the error
+      let errorType: 'OTHER' | 'TIMEOUT' | 'CONNECTION_REFUSED' | 'DNS_ERROR' | 'HTTP_ERROR' | 'TLS_ERROR' | 'CONNECTION_RESET' = 'OTHER';
+      let classifiedMessage = errorMessage;
+      
+      const errorStr = errorMessage.toLowerCase();
+      
+      if (errorCode === 'ETIMEDOUT' || errorCode === 'UND_ERR_TIMEOUT' || errorName === 'TimeoutError' || errorStr.includes('timeout')) {
+        errorType = 'TIMEOUT';
+      } else if (errorCode === 'ECONNREFUSED' || errorCode === 'ECONNRESET' || errorStr.includes('connection')) {
+        errorType = 'CONNECTION_REFUSED';
+      } else if (errorCode === 'ENOTFOUND' || errorCode === 'EAI_AGAIN' || errorStr.includes('dns')) {
+        errorType = 'DNS_ERROR';
+      } else if (errorCode === 'EPROTO' || errorCode === 'UND_ERR_TLS' || errorStr.includes('tls')) {
+        errorType = 'TLS_ERROR';
+      }
+      
+      // Include error code in message if available
+      if (errorType === 'OTHER' && errorCode) {
+        classifiedMessage = `[${errorCode}] ${errorMessage}`;
+      }
+      
+      logger.error(
+        {
+          deviceId: device.device_id,
+          deviceName: device.name,
+          errorCode,
+          errorName,
+          errorMessage,
+          errorStack: error?.stack,
+        },
+        'Batch test failed for device'
+      );
+      
       return {
         requestUrl: config.testing.targetUrl,
         proxyHost: device.relay_server_ip_address,
         proxyPort: device.port,
         responseTimeMs: 0,
         success: false,
-        errorType: 'OTHER' as const,
-        errorMessage: result.reason?.message || 'Unknown error',
+        errorType: errorType,
+        errorMessage: classifiedMessage,
         timestamp: new Date(),
         deviceId: device.device_id,
         deviceName: device.name,

@@ -774,9 +774,9 @@ async function refreshDeviceTesters(): Promise<void> {
       // If check fails, assume active
     }
     
-    // Create proxy record if it doesn't exist and device is active in portal
-    // This is critical for first startup when no proxies exist in the database
-    if (!proxy && portalActive) {
+    // Create proxy record if it doesn't exist (for both active and inactive proxies)
+    // This ensures all proxies from portal are stored in database for complete inventory
+    if (!proxy) {
       try {
         const encryptedPassword = device.password ? await encrypt(device.password) : null;
         await prisma.proxy.create({
@@ -789,7 +789,7 @@ async function refreshDeviceTesters(): Promise<void> {
             protocol: 'http',
             username: device.username,
             password: encryptedPassword,
-            active: portalActive, // Set based on portal status
+            active: portalActive, // Set based on portal status (can be false for inactive)
             lastIp: null,
             sameIpCount: 0,
             rotationStatus: 'Unknown', // New proxy - haven't tested rotation yet
@@ -798,10 +798,14 @@ async function refreshDeviceTesters(): Promise<void> {
           },
         });
         logger.info(
-          { deviceId: device.device_id, deviceName: device.name },
-          'Created proxy record for new device'
+          { 
+            deviceId: device.device_id, 
+            deviceName: device.name,
+            active: portalActive,
+          },
+          'Created proxy record for device'
         );
-        dbActive = portalActive; // Now it exists and is active
+        dbActive = portalActive; // Set based on actual portal status
       } catch (error: any) {
         // Handle duplicate key errors gracefully (might happen in race conditions)
         if (error?.code === 'P2002' || error?.message?.includes('Unique constraint')) {
