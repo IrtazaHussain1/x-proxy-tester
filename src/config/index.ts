@@ -153,9 +153,9 @@ function validateConfig(): Config {
   ); // 5 minutes cooldown between rotation attempts
   const preferUniqueRotation = process.env.IP_ROTATION_PREFER_UNIQUE === 'true'; // Default: false
   const periodicRotationIntervalMs = parseInt(
-    process.env.PERIODIC_IP_ROTATION_INTERVAL_MS || '10000',
+    process.env.PERIODIC_IP_ROTATION_INTERVAL_MS || '600000',
     10
-  ); // 10 seconds default for periodic rotation
+  ); // 10 minutes (600000ms) default for periodic rotation
 
   // Validation
   if (testIntervalMs < 1000) {

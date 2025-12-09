@@ -129,7 +129,8 @@ async function main(): Promise<void> {
     // Start continuous testing
     await startContinuousTesting();
 
-    // Start periodic IP rotation service (sends rotation commands every 10 seconds)
+    // Start periodic IP rotation service (sends rotation commands at configured interval)
+    // Default: 10 minutes, configurable via PERIODIC_IP_ROTATION_INTERVAL_MS env var
     startPeriodicIpRotation(
       config.ipRotation.periodicRotationIntervalMs
     );

@@ -9,7 +9,7 @@
  * 4. Resumes testing if active
  * 
  * Also provides periodic IP rotation that sends rotation commands to all devices
- * at regular intervals (default: every 10 seconds).
+ * at regular intervals (default: every 10 minutes, configurable via PERIODIC_IP_ROTATION_INTERVAL_MS env var).
  * 
  * @module services/ip-rotation
  */
@@ -404,12 +404,12 @@ async function rotateAllDevices(): Promise<void> {
  * Start periodic IP rotation service
  * 
  * Sends IP rotation commands to all devices at the configured interval.
- * Default interval is 10 seconds (10000ms).
+ * Default interval is 10 minutes (600000ms), configurable via PERIODIC_IP_ROTATION_INTERVAL_MS env var.
  * 
- * @param intervalMs - Interval in milliseconds between rotation cycles (default: 10000)
+ * @param intervalMs - Interval in milliseconds between rotation cycles (default: 600000)
  * @returns Interval handler that can be used to stop the service
  */
-export function startPeriodicIpRotation(intervalMs: number = 10000): NodeJS.Timeout {
+export function startPeriodicIpRotation(intervalMs: number = 600000): NodeJS.Timeout {
   if (periodicRotationRunning) {
     logger.warn('Periodic IP rotation is already running');
     return periodicRotationInterval!;
