@@ -21,6 +21,14 @@ services:
       start_period: 60s
     networks:
       - proxy-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1.5G
+        reservations:
+          cpus: '0.3'
+          memory: 1G
 
   app:
     build:
@@ -51,7 +59,33 @@ services:
       PROXY_REFRESH_INTERVAL_MS: ${PROXY_REFRESH_INTERVAL_MS:-21600000}
       
       # Stability
-      STABILITY_CHECK_INTERVAL_MS: ${STABILITY_CHECK_INTERVAL_MS:-600000}
+      STABILITY_CHECK_INTERVAL_MS: ${STABILITY_CHECK_INTERVAL_MS:-1200000}
+      
+      # Auto-Deactivation
+      AUTO_DEACTIVATION_ENABLED: ${AUTO_DEACTIVATION_ENABLED:-true}
+      AUTO_DEACTIVATION_CONSECUTIVE_FAILURES: ${AUTO_DEACTIVATION_CONSECUTIVE_FAILURES:-20}
+      AUTO_DEACTIVATION_FAILURE_RATE: ${AUTO_DEACTIVATION_FAILURE_RATE:-0.9}
+      AUTO_DEACTIVATION_FAILURE_RATE_WINDOW: ${AUTO_DEACTIVATION_FAILURE_RATE_WINDOW:-50}
+      
+      # Auto-Recovery
+      AUTO_RECOVERY_ENABLED: ${AUTO_RECOVERY_ENABLED:-true}
+      AUTO_RECOVERY_CHECK_INTERVAL_MS: ${AUTO_RECOVERY_CHECK_INTERVAL_MS:-600000}
+      AUTO_RECOVERY_CONSECUTIVE_SUCCESSES: ${AUTO_RECOVERY_CONSECUTIVE_SUCCESSES:-5}
+      
+      # IP Rotation
+      IP_ROTATION_ENABLED: ${IP_ROTATION_ENABLED:-true}
+      IP_ROTATION_CHECK_INTERVAL_MS: ${IP_ROTATION_CHECK_INTERVAL_MS:-120000}
+      IP_ROTATION_WAIT_AFTER_ROTATION_MS: ${IP_ROTATION_WAIT_AFTER_ROTATION_MS:-5000}
+      IP_ROTATION_COOLDOWN_MS: ${IP_ROTATION_COOLDOWN_MS:-300000}
+      IP_ROTATION_PREFER_UNIQUE: ${IP_ROTATION_PREFER_UNIQUE:-false}
+      PERIODIC_IP_ROTATION_INTERVAL_MS: ${PERIODIC_IP_ROTATION_INTERVAL_MS:-600000}
+      
+      # IP Rotation Testing
+      IP_ROTATION_TESTING_ENABLED: ${IP_ROTATION_TESTING_ENABLED:-true}
+      IP_ROTATION_TESTING_INTERVAL_MS: ${IP_ROTATION_TESTING_INTERVAL_MS:-900000}
+      IP_ROTATION_TESTING_WAIT_AFTER_ROTATION_MS: ${IP_ROTATION_TESTING_WAIT_AFTER_ROTATION_MS:-10000}
+      IP_ROTATION_TESTING_CONCURRENCY: ${IP_ROTATION_TESTING_CONCURRENCY:-10}
+      IP_ROTATION_TESTING_BATCH_SIZE: ${IP_ROTATION_TESTING_BATCH_SIZE:-50}
       
       # Runtime
       MIN_RUN_HOURS: ${MIN_RUN_HOURS:-72}
@@ -73,6 +107,12 @@ services:
       DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-30}
       ARCHIVAL_INTERVAL_MS: ${ARCHIVAL_INTERVAL_MS:-86400000}
       ARCHIVAL_BATCH_SIZE: ${ARCHIVAL_BATCH_SIZE:-1000}
+      
+      # Alert Monitoring
+      ENABLE_ALERT_MONITORING: ${ENABLE_ALERT_MONITORING:-true}
+      ALERT_CHECK_INTERVAL_MS: ${ALERT_CHECK_INTERVAL_MS:-120000}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     ports:
       - "3311:3000"
     volumes:
@@ -85,6 +125,14 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.2'
+          memory: 1.5G
+        reservations:
+          cpus: '0.6'
+          memory: 800M
 
   grafana:
     image: grafana/grafana:latest
@@ -123,6 +171,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
 
 volumes:
   mysql_data:
