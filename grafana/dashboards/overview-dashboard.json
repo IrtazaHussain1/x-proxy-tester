@@ -7,7 +7,7 @@
   "timezone": "browser",
   "schemaVersion": 38,
   "version": 1,
-  "refresh": "30s",
+  "refresh": "1m",
   "panels": [
     {
       "id": 1,
@@ -350,7 +350,7 @@
     }
   ],
   "time": {
-    "from": "now-24h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},

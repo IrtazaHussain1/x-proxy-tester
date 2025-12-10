@@ -6,9 +6,9 @@
   "version": 1,
   "schemaVersion": 42,
   "editable": true,
-  "refresh": "30s",
+  "refresh": "1m",
   "time": {
-    "from": "now-24h",
+    "from": "now-30m",
     "to": "now"
   },
   "tags": ["x-proxy-tester", "rotation", "testing"],

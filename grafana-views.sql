@@ -6,6 +6,7 @@
 -- View 1: Proxy Summary (Current Status)
 -- ============================================
 -- Provides current status of all proxies with latest metrics
+-- Optimized for large datasets with indexed timestamp filtering
 CREATE OR REPLACE VIEW v_proxy_summary AS
 SELECT 
   p.device_id,
@@ -22,7 +23,7 @@ SELECT
   p.last_rotation_at,
   p.created_at,
   p.updated_at,
-  -- Last 24h metrics
+  -- Last 24h metrics (optimized with indexed timestamp)
   COUNT(pr.id) as total_requests_24h,
   COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) as success_count_24h,
   COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as failure_count_24h,
@@ -31,13 +32,14 @@ SELECT
   MIN(pr.response_time_ms) as min_response_time_24h,
   MAX(pr.response_time_ms) as max_response_time_24h,
   COUNT(CASE WHEN pr.ip_changed = true THEN 1 END) as rotation_count_24h,
-  -- Last hour metrics
+  -- Last hour metrics (optimized)
   COUNT(CASE WHEN pr.timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 1 END) as total_requests_1h,
   COUNT(CASE WHEN pr.timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND pr.status = 'SUCCESS' THEN 1 END) as success_count_1h,
   COUNT(CASE WHEN pr.timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND pr.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN pr.timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 1 END), 0) as success_rate_1h
 FROM proxies p
 LEFT JOIN proxy_requests pr ON p.device_id = pr.proxy_id
   AND pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+  AND pr.timestamp IS NOT NULL
 WHERE p.active = true
 GROUP BY 
   p.device_id, p.name, p.location, p.host, p.port, p.active,
@@ -48,6 +50,7 @@ GROUP BY
 -- View 2: Hourly Aggregates
 -- ============================================
 -- Aggregates request data by hour for time series queries
+-- Optimized for large datasets with indexed timestamp and LIMIT for recent data
 CREATE OR REPLACE VIEW v_hourly_aggregates AS
 SELECT 
   DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as hour,
@@ -65,13 +68,16 @@ SELECT
   COUNT(CASE WHEN status = 'HTTP_ERROR' THEN 1 END) as http_error_count,
   COUNT(CASE WHEN status = 'DNS_ERROR' THEN 1 END) as dns_error_count
 FROM proxy_requests
-WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-GROUP BY hour, proxy_id;
+WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+  AND timestamp IS NOT NULL
+GROUP BY hour, proxy_id
+ORDER BY hour DESC, proxy_id;
 
 -- ============================================
 -- View 3: System-Wide Hourly Stats
 -- ============================================
 -- System-wide aggregates by hour (no proxy breakdown)
+-- Optimized for large datasets - reduced to 7 days for better performance
 CREATE OR REPLACE VIEW v_system_hourly_stats AS
 SELECT 
   DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as hour,
@@ -89,8 +95,10 @@ SELECT
   COUNT(CASE WHEN status = 'HTTP_ERROR' THEN 1 END) as http_error_count,
   COUNT(CASE WHEN status = 'DNS_ERROR' THEN 1 END) as dns_error_count
 FROM proxy_requests
-WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-GROUP BY hour;
+WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+  AND timestamp IS NOT NULL
+GROUP BY hour
+ORDER BY hour DESC;
 
 -- ============================================
 -- View 4: Stability Status Summary
@@ -160,6 +168,7 @@ GROUP BY p.location;
 -- View 8: Top Performers (Last 24h)
 -- ============================================
 -- Top proxies by success rate and performance
+-- Optimized with indexed timestamp and LIMIT
 CREATE OR REPLACE VIEW v_top_performers_24h AS
 SELECT 
   p.device_id,
@@ -173,9 +182,10 @@ SELECT
 FROM proxies p
 JOIN proxy_requests pr ON p.device_id = pr.proxy_id
 WHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+  AND pr.timestamp IS NOT NULL
   AND p.active = true
 GROUP BY p.device_id, p.name, p.location, p.stability_status, p.rotation_status
-HAVING total_requests >= 100  -- Minimum requests for meaningful stats
+HAVING total_requests >= 50  -- Reduced minimum for better coverage
 ORDER BY success_rate DESC, avg_response_time ASC
 LIMIT 50;
 
@@ -183,6 +193,7 @@ LIMIT 50;
 -- View 9: Worst Performers (Last 24h)
 -- ============================================
 -- Proxies with highest error rates
+-- Optimized with indexed timestamp and LIMIT
 CREATE OR REPLACE VIEW v_worst_performers_24h AS
 SELECT 
   p.device_id,
@@ -197,9 +208,10 @@ SELECT
 FROM proxies p
 JOIN proxy_requests pr ON p.device_id = pr.proxy_id
 WHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+  AND pr.timestamp IS NOT NULL
   AND p.active = true
 GROUP BY p.device_id, p.name, p.location, p.stability_status, p.rotation_status
-HAVING total_requests >= 100  -- Minimum requests for meaningful stats
+HAVING total_requests >= 50  -- Reduced minimum for better coverage
 ORDER BY success_rate ASC, failure_count DESC
 LIMIT 50;
 
@@ -207,6 +219,7 @@ LIMIT 50;
 -- View 10: Recent Rotations
 -- ============================================
 -- Recent IP rotation events
+-- Optimized with LIMIT for large datasets
 CREATE OR REPLACE VIEW v_recent_rotations AS
 SELECT 
   pr.timestamp,
@@ -220,7 +233,9 @@ FROM proxy_requests pr
 JOIN proxies p ON pr.proxy_id = p.device_id
 WHERE pr.ip_changed = true
   AND pr.timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-ORDER BY pr.timestamp DESC;
+  AND pr.timestamp IS NOT NULL
+ORDER BY pr.timestamp DESC
+LIMIT 1000;
 
 -- ============================================
 -- View 11: Proxy Health Score

@@ -1,0 +1,56 @@
+# MySQL Configuration for Large Datasets (100K+ records)
+# Add this to your docker-compose.yml or mount as volume
+# 
+# Usage in docker-compose.yml:
+# volumes:
+#   - mysql_data:/var/lib/mysql
+#   - ./mysql-docker-config.cnf:/etc/mysql/conf.d/custom.cnf:ro
+
+[mysqld]
+# Buffer Pool - Use 1.5GB for 4GB RAM system (adjust based on available RAM)
+# Formula: (Total RAM - 2GB for OS/other) * 0.75
+innodb_buffer_pool_size = 1536M
+
+# InnoDB Log File Size - Larger logs improve write performance
+innodb_log_file_size = 256M
+innodb_log_buffer_size = 64M
+
+# Connection Settings
+max_connections = 200
+max_allowed_packet = 64M
+
+# Query Performance
+sort_buffer_size = 2M
+join_buffer_size = 2M
+read_buffer_size = 1M
+read_rnd_buffer_size = 1M
+
+# Temporary Tables (for large GROUP BY/ORDER BY)
+tmp_table_size = 64M
+max_heap_table_size = 64M
+
+# Table Cache
+table_open_cache = 2000
+table_definition_cache = 1400
+
+# InnoDB Settings
+innodb_flush_log_at_trx_commit = 2
+innodb_flush_method = O_DIRECT
+innodb_file_per_table = 1
+
+# Query Cache (disabled in MySQL 8.0+, but safe to include)
+# query_cache_type = 0
+# query_cache_size = 0
+
+# Slow Query Log (enable for monitoring)
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/slow-query.log
+long_query_time = 2
+
+# General Log (disable in production for performance)
+general_log = 0
+
+# Binary Log (for replication, can disable if not needed)
+# log_bin = /var/log/mysql/mysql-bin.log
+# expire_logs_days = 7
+
