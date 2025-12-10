@@ -26,6 +26,76 @@ export async function initDatabaseSchema(): Promise<void> {
       try {
         await prisma.$queryRaw`SELECT 1 FROM proxies LIMIT 1`;
         logger.info('Database tables already exist');
+        
+        // Check if migrations need to be applied
+        try {
+          // Check if source column exists (from latest migration)
+          await prisma.$queryRaw`SELECT source FROM proxy_requests LIMIT 1`;
+          logger.info('Database schema is up to date');
+        } catch (migrationError: any) {
+          if (migrationError?.message?.includes('doesn\'t exist') || migrationError?.message?.includes('Unknown column')) {
+            logger.info('Database schema needs migration, applying...');
+            try {
+              execSync('npx --yes prisma migrate deploy', {
+                stdio: 'inherit',
+                env: {
+                  ...process.env,
+                  DATABASE_URL: process.env.DATABASE_URL,
+                },
+                cwd: process.cwd(),
+              });
+              logger.info('Database migrations applied successfully');
+            } catch (migrateError: any) {
+              // If migrate deploy fails (e.g., database not empty), try to apply missing columns manually
+              logger.warn(
+                { error: migrateError?.message },
+                'Migration deploy failed, attempting to add missing columns manually'
+              );
+              try {
+                // Check if source column exists first
+                const columnExists = await prisma.$queryRawUnsafe(`
+                  SELECT COUNT(*) as count
+                  FROM INFORMATION_SCHEMA.COLUMNS 
+                  WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME = 'proxy_requests' 
+                    AND COLUMN_NAME = 'source'
+                `) as Array<{ count: number }>;
+                
+                if (columnExists[0]?.count === 0) {
+                  // Add source column if it doesn't exist
+                  await prisma.$executeRawUnsafe(`
+                    ALTER TABLE proxy_requests 
+                    ADD COLUMN source VARCHAR(191) NULL DEFAULT 'continuous'
+                  `);
+                  logger.info('Added missing source column');
+                }
+                
+                // Check if index exists
+                const indexExists = await prisma.$queryRawUnsafe(`
+                  SELECT COUNT(*) as count
+                  FROM INFORMATION_SCHEMA.STATISTICS 
+                  WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME = 'proxy_requests' 
+                    AND INDEX_NAME = 'proxy_requests_source_idx'
+                `) as Array<{ count: number }>;
+                
+                if (indexExists[0]?.count === 0) {
+                  await prisma.$executeRawUnsafe(`
+                    CREATE INDEX proxy_requests_source_idx ON proxy_requests(source)
+                  `);
+                  logger.info('Added missing source index');
+                }
+                
+                logger.info('Database schema migration completed');
+              } catch (manualError: any) {
+                logger.error(
+                  { error: manualError?.message },
+                  'Failed to add missing columns. Please run fix-database-source-column.sql manually.'
+                );
+              }
+            }
+          }
+        }
         return;
       } catch (checkError: any) {
         if (checkError?.message?.includes("doesn't exist")) {
