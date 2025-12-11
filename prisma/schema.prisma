@@ -8,30 +8,50 @@ datasource db {
 }
 
 model Proxy {
-  deviceId        String    @id @map("device_id") @db.VarChar(255)
-  name            String
-  location        String?
-  host            String
-  port            Int
-  protocol        String    @default("http")
-  username        String?
-  password        String?
-  active          Boolean   @default(true)
-  lastIp          String?   @map("last_ip")
-  sameIpCount     Int       @default(0) @map("same_ip_count")
-  stabilityStatus String    @default("Unknown") @map("stability_status")
-  rotationStatus  String?   @default("Unknown") @map("rotation_status")
-  lastRotationAt  DateTime? @map("last_rotation_at")
-  rotationCount   Int       @default(0) @map("rotation_count")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deviceId          String   @id @map("device_id") @db.VarChar(255)
+  deviceApiId       Int?     @map("device_api_id")
+  name              String
+  model             String?
+  location          String?
+  host              String
+  port              Int
+  protocol          String   @default("http")
+  username          String?
+  password          String?
+  active            Boolean  @default(true)
+  ipAddress         String?  @map("ip_address") @db.VarChar(45)
+  wsStatus          String?  @map("ws_status")
+  proxyStatus       String?  @map("proxy_status")
+  country           String?
+  state             String?
+  city              String?
+  street            String?
+  longitude         Float?
+  latitude          Float?
+  relayServerId     Int?     @map("relay_server_id")
+  relayServerIpAddress String? @map("relay_server_ip_address") @db.VarChar(45)
+  downloadNetSpeed  Float?   @map("download_net_speed")
+  uploadNetSpeed    Float?   @map("upload_net_speed")
+  lastIpRotation    String?  @map("last_ip_rotation")
+  lastIp            String?  @map("last_ip")
+  sameIpCount       Int      @default(0) @map("same_ip_count")
+  stabilityStatus   String   @default("Unknown") @map("stability_status")
+  rotationStatus    String?  @default("Unknown") @map("rotation_status")
+  lastRotationAt    DateTime? @map("last_rotation_at")
+  rotationCount     Int      @default(0) @map("rotation_count")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  requests ProxyRequest[]
+  requests          ProxyRequest[]
 
   @@index([active])
   @@index([stabilityStatus])
   @@index([rotationStatus])
   @@index([updatedAt])
+  @@index([proxyStatus])
+  @@index([country])
+  @@index([state])
+  @@index([city])
   @@map("proxies")
 }
 
