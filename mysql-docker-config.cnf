@@ -7,17 +7,18 @@
 #   - ./mysql-docker-config.cnf:/etc/mysql/conf.d/custom.cnf:ro
 
 [mysqld]
-# Buffer Pool - Use 1.5GB for 4GB RAM system (adjust based on available RAM)
+# Buffer Pool - Optimized for 8GB RAM system
 # Formula: (Total RAM - 2GB for OS/other) * 0.75
-innodb_buffer_pool_size = 1536M
+# For 8GB: (8GB - 2GB) * 0.75 = 4.5GB, but we'll use 4GB to leave room for Grafana
+innodb_buffer_pool_size = 4096M
 
 # InnoDB Log File Size - Larger logs improve write performance
 innodb_log_file_size = 256M
 innodb_log_buffer_size = 64M
 
-# Connection Settings
-max_connections = 200
-max_allowed_packet = 64M
+# Connection Settings - Increased for better Grafana performance
+max_connections = 300
+max_allowed_packet = 128M
 
 # Query Performance
 sort_buffer_size = 2M
@@ -25,9 +26,9 @@ join_buffer_size = 2M
 read_buffer_size = 1M
 read_rnd_buffer_size = 1M
 
-# Temporary Tables (for large GROUP BY/ORDER BY)
-tmp_table_size = 64M
-max_heap_table_size = 64M
+# Temporary Tables (for large GROUP BY/ORDER BY) - Increased for Grafana queries
+tmp_table_size = 128M
+max_heap_table_size = 128M
 
 # Table Cache
 table_open_cache = 2000

@@ -148,11 +148,32 @@ services:
       - GF_ANALYTICS_CHECK_FOR_UPDATES=false
       - GF_LOG_LEVEL=${GRAFANA_LOG_LEVEL:-warn}
       - GF_LOG_FILTERS=alerting.scheduler:debug
+      # Performance optimizations for faster loading
+      - GF_DATASOURCES_ALLOW_EDIT=true
+      - GF_DATASOURCES_CACHE_TTL=300
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      # Query and rendering performance
+      - GF_RENDERING_SERVER_URL=
+      - GF_RENDERING_CALLBACK_URL=
+      - GF_RENDERING_CONCURRENT_REQUEST_LIMIT=30
+      - GF_RENDERING_TIMEOUT=30
+      # HTTP and connection settings
+      - GF_SERVER_ENFORCE_DOMAIN=false
+      - GF_SERVER_SOCKET_TIMEOUT=0
+      - GF_SERVER_DOMAIN=localhost
+      # Caching settings
+      - GF_DATASOURCE_CACHE_TTL=300
+      - GF_DASHBOARD_CACHE_TTL=300
       # Session and security settings
       - GF_SECURITY_COOKIE_SECURE=false
       - GF_SECURITY_COOKIE_SAMESITE=lax
       - GF_SECURITY_TOKEN_ROTATION_INTERVAL_MINUTES=10
       - GF_SECURITY_DISABLE_GRAVATAR=true
+      # Memory and performance tuning
+      - GF_FEATURE_TOGGLES_ENABLE=queryHistory
+      - GF_QUERY_HISTORY_ENABLED=true
+      - GF_QUERY_HISTORY_TTL_DAYS=7
       # Use SQLite for Grafana's internal database (default, simpler, no connection issues)
       # MySQL is still used as a datasource for querying proxy data via provisioning
       # Commenting out MySQL config to use SQLite default
@@ -167,19 +188,18 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - proxy-network
-    # Resource limits to prevent OOM kills
+    # Resource limits optimized for 8GB RAM / 4 vCPU server
     # Note: deploy.resources only works in Docker Swarm mode
     # For standalone docker-compose, set limits manually:
-    # docker update --memory=2g --memory-reservation=512m --cpus=2.0 x-proxy-tester-grafana
-    # Or use: docker run with --memory=2g --cpus=2.0 flags
+    # docker update --memory=4g --memory-reservation=1g --cpus=3.0 x-proxy-tester-grafana
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 2G
+          cpus: '3.0'
+          memory: 4G
         reservations:
-          cpus: '0.5'
-          memory: 512M
+          cpus: '1.0'
+          memory: 1G
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s
