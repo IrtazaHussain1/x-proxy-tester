@@ -136,6 +136,23 @@ services:
       - GF_INSTALL_PLUGINS=
       - GF_SERVER_ROOT_URL=http://localhost:3312
       - GF_SERVER_HTTP_PORT=3000
+      # Performance and stability settings
+      - GF_ALERTING_EVALUATION_TIMEOUT_SECONDS=60
+      - GF_ALERTING_MAX_ATTEMPTS=3
+      - GF_ALERTING_MIN_INTERVAL_SECONDS=30
+      - GF_DATABASE_MAX_IDLE_CONN=25
+      - GF_DATABASE_MAX_OPEN_CONN=100
+      - GF_DATABASE_CONN_MAX_LIFETIME_SECONDS=14400
+      - GF_SERVER_ENABLE_GZIP=true
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_LOG_LEVEL=${GRAFANA_LOG_LEVEL:-warn}
+      - GF_LOG_FILTERS=alerting.scheduler:debug
+      # Session and security settings
+      - GF_SECURITY_COOKIE_SECURE=false
+      - GF_SECURITY_COOKIE_SAMESITE=lax
+      - GF_SECURITY_TOKEN_ROTATION_INTERVAL_MINUTES=10
+      - GF_SECURITY_DISABLE_GRAVATAR=true
       # Use SQLite for Grafana's internal database (default, simpler, no connection issues)
       # MySQL is still used as a datasource for querying proxy data via provisioning
       # Commenting out MySQL config to use SQLite default
@@ -150,6 +167,19 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - proxy-network
+    # Resource limits to prevent OOM kills
+    # Note: deploy.resources only works in Docker Swarm mode
+    # For standalone docker-compose, set limits manually:
+    # docker update --memory=2g --memory-reservation=512m --cpus=2.0 x-proxy-tester-grafana
+    # Or use: docker run with --memory=2g --cpus=2.0 flags
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s
