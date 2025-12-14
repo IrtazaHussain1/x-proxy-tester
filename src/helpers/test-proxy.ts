@@ -42,61 +42,50 @@ export async function testProxyWithStats(
   const timeout = config.testing.requestTimeoutMs;
   const expected = expectedIp || device.ip_address;
 
-  logger.debug(
-    {
-      deviceId: device.device_id,
-      timeoutMs: timeout,
-      timeoutSeconds: timeout / 1000,
-      testUrl,
-    },
-    `Testing proxy with ${timeout / 1000}s timeout`
-  );
-
   const startTime = Date.now();
 
   try {
     const metrics = await requestThroughProxy(device, testUrl, { timeout });
     
     const ipMatch = String(metrics.outboundIp).trim() === String(expected).trim();
-    // if(!!metrics.outboundIp) debugger;
     const ipStatus = ipMatch ? 'MATCH' : 'MISMATCH';
+    const proxyUrl = buildProxyUrl(device);
+    const maskedProxyUrl = proxyUrl.replace(/:[^:@]+@/, ':****@');
+
+    // Log proxy details on first line
+    logger.info(
+      {
+        device: device.name,
+        deviceId: device.device_id,
+        proxy: `${device.relay_server_ip_address}:${device.port}`,
+        proxyUrl: maskedProxyUrl,
+      },
+      `Proxy: ${device.name} (${device.device_id}) | ${device.relay_server_ip_address}:${device.port}`
+    );
 
     // Log success stats
     if (metrics.success) {
       const statusIcon = ipMatch ? '✅' : '⚠️';
-      const proxyUrl = buildProxyUrl(device);
-      const maskedProxyUrl = proxyUrl.replace(/:[^:@]+@/, ':****@');
-      
       logger.info(
         {
-          device: `${device.name} (${device.device_id})`,
-          proxyUrl: maskedProxyUrl,
-          proxyHost: `${device.relay_server_ip_address}:${device.port}`,
+          status: ipStatus,
           responseTime: `${metrics.responseTimeMs}ms`,
           httpStatus: metrics.httpStatus,
           expectedIp: expected,
           returnedIp: metrics.outboundIp,
-          ipMatch,
         },
-        `${statusIcon} ${device.name} - ${ipStatus} (${metrics.responseTimeMs}ms)`
+        `${statusIcon} Status: ${ipStatus} | IP: ${metrics.outboundIp} (expected: ${expected}) | ${metrics.responseTimeMs}ms | HTTP ${metrics.httpStatus}`
       );
     } else {
       // Log failure stats
-      const proxyUrl = buildProxyUrl(device);
-      const maskedProxyUrl = proxyUrl.replace(/:[^:@]+@/, ':****@');
-      
       logger.error(
         {
-          device: `${device.name} (${device.device_id})`,
-          proxyUrl: maskedProxyUrl,
-          proxyHost: `${device.relay_server_ip_address}:${device.port}`,
-          responseTime: `${metrics.responseTimeMs}ms`,
-          httpStatus: metrics.httpStatus,
           errorType: metrics.errorType,
           errorMessage: metrics.errorMessage,
-          expectedIp: expected,
+          responseTime: `${metrics.responseTimeMs}ms`,
+          httpStatus: metrics.httpStatus,
         },
-        `❌ ${device.name} - FAILED: ${metrics.errorType || 'UNKNOWN'}`
+        `❌ Status: FAILED | ${metrics.errorType || 'UNKNOWN'} | ${metrics.errorMessage || 'No error message'} | ${metrics.responseTimeMs}ms`
       );
     }
 
@@ -111,23 +100,27 @@ export async function testProxyWithStats(
     const errorCode = (error as any)?.code;
     const errorName = errorObj.name;
     const errorMessage = errorObj.message || 'Unknown error';
-    const errorStack = errorObj.stack;
 
-    // Enhanced error logging with all available details
+    // Log proxy details on first line
+    logger.info(
+      {
+        device: device.name,
+        deviceId: device.device_id,
+        proxy: `${device.relay_server_ip_address}:${device.port}`,
+        proxyUrl: maskedProxyUrl,
+      },
+      `Proxy: ${device.name} (${device.device_id}) | ${device.relay_server_ip_address}:${device.port}`
+    );
+
+    // Log error on second line
     logger.error(
       {
-        device: `${device.name} (${device.device_id})`,
-        proxyUrl: maskedProxyUrl,
-        proxyHost: `${device.relay_server_ip_address}:${device.port}`,
-        totalTimeMs: duration,
         errorCode,
         errorName,
         errorMessage,
-        errorStack,
-        expectedIp: expected,
-        errorCause: (error as any)?.cause,
+        duration: `${duration}ms`,
       },
-      'Proxy test exception - unhandled error in test wrapper'
+      `❌ Status: EXCEPTION | ${errorCode || errorName || 'UNKNOWN'} | ${errorMessage} | ${duration}ms`
     );
 
     // Try to classify the error if possible
