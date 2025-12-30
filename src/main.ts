@@ -150,9 +150,11 @@ async function main(): Promise<void> {
     }
 
     // Start periodic data archival (if enabled)
+    // Run every 12 hours (instead of 24) to keep database size manageable
     const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
-    const archivalIntervalMs = parseInt(process.env.ARCHIVAL_INTERVAL_MS || String(24 * 60 * 60 * 1000), 10);
-    const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || '30', 10);
+    const archivalIntervalMs = parseInt(process.env.ARCHIVAL_INTERVAL_MS || String(12 * 60 * 60 * 1000), 10);
+    // Reduced from 30 to 14 days to manage rapid database growth
+    const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || '14', 10);
     
     if (archivalEnabled) {
       startPeriodicArchival(archivalIntervalMs, retentionDays);
