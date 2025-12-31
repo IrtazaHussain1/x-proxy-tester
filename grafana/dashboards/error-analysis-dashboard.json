@@ -81,11 +81,11 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND status != 'SUCCESS'",
+          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests WHERE $__timeFilter(timestamp) AND status != 'SUCCESS'",
           "refId": "A"
         }
       ],
-      "title": "Total Errors (24h)",
+      "title": "Total Errors",
       "type": "stat"
     },
     {
@@ -151,7 +151,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+          "rawSql": "SELECT COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE $__timefilter(timestamp)",
           "refId": "A"
         }
       ],

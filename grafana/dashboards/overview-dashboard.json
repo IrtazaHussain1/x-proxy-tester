@@ -148,7 +148,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+          "rawSql": "SELECT COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE $__timefilter(timestamp)",
           "format": "table"
         }
       ],

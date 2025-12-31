@@ -52,31 +52,63 @@ const streams: Array<{ level: string; stream: any }> = [];
 
 // Always try to log to file (pino.destination will handle errors gracefully)
 // Attempt to create directory if it doesn't exist, but proceed anyway
+let canWriteToLogs = false;
 try {
   if (!existsSync(LOGS_DIR)) {
     mkdirSync(LOGS_DIR, { recursive: true });
   }
-} catch (err) {
-  // Directory creation failed, but we'll still try to write (may fail silently)
-  console.warn('Warning: Could not create logs directory, file logging may not work');
+  
+  // Test if we can write to the logs directory
+  const testFile = join(LOGS_DIR, '.write-test');
+  try {
+    require('fs').writeFileSync(testFile, 'test');
+    require('fs').unlinkSync(testFile);
+    canWriteToLogs = true;
+  } catch (writeErr: any) {
+    if (writeErr.code === 'EACCES' || writeErr.code === 'EPERM') {
+      console.warn(
+        `⚠️  No write permission to ${LOGS_DIR}. File logging disabled. ` +
+        `Fix permissions on host: chmod 777 ./logs (or chown -R 1001:1001 ./logs)`
+      );
+      canWriteToLogs = false;
+    } else {
+      // Other errors, still try to proceed
+      canWriteToLogs = true;
+    }
+  }
+} catch (err: any) {
+  console.warn(`Warning: Could not create/access logs directory: ${err.message}`);
+  canWriteToLogs = false;
 }
 
-streams.push({
-  level: 'info',
-  stream: pino.destination({
-    dest: LOG_FILE,
-    sync: false, // Async writes for better performance
-  }),
-});
+// Only add file streams if we have write permission
+if (canWriteToLogs) {
+  try {
+    streams.push({
+      level: 'info',
+      stream: pino.destination({
+        dest: LOG_FILE,
+        sync: false, // Async writes for better performance
+      }),
+    });
 
-// Separate error log file
-streams.push({
-  level: 'error',
-  stream: pino.destination({
-    dest: ERROR_LOG_FILE,
-    sync: false,
-  }),
-});
+    // Separate error log file
+    streams.push({
+      level: 'error',
+      stream: pino.destination({
+        dest: ERROR_LOG_FILE,
+        sync: false,
+      }),
+    });
+  } catch (err: any) {
+    console.warn(
+      `Warning: Could not set up file logging: ${err.message}. ` +
+      `Logging to console only.`
+    );
+  }
+} else {
+  console.warn('⚠️  File logging disabled due to permission issues. Logging to console only.');
+}
 
 // Optionally log to console with pretty formatting
 if (shouldLogToConsole) {
