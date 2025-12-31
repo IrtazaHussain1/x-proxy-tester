@@ -151,7 +151,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE $__timefilter(timestamp)",
+          "rawSql": "SELECT COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE $__timeFilter(timestamp)",
           "refId": "A"
         }
       ],
