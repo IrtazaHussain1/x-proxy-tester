@@ -1,0 +1,36 @@
+{
+  "uid": "error-analysis-dashboard-filtered",
+  "title": "XProxy Tester - Error Analysis_Filtered",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Failed Requests",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location)",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "location",
+        "type": "query",
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "uid": "stability-dashboard-filtered",
+  "title": "XProxy Tester - Stability Analysis_Filtered",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Stable Proxies",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'Stable' AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "location",
+        "type": "query",
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true
+      }
+    ]
+  }
+}

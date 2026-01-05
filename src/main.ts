@@ -5,6 +5,7 @@
 
 import 'dotenv/config';
 import { startContinuousTesting, stopContinuousTesting } from './services/continuous-proxy-tester';
+import { startSpeedTestService, stopSpeedTestService } from './services/speed-test-service';
 import { startIpRotationTesting, stopIpRotationTesting } from './services/ip-rotation-testing';
 import { logger } from './lib/logger';
 import { config } from './config';
@@ -65,6 +66,7 @@ async function main(): Promise<void> {
       stopPeriodicIpRotation();
       cleanupWorkers();
       stopContinuousTesting();
+      stopSpeedTestService();
       void stopIpRotationTesting().then(() => {
         process.exit(0);
       });
@@ -82,6 +84,7 @@ async function main(): Promise<void> {
         stopPeriodicIpRotation();
         cleanupWorkers();
         stopContinuousTesting();
+        stopSpeedTestService();
         void stopIpRotationTesting().then(() => {
           process.exit(0);
         });
@@ -133,6 +136,9 @@ async function main(): Promise<void> {
 
     // Start continuous testing
     await startContinuousTesting();
+
+    // Start speed test service
+    startSpeedTestService();
 
     // Start IP rotation testing service (runs alongside continuous testing)
     if (config.ipRotationTesting.enabled) {
@@ -225,6 +231,7 @@ async function main(): Promise<void> {
           stopPeriodicIpRotation();
           cleanupWorkers();
           stopContinuousTesting();
+          stopSpeedTestService();
           void stopIpRotationTesting().then(() => {
             process.exit(0);
           });

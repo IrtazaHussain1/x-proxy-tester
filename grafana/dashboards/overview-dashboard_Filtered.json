@@ -1,0 +1,88 @@
+{
+  "uid": "overview-dashboard-filtered",
+  "title": "XProxy Tester - Overview_Filtered",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Proxies",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Stable Proxies",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'Stable' AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Success Rate",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(timestamp) AND p.location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Avg DL Speed",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT AVG(download_speed_mbps) as value FROM proxies WHERE active = true AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Avg UL Speed",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT AVG(upload_speed_mbps) as value FROM proxies WHERE active = true AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "location",
+        "type": "query",
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true
+      }
+    ]
+  }
+}

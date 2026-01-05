@@ -41,6 +41,9 @@ model Proxy {
   rotationCount     Int      @default(0) @map("rotation_count")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
+  downloadSpeedMbps    Float?         @map("download_speed_mbps")
+  lastSpeedTestAt      DateTime?      @map("last_speed_test_at")
+  uploadSpeedMbps      Float?         @map("upload_speed_mbps")
 
   requests          ProxyRequest[]
 
@@ -71,6 +74,8 @@ model ProxyRequest {
   source         String?  @default("continuous") @map("source")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
+  downloadSpeedMbps Float?   @map("download_speed_mbps")
+  uploadSpeedMbps   Float?   @map("upload_speed_mbps")
 
   proxy Proxy @relation(fields: [proxyId], references: [deviceId], onDelete: Cascade)
 

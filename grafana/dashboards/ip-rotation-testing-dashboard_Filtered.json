@@ -1,0 +1,36 @@
+{
+  "uid": "ip-rotation-testing-dashboard-filtered",
+  "title": "XProxy Tester - IP Rotation Testing_Filtered",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Rotation Cycles",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(DISTINCT rotation_window) as value FROM (SELECT DATE_FORMAT(last_rotation_at, '%Y-%m-%d %H:%i:00') as rotation_window, COUNT(*) as rotation_count FROM proxies WHERE active = true AND location IN ($location) AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND last_rotation_at IS NOT NULL GROUP BY rotation_window HAVING rotation_count >= 5) cycles;",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "location",
+        "type": "query",
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true
+      }
+    ]
+  }
+}
