@@ -1,8 +1,8 @@
 # Multi-stage build for XProxy Tester
 FROM node:20-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Install build dependencies (including git for npm packages from git repos)
+RUN apk add --no-cache python3 make g++ git openssl dumb-init
 
 # Set working directory
 WORKDIR /app
@@ -40,18 +40,20 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install production dependencies
-# Note: Prisma CLI will be available via npx from node_modules
-RUN npm ci --only=production && \
-    npm cache clean --force
+# Install git temporarily for npm (needed for git-based packages)
+# Then install production dependencies and remove git to keep image small
+RUN apk add --no-cache git && \
+    npm ci --omit=dev && \
+    npm cache clean --force && \
+    apk del git
 
 # Copy built application from builder
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+# Note: We do NOT need to copy node_modules manually anymore because we did npm ci above.
+# However, we MUST copy the generated client from builder if you generated it there, 
+# OR just regenerate it here. Copying is usually faster:
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-# Copy Prisma package and CLI (needed for db push)
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
-# Copy Grafana views SQL file
+
 COPY --from=builder --chown=nodejs:nodejs /app/grafana-views.sql ./grafana-views.sql
 
 # Switch to non-root user

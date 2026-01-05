@@ -21,7 +21,9 @@ interface Config {
   xproxy: {
     apiUrl: string;
     apiEndpoint: string;
-    apiToken: string;
+    loginUrl: string;
+    loginEmail: string;
+    loginPassword: string;
     timeoutMs: number;
   };
   testing: {
@@ -93,7 +95,8 @@ function validateConfig(): Config {
   const requiredEnvVars = [
     'DATABASE_URL',
     'XPROXY_API_URL',
-    'XPROXY_API_TOKEN',
+    'XPROXY_LOGIN_EMAIL',
+    'XPROXY_LOGIN_PASSWORD',
   ];
 
   const missing = requiredEnvVars.filter((key) => !process.env[key]);
@@ -245,8 +248,10 @@ function validateConfig(): Config {
     },
     xproxy: {
       apiUrl: process.env.XPROXY_API_URL!,
-      apiEndpoint: process.env.XPROXY_API_ENDPOINT || '/api/phones',
-      apiToken: process.env.XPROXY_API_TOKEN!,
+      apiEndpoint: process.env.XPROXY_API_ENDPOINT || '/api/devices',
+      loginUrl: process.env.XPROXY_LOGIN_URL || 'https://proxyapi.jumpermedia.co/v2/auth/login',
+      loginEmail: process.env.XPROXY_LOGIN_EMAIL!,
+      loginPassword: process.env.XPROXY_LOGIN_PASSWORD!,
       timeoutMs: parseInt(process.env.XPROXY_API_TIMEOUT_MS || '30000', 10),
     },
     testing: {

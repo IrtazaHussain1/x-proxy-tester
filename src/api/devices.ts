@@ -3,6 +3,8 @@ import { getXProxyClient } from '../clients/xproxyClient';
 import { DEVICES_ENDPOINT } from './endpoints';
 import { retryWithBackoff } from '../lib/circuit-breaker';
 import { recordApiCall, recordApiError } from '../lib/metrics';
+import { isInvalidTokenError, handleInvalidToken } from '../lib/auth-token-manager';
+import { logger } from '../lib/logger';
 import type { Device, DevicesResponse } from '../types';
 
 export interface GetDevicesParams {
@@ -100,6 +102,34 @@ export async function getDevicesWithMetadata(
         throw new Error('Invalid API response format: expected data object');
       } catch (error) {
         recordApiError();
+        
+        // Handle invalid token errors
+        if (isInvalidTokenError(error)) {
+          logger.warn('Invalid token detected in devices metadata API, refreshing token');
+          try {
+            await handleInvalidToken(error);
+            // Retry the request once after token refresh
+            const response = await client.get<DevicesResponse>(DEVICES_ENDPOINT, {
+              params: {
+                ...params,
+                total_count: true,
+                count_by_status: true,
+              },
+            });
+            
+            if (response.data?.data) {
+              return response.data.data;
+            }
+            
+            throw new Error('Invalid API response format: expected data object');
+          } catch (retryError) {
+            logger.error(
+              { error: retryError instanceof Error ? retryError.message : 'Unknown error' },
+              'Retry after token refresh failed'
+            );
+          }
+        }
+        
         if (error instanceof AxiosError) {
           if (error.response) {
             throw new Error(
@@ -138,6 +168,23 @@ export async function getDeviceById(deviceId: string | number): Promise<Device> 
         return response.data;
       } catch (error) {
         recordApiError();
+        
+        // Handle invalid token errors
+        if (isInvalidTokenError(error)) {
+          logger.warn('Invalid token detected in device by ID API, refreshing token');
+          try {
+            await handleInvalidToken(error);
+            // Retry the request once after token refresh
+            const response = await client.get<Device>(`${DEVICES_ENDPOINT}/${deviceId}`);
+            return response.data;
+          } catch (retryError) {
+            logger.error(
+              { error: retryError instanceof Error ? retryError.message : 'Unknown error' },
+              'Retry after token refresh failed'
+            );
+          }
+        }
+        
         if (error instanceof AxiosError) {
           if (error.response) {
             throw new Error(

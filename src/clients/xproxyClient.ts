@@ -1,30 +1,84 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { CircuitBreaker, retryWithBackoff } from '../lib/circuit-breaker';
 import { recordApiCall, recordApiError } from '../lib/metrics';
+import { getToken, handleInvalidToken, isInvalidTokenError } from '../lib/auth-token-manager';
+import { logger } from '../lib/logger';
 import type { XProxyPhone, XProxyApiResponse } from '../types';
 
 /**
  * Create XProxy API client instance
- * Uses environment variables for configuration
+ * Uses token manager for authentication with automatic token refresh
  */
 function createXProxyClient(): AxiosInstance {
   const baseURL = process.env.XPROXY_API_URL || 'https://jmui.vercel.app';
-  const token = process.env.XPROXY_API_TOKEN;
   const timeout = parseInt(process.env.XPROXY_API_TIMEOUT_MS || '30000', 10);
 
-  if (!token) {
-    throw new Error('XPROXY_API_TOKEN is required in environment variables');
-  }
-
-  return axios.create({
+  const client = axios.create({
     baseURL,
     timeout,
     headers: {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
   });
+
+  // Request interceptor: Add token to requests
+  client.interceptors.request.use(
+    async (config: InternalAxiosRequestConfig) => {
+      try {
+        const token = await getToken();
+        if (token && config.headers) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } catch (error) {
+        logger.error(
+          { error: error instanceof Error ? error.message : 'Unknown error' },
+          'Failed to get token for request'
+        );
+        // Continue without token, will fail and trigger refresh
+      }
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
+    }
+  );
+
+  // Response interceptor: Handle 401 errors and refresh token
+  client.interceptors.response.use(
+    (response) => response,
+    async (error: AxiosError) => {
+      const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+      // Check if this is an invalid token error and we haven't already retried
+      if (isInvalidTokenError(error) && !originalRequest._retry) {
+        originalRequest._retry = true; // Mark as retried to prevent infinite loop
+
+        try {
+          // Get a new token
+          await handleInvalidToken(error);
+
+          // Retry the original request with new token
+          const token = await getToken();
+          if (token && originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+          }
+
+          return client(originalRequest);
+        } catch (refreshError) {
+          logger.error(
+            { error: refreshError instanceof Error ? refreshError.message : 'Unknown error' },
+            'Failed to refresh token, cannot retry request'
+          );
+          return Promise.reject(refreshError);
+        }
+      }
+
+      return Promise.reject(error);
+    }
+  );
+
+  return client;
 }
 
 // Create singleton client instance
@@ -43,7 +97,7 @@ const apiCircuitBreaker = new CircuitBreaker('xproxy-api', {
  * @throws Error if API call fails or response format is invalid
  */
 export async function fetchProxies(): Promise<XProxyPhone[]> {
-  const endpoint = process.env.XPROXY_API_ENDPOINT || '/api/phones';
+  const endpoint = process.env.XPROXY_API_ENDPOINT || '/api/devices';
 
   return apiCircuitBreaker.execute(async () => {
     return retryWithBackoff(
