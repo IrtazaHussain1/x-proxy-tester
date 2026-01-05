@@ -97,7 +97,7 @@ const apiCircuitBreaker = new CircuitBreaker('xproxy-api', {
  * @throws Error if API call fails or response format is invalid
  */
 export async function fetchProxies(): Promise<XProxyPhone[]> {
-  const endpoint = process.env.XPROXY_API_ENDPOINT || '/api/phones';
+  const endpoint = process.env.XPROXY_API_ENDPOINT || '/api/devices';
 
   return apiCircuitBreaker.execute(async () => {
     return retryWithBackoff(

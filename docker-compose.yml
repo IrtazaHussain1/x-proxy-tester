@@ -43,7 +43,7 @@ services:
       
       # XProxy API
       XPROXY_API_URL: ${XPROXY_API_URL:-https://jmui.vercel.app}
-      XPROXY_API_ENDPOINT: ${XPROXY_API_ENDPOINT:-/api/phones}
+      XPROXY_API_ENDPOINT: ${XPROXY_API_ENDPOINT:-/api/devices}
       XPROXY_LOGIN_URL: ${XPROXY_LOGIN_URL:-https://proxyapi.jumpermedia.co/v2/auth/login}
       XPROXY_LOGIN_EMAIL: ${XPROXY_LOGIN_EMAIL}
       XPROXY_LOGIN_PASSWORD: ${XPROXY_LOGIN_PASSWORD}

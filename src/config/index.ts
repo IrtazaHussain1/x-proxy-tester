@@ -248,7 +248,7 @@ function validateConfig(): Config {
     },
     xproxy: {
       apiUrl: process.env.XPROXY_API_URL!,
-      apiEndpoint: process.env.XPROXY_API_ENDPOINT || '/api/phones',
+      apiEndpoint: process.env.XPROXY_API_ENDPOINT || '/api/devices',
       loginUrl: process.env.XPROXY_LOGIN_URL || 'https://proxyapi.jumpermedia.co/v2/auth/login',
       loginEmail: process.env.XPROXY_LOGIN_EMAIL!,
       loginPassword: process.env.XPROXY_LOGIN_PASSWORD!,
