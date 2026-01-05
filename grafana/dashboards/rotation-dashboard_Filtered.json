@@ -1,6 +1,11 @@
 {
-  "uid": "rotation-dashboard-filtered",
+  "uid": "rotation-filtered",
   "title": "XProxy Tester - IP Rotation Analysis_Filtered",
+  "tags": [
+    "x-proxy-tester",
+    "rotation",
+    "filtered"
+  ],
   "timezone": "browser",
   "schemaVersion": 38,
   "version": 1,
@@ -8,9 +13,9 @@
   "panels": [
     {
       "id": 1,
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
       "type": "stat",
-      "title": "Proxies Rotated",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "title": "Proxies with Rotation",
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
@@ -21,13 +26,65 @@
     },
     {
       "id": 2,
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
       "type": "stat",
-      "title": "Rotations (24h)",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "title": "Proxies with No Rotation",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND rotation_status = 'NoRotation' AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "type": "stat",
+      "title": "Total Rotations (24h)",
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
           "rawSql": "SELECT IFNULL(SUM(rotation_count), 0) as value FROM proxies WHERE active = true AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "type": "timeseries",
+      "title": "Rotation Events Over Time",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(last_rotation_at, '%Y-%m-%d %H:%i:00')) as time_sec, COUNT(*) as rotation_count FROM proxies WHERE active = true AND $__timeFilter(last_rotation_at) AND last_rotation_at IS NOT NULL AND location IN ($location) GROUP BY time_sec ORDER BY time_sec",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "type": "piechart",
+      "title": "Rotation Status Distribution",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT rotation_status as metric, COUNT(*) as value FROM proxies WHERE active = true AND location IN ($location) GROUP BY rotation_status",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "type": "table",
+      "title": "Proxies with High Same IP Count (Potential Rotation Issues)",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT name, location, last_ip, same_ip_count, rotation_count, rotation_status, last_rotation_at, updated_at FROM proxies WHERE active = true AND same_ip_count >= 10 AND location IN ($location) ORDER BY same_ip_count DESC LIMIT 20",
           "format": "table"
         }
       ]
@@ -42,8 +99,11 @@
         "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
         "refresh": 1,
         "multi": true,
-        "includeAll": true
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
       }
     ]
-  }
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "editable": true
 }

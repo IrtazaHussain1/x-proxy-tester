@@ -1,6 +1,11 @@
 {
-  "uid": "performance-metrics-filtered",
+  "uid": "performance-filtered",
   "title": "XProxy Tester - Performance Metrics_Filtered",
+  "tags": [
+    "x-proxy-tester",
+    "performance",
+    "filtered"
+  ],
   "timezone": "browser",
   "schemaVersion": 38,
   "version": 1,
@@ -8,9 +13,9 @@
   "panels": [
     {
       "id": 1,
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
       "type": "stat",
       "title": "Avg Response Time (P50)",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
@@ -20,77 +25,62 @@
       ]
     },
     {
-      "id": 8,
+      "id": 2,
+      "gridPos": { "h": 4, "w": 5, "x": 4, "y": 0 },
       "type": "stat",
-      "title": "Avg Download Speed",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "title": "P95 Response Time",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT response_time_ms as value FROM (SELECT response_time_ms, ROW_NUMBER() OVER (ORDER BY response_time_ms) as row_num, COUNT(*) OVER () as total_count FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.response_time_ms IS NOT NULL AND p.location IN ($location)) ranked WHERE row_num = FLOOR(total_count * 0.95) + 1 LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 4, "w": 5, "x": 9, "y": 0 },
+      "type": "stat",
+      "title": "P99 Response Time",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT response_time_ms as value FROM (SELECT response_time_ms, ROW_NUMBER() OVER (ORDER BY response_time_ms) as row_num, COUNT(*) OVER () as total_count FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.response_time_ms IS NOT NULL AND p.location IN ($location)) ranked WHERE row_num = FLOOR(total_count * 0.99) + 1 LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "gridPos": { "h": 4, "w": 5, "x": 14, "y": 0 },
+      "type": "stat",
+      "title": "Avg DL Speed",
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
           "rawSql": "SELECT AVG(download_speed_mbps) as value FROM proxies WHERE active = true AND download_speed_mbps IS NOT NULL AND location IN ($location)",
           "format": "table"
         }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Mbps",
-          "decimals": 2,
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "value": null,
-                "color": "red"
-              },
-              {
-                "value": 1,
-                "color": "yellow"
-              },
-              {
-                "value": 5,
-                "color": "green"
-              }
-            ]
-          }
-        }
-      }
+      ]
     },
     {
-      "id": 10,
+      "id": 11,
+      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 0 },
       "type": "stat",
-      "title": "Avg Upload Speed",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "title": "Avg UL Speed",
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
           "rawSql": "SELECT AVG(upload_speed_mbps) as value FROM proxies WHERE active = true AND upload_speed_mbps IS NOT NULL AND location IN ($location)",
           "format": "table"
         }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Mbps",
-          "decimals": 2,
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "value": null, "color": "red" },
-              { "value": 0.5, "color": "yellow" },
-              { "value": 2, "color": "green" }
-            ]
-          }
-        }
-      }
+      ]
     },
     {
       "id": 5,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "type": "timeseries",
       "title": "Response Time Distribution (P50, P99)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
@@ -100,10 +90,10 @@
       ]
     },
     {
-      "id": 9,
-      "type": "timeseries",
-      "title": "Download Speed Over Time",
+      "id": 12,
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "type": "timeseries",
+      "title": "Download Speed Trend",
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
@@ -113,10 +103,10 @@
       ]
     },
     {
-      "id": 11,
-      "type": "timeseries",
-      "title": "Upload Speed Over Time",
+      "id": 13,
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "type": "timeseries",
+      "title": "Upload Speed Trend",
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
@@ -126,14 +116,27 @@
       ]
     },
     {
-      "id": 7,
-      "type": "table",
-      "title": "Top Proxies by Performance",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "id": 6,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "type": "histogram",
+      "title": "Response Time Histogram",
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
-          "rawSql": "SELECT p.name, p.location, AVG(pr.response_time_ms) as avg_latency, p.download_speed_mbps as last_dl_speed, p.upload_speed_mbps as last_ul_speed, COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location ORDER BY avg_latency ASC LIMIT 20",
+          "rawSql": "SELECT CASE WHEN r.response_time_ms < 500 THEN '< 500ms' WHEN r.response_time_ms < 1000 THEN '500-1000ms' WHEN r.response_time_ms < 2000 THEN '1000-2000ms' WHEN r.response_time_ms < 5000 THEN '2000-5000ms' ELSE '> 5000ms' END as bucket, COUNT(*) as count FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.response_time_ms IS NOT NULL AND p.location IN ($location) GROUP BY bucket ORDER BY bucket",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "type": "table",
+      "title": "Top Proxies by Performance",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT p.name, p.location, AVG(pr.response_time_ms) as avg_latency, p.download_speed_mbps as last_dl, p.upload_speed_mbps as last_ul, COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location ORDER BY avg_latency ASC LIMIT 20",
           "format": "table"
         }
       ]
@@ -148,8 +151,11 @@
         "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
         "refresh": 1,
         "multi": true,
-        "includeAll": true
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
       }
     ]
-  }
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "editable": true
 }

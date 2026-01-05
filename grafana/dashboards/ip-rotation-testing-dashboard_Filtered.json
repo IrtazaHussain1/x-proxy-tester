@@ -1,6 +1,12 @@
 {
-  "uid": "ip-rotation-testing-dashboard-filtered",
+  "uid": "ip-rotation-testing-filtered",
   "title": "XProxy Tester - IP Rotation Testing_Filtered",
+  "tags": [
+    "x-proxy-tester",
+    "rotation",
+    "testing",
+    "filtered"
+  ],
   "timezone": "browser",
   "schemaVersion": 38,
   "version": 1,
@@ -9,12 +15,77 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Rotation Cycles",
+      "title": "Rotation Cycles (Last Hour)",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
-          "rawSql": "SELECT COUNT(DISTINCT rotation_window) as value FROM (SELECT DATE_FORMAT(last_rotation_at, '%Y-%m-%d %H:%i:00') as rotation_window, COUNT(*) as rotation_count FROM proxies WHERE active = true AND location IN ($location) AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND last_rotation_at IS NOT NULL GROUP BY rotation_window HAVING rotation_count >= 5) cycles;",
+          "rawSql": "SELECT COUNT(DISTINCT rotation_window) as value FROM (SELECT DATE_FORMAT(last_rotation_at, '%Y-%m-%d %H:%i:00') as rotation_window, COUNT(*) as rotation_count FROM proxies WHERE active = true AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND last_rotation_at IS NOT NULL AND location IN ($location) GROUP BY rotation_window HAVING rotation_count >= 5) cycles;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Proxies Rotated (Last Cycle, 15m)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(DISTINCT device_id) as value FROM proxies WHERE active = true AND last_rotation_at IS NOT NULL AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "IP Changes After Rotation (Last 24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests pr JOIN proxies p ON pr.proxy_id = p.device_id WHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND p.active = true AND p.last_rotation_at IS NOT NULL AND pr.timestamp BETWEEN DATE_SUB(p.last_rotation_at, INTERVAL 2 MINUTE) AND DATE_ADD(p.last_rotation_at, INTERVAL 5 MINUTE) AND pr.ip_changed = true AND p.location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Rotation Cycles Detected",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(rotation_window, '%Y-%m-%d %H:%i:00')) as time_sec, rotation_count FROM (SELECT DATE_FORMAT(last_rotation_at, '%Y-%m-%d %H:%i:00') as rotation_window, COUNT(*) as rotation_count FROM proxies WHERE active = true AND $__timeFilter(last_rotation_at) AND last_rotation_at IS NOT NULL AND location IN ($location) GROUP BY rotation_window HAVING rotation_count >= 1) cycles ORDER BY time_sec",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Test Results After Rotation Cycles",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, COUNT(*) as total_tests, COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) as successful_tests FROM proxy_requests pr JOIN proxies p ON pr.proxy_id = p.device_id WHERE $__timeFilter(pr.timestamp) AND p.active = true AND p.last_rotation_at IS NOT NULL AND pr.timestamp BETWEEN DATE_SUB(p.last_rotation_at, INTERVAL 2 MINUTE) AND DATE_ADD(p.last_rotation_at, INTERVAL 5 MINUTE) AND p.location IN ($location) GROUP BY time_sec ORDER BY time_sec",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Recent Rotation Cycles Summary",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT DATE_FORMAT(rotation_window, '%Y-%m-%d %H:%i:%s') as cycle_time, COUNT(DISTINCT device_id) as proxies_rotated, COUNT(*) as total_rotations FROM (SELECT DATE_FORMAT(last_rotation_at, '%Y-%m-%d %H:%i:00') as rotation_window, device_id FROM proxies WHERE active = true AND $__timeFilter(last_rotation_at) AND last_rotation_at IS NOT NULL AND location IN ($location)) rotations GROUP BY rotation_window ORDER BY cycle_time DESC LIMIT 20",
           "format": "table"
         }
       ]
@@ -29,8 +100,11 @@
         "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
         "refresh": 1,
         "multi": true,
-        "includeAll": true
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
       }
     ]
-  }
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "editable": true
 }

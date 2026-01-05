@@ -1,6 +1,11 @@
 {
-  "uid": "stability-dashboard-filtered",
+  "uid": "stability-filtered",
   "title": "XProxy Tester - Stability Analysis_Filtered",
+  "tags": [
+    "x-proxy-tester",
+    "stability",
+    "filtered"
+  ],
   "timezone": "browser",
   "schemaVersion": 38,
   "version": 1,
@@ -8,13 +13,78 @@
   "panels": [
     {
       "id": 1,
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
       "type": "stat",
       "title": "Stable Proxies",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
           "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'Stable' AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "type": "stat",
+      "title": "Unstable Hourly",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableHourly' AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "type": "stat",
+      "title": "Unstable Daily",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableDaily' AND location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "type": "timeseries",
+      "title": "Stability Trend Over Time",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:00')) as time_sec, COUNT(CASE WHEN stability_status = 'Stable' THEN 1 END) as stable, COUNT(CASE WHEN stability_status = 'UnstableHourly' THEN 1 END) as unstable_hourly, COUNT(CASE WHEN stability_status = 'UnstableDaily' THEN 1 END) as unstable_daily FROM proxies WHERE active = true AND $__timeFilter(updated_at) AND location IN ($location) GROUP BY time_sec ORDER BY time_sec",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "type": "table",
+      "title": "Top Unstable Proxies",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT name, location, stability_status, last_ip, same_ip_count, rotation_count, updated_at FROM proxies WHERE active = true AND stability_status IN ('UnstableHourly', 'UnstableDaily') AND location IN ($location) ORDER BY updated_at DESC LIMIT 20",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "type": "bargauge",
+      "title": "Stability Status by Detailed Location",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT CONCAT(country, ' - ', state, ' - ', city) as location_detail, stability_status, COUNT(*) as count FROM proxies WHERE active = true AND location IN ($location) GROUP BY location_detail, stability_status ORDER BY location_detail",
           "format": "table"
         }
       ]
@@ -29,8 +99,11 @@
         "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
         "refresh": 1,
         "multi": true,
-        "includeAll": true
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
       }
     ]
-  }
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "editable": true
 }

@@ -1,6 +1,11 @@
 {
-  "uid": "error-analysis-dashboard-filtered",
+  "uid": "error-analysis-filtered",
   "title": "XProxy Tester - Error Analysis_Filtered",
+  "tags": [
+    "x-proxy-tester",
+    "errors",
+    "filtered"
+  ],
   "timezone": "browser",
   "schemaVersion": 38,
   "version": 1,
@@ -8,13 +13,104 @@
   "panels": [
     {
       "id": 1,
-      "type": "stat",
-      "title": "Failed Requests",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "type": "stat",
+      "title": "Total Errors",
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
           "rawSql": "SELECT COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "type": "stat",
+      "title": "Error Rate",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "type": "piechart",
+      "title": "Error Type Distribution",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COALESCE(r.error_type, 'UNKNOWN') as metric, COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location) GROUP BY metric",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
+      "type": "stat",
+      "title": "Unique Error Types",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT COUNT(DISTINCT r.error_type) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL AND p.location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 4 },
+      "type": "stat",
+      "title": "Top Failing Proxy",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT p.name as value FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND pr.status != 'SUCCESS' AND p.location IN ($location) GROUP BY p.device_id, p.name ORDER BY COUNT(*) DESC LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "type": "table",
+      "title": "Unique Errors List",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT DISTINCT r.error_type as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL AND p.location IN ($location)",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "type": "timeseries",
+      "title": "Error Rate Over Time",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) GROUP BY time_sec ORDER BY time_sec",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "type": "table",
+      "title": "Top 20 Failing Proxies",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "rawSql": "SELECT p.name, p.device_id, p.location, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count, COUNT(*) as total_requests, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate, GROUP_CONCAT(DISTINCT pr.error_type) as error_types FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location HAVING error_count > 0 ORDER BY error_count DESC LIMIT 20",
           "format": "table"
         }
       ]
@@ -29,8 +125,11 @@
         "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
         "refresh": 1,
         "multi": true,
-        "includeAll": true
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
       }
     ]
-  }
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "editable": true
 }
