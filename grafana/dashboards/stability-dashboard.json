@@ -297,7 +297,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN stability_status = 'Stable' THEN 1 END) as stable,\n  COUNT(CASE WHEN stability_status = 'UnstableHourly' THEN 1 END) as unstable_hourly,\n  COUNT(CASE WHEN stability_status = 'UnstableDaily' THEN 1 END) as unstable_daily\nFROM proxies\nWHERE active = true AND updated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN stability_status = 'Stable' THEN 1 END) as stable,\n  COUNT(CASE WHEN stability_status = 'UnstableHourly' THEN 1 END) as unstable_hourly,\n  COUNT(CASE WHEN stability_status = 'UnstableDaily' THEN 1 END) as unstable_daily\nFROM proxies\nWHERE active = true AND $__timeFilter(updated_at)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
       ],

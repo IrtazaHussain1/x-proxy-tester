@@ -10,10 +10,13 @@ datasources:
     secureJsonData:
       password: xproxy
     jsonData:
-      maxOpenConns: 100
-      maxIdleConns: 100
+      maxOpenConns: 150
+      maxIdleConns: 50
       connMaxLifetime: 14400
       timezone: UTC
+      cacheTTL: 300
+      queryTimeout: 60s
+      timeInterval: 30s
     isDefault: true
     editable: true
     uid: xproxy-tester-mysql

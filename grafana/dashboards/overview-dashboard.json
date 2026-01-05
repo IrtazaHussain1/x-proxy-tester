@@ -148,7 +148,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+          "rawSql": "SELECT COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE $__timeFilter(timestamp)",
           "format": "table"
         }
       ],
@@ -195,7 +195,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxy_requests\nWHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxy_requests\nWHERE $__timeFilter(timestamp)\nGROUP BY time_sec\nORDER BY time_sec",
           "format": "time_series",
           "refId": "A"
         }
@@ -240,7 +240,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(*) as request_count\nFROM proxy_requests\nWHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(*) as request_count\nFROM proxy_requests\nWHERE $__timeFilter(timestamp)\nGROUP BY time_sec\nORDER BY time_sec",
           "format": "time_series",
           "refId": "A"
         }
@@ -334,7 +334,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  AVG(response_time_ms) as avg_response_time\nFROM proxy_requests\nWHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  AND response_time_ms IS NOT NULL\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  AVG(response_time_ms) as avg_response_time\nFROM proxy_requests\nWHERE $__timeFilter(timestamp)\n  AND response_time_ms IS NOT NULL\nGROUP BY time_sec\nORDER BY time_sec",
           "format": "time_series",
           "refId": "A"
         }

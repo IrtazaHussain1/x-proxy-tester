@@ -36,3 +36,8 @@ Thumbs.db
 # Docker
 .dockerignore
 
+# Backups
+backups/
+*.sql.gz
+*.sql
+

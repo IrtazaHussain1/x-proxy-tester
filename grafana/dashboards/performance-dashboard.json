@@ -25,7 +25,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT AVG(response_time_ms) as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR) AND response_time_ms IS NOT NULL",
+          "rawSql": "SELECT AVG(response_time_ms) as value FROM proxy_requests WHERE $__timeFilter(timestamp) AND response_time_ms IS NOT NULL",
           "format": "table"
         }
       ],
@@ -72,7 +72,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  response_time_ms as value\nFROM (\n  SELECT\n    response_time_ms,\n    ROW_NUMBER() OVER (ORDER BY response_time_ms) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM proxy_requests\n  WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)\n    AND response_time_ms IS NOT NULL\n) ranked\nWHERE row_num = FLOOR(total_count * 0.95) + 1\nLIMIT 1",
+          "rawSql": "SELECT\n  response_time_ms as value\nFROM (\n  SELECT\n    response_time_ms,\n    ROW_NUMBER() OVER (ORDER BY response_time_ms) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM proxy_requests\n  WHERE $__timeFilter(timestamp)\n    AND response_time_ms IS NOT NULL\n) ranked\nWHERE row_num = FLOOR(total_count * 0.95) + 1\nLIMIT 1",
           "format": "table"
         }
       ],
@@ -119,7 +119,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  response_time_ms as value\nFROM (\n  SELECT\n    response_time_ms,\n    ROW_NUMBER() OVER (ORDER BY response_time_ms) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM proxy_requests\n  WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)\n    AND response_time_ms IS NOT NULL\n) ranked\nWHERE row_num = FLOOR(total_count * 0.99) + 1\nLIMIT 1",
+          "rawSql": "SELECT\n  response_time_ms as value\nFROM (\n  SELECT\n    response_time_ms,\n    ROW_NUMBER() OVER (ORDER BY response_time_ms) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM proxy_requests\n  WHERE $__timeFilter(timestamp)\n    AND response_time_ms IS NOT NULL\n) ranked\nWHERE row_num = FLOOR(total_count * 0.99) + 1\nLIMIT 1",
           "format": "table"
         }
       ],
@@ -166,7 +166,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT COUNT(*) / 60.0 as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+          "rawSql": "SELECT COUNT(*) / 60.0 as value FROM proxy_requests WHERE $__timeFilter(timestamp)",
           "format": "table"
         }
       ],
@@ -196,7 +196,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  AVG(response_time_ms) as p50,\n  MAX(response_time_ms) as p99\nFROM proxy_requests\nWHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  AND response_time_ms IS NOT NULL\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  AVG(response_time_ms) as p50,\n  MAX(response_time_ms) as p99\nFROM proxy_requests\nWHERE $__timeFilter(timestamp)\n  AND response_time_ms IS NOT NULL\nGROUP BY time_sec\nORDER BY time_sec",
           "format": "time_series",
           "refId": "A"
         }
@@ -226,7 +226,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  CASE\n    WHEN response_time_ms < 500 THEN '< 500ms'\n    WHEN response_time_ms < 1000 THEN '500-1000ms'\n    WHEN response_time_ms < 2000 THEN '1000-2000ms'\n    WHEN response_time_ms < 5000 THEN '2000-5000ms'\n    ELSE '> 5000ms'\n  END as bucket,\n  COUNT(*) as count\nFROM proxy_requests\nWHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  AND response_time_ms IS NOT NULL\nGROUP BY bucket\nORDER BY bucket",
+          "rawSql": "SELECT\n  CASE\n    WHEN response_time_ms < 500 THEN '< 500ms'\n    WHEN response_time_ms < 1000 THEN '500-1000ms'\n    WHEN response_time_ms < 2000 THEN '1000-2000ms'\n    WHEN response_time_ms < 5000 THEN '2000-5000ms'\n    ELSE '> 5000ms'\n  END as bucket,\n  COUNT(*) as count\nFROM proxy_requests\nWHERE $__timeFilter(timestamp)\n  AND response_time_ms IS NOT NULL\nGROUP BY bucket\nORDER BY bucket",
           "format": "table",
           "refId": "A"
         }
@@ -248,7 +248,7 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
-          "rawSql": "SELECT\n  p.name,\n  p.location,\n  AVG(pr.response_time_ms) as avg_response_time,\n  COUNT(*) as request_count,\n  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  AND pr.response_time_ms IS NOT NULL\nGROUP BY p.device_id, p.name, p.location\nORDER BY avg_response_time DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  p.name,\n  p.location,\n  AVG(pr.response_time_ms) as avg_response_time,\n  COUNT(*) as request_count,\n  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.response_time_ms IS NOT NULL\nGROUP BY p.device_id, p.name, p.location\nORDER BY avg_response_time DESC\nLIMIT 20",
           "format": "table",
           "refId": "A"
         }

@@ -14,6 +14,11 @@ services:
       - mysql_data:/var/lib/mysql
       - ./scripts/init-grafana-views.sh:/docker-entrypoint-initdb.d/init-grafana-views.sh:ro
       - ./mysql-docker-config.cnf:/etc/mysql/conf.d/custom.cnf:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
       interval: 5s
@@ -87,6 +92,8 @@ services:
       
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_TO_CONSOLE: ${LOG_TO_CONSOLE:-false}
+      LOGS_DIR: ${LOGS_DIR:-/app/logs}
       
       # Encryption
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
@@ -96,9 +103,11 @@ services:
       HEALTH_CHECK_PORT: ${HEALTH_CHECK_PORT:-3000}
       
       # Archival
+      # Reduced retention to 14 days to manage rapid database growth
       ENABLE_ARCHIVAL: ${ENABLE_ARCHIVAL:-true}
-      DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-30}
-      ARCHIVAL_INTERVAL_MS: ${ARCHIVAL_INTERVAL_MS:-86400000}
+      DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-14}
+      # Run archival every 12 hours (instead of 24) to keep database size manageable
+      ARCHIVAL_INTERVAL_MS: ${ARCHIVAL_INTERVAL_MS:-43200000}
       ARCHIVAL_BATCH_SIZE: ${ARCHIVAL_BATCH_SIZE:-1000}
       
       # Alert Monitoring
@@ -112,12 +121,17 @@ services:
       - ./logs:/app/logs
     networks:
       - proxy-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      start_period: 180s
 
   grafana:
     image: grafana/grafana:latest
@@ -136,6 +150,44 @@ services:
       - GF_INSTALL_PLUGINS=
       - GF_SERVER_ROOT_URL=http://localhost:3312
       - GF_SERVER_HTTP_PORT=3000
+      # Performance and stability settings
+      - GF_ALERTING_EVALUATION_TIMEOUT_SECONDS=60
+      - GF_ALERTING_MAX_ATTEMPTS=3
+      - GF_ALERTING_MIN_INTERVAL_SECONDS=30
+      - GF_DATABASE_MAX_IDLE_CONN=25
+      - GF_DATABASE_MAX_OPEN_CONN=100
+      - GF_DATABASE_CONN_MAX_LIFETIME_SECONDS=14400
+      - GF_SERVER_ENABLE_GZIP=true
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_LOG_LEVEL=${GRAFANA_LOG_LEVEL:-warn}
+      - GF_LOG_FILTERS=alerting.scheduler:debug
+      # Performance optimizations for faster loading
+      - GF_DATASOURCES_ALLOW_EDIT=true
+      - GF_DATASOURCES_CACHE_TTL=300
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      # Query and rendering performance
+      - GF_RENDERING_SERVER_URL=
+      - GF_RENDERING_CALLBACK_URL=
+      - GF_RENDERING_CONCURRENT_REQUEST_LIMIT=30
+      - GF_RENDERING_TIMEOUT=30
+      # HTTP and connection settings
+      - GF_SERVER_ENFORCE_DOMAIN=false
+      - GF_SERVER_SOCKET_TIMEOUT=0
+      - GF_SERVER_DOMAIN=localhost
+      # Caching settings
+      - GF_DATASOURCE_CACHE_TTL=300
+      - GF_DASHBOARD_CACHE_TTL=300
+      # Session and security settings
+      - GF_SECURITY_COOKIE_SECURE=false
+      - GF_SECURITY_COOKIE_SAMESITE=lax
+      - GF_SECURITY_TOKEN_ROTATION_INTERVAL_MINUTES=10
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      # Memory and performance tuning
+      - GF_FEATURE_TOGGLES_ENABLE=queryHistory
+      - GF_QUERY_HISTORY_ENABLED=true
+      - GF_QUERY_HISTORY_TTL_DAYS=7
       # Use SQLite for Grafana's internal database (default, simpler, no connection issues)
       # MySQL is still used as a datasource for querying proxy data via provisioning
       # Commenting out MySQL config to use SQLite default
@@ -150,6 +202,18 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - proxy-network
+    # Resource limits optimized for 8GB RAM / 4 vCPU server
+    # Note: deploy.resources only works in Docker Swarm mode
+    # For standalone docker-compose, set limits manually:
+    # docker update --memory=4g --memory-reservation=1g --cpus=3.0 x-proxy-tester-grafana
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s

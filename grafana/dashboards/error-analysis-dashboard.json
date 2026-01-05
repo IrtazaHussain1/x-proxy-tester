@@ -81,11 +81,11 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND status != 'SUCCESS'",
+          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests WHERE $__timeFilter(timestamp) AND status != 'SUCCESS'",
           "refId": "A"
         }
       ],
-      "title": "Total Errors (24h)",
+      "title": "Total Errors",
       "type": "stat"
     },
     {
@@ -151,7 +151,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+          "rawSql": "SELECT COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE $__timeFilter(timestamp)",
           "refId": "A"
         }
       ],
@@ -240,7 +240,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  COALESCE(error_type, 'UNKNOWN') as metric,\n  COUNT(*) as value\nFROM proxy_requests\nWHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  AND status != 'SUCCESS'\nGROUP BY error_type",
+          "rawSql": "SELECT\n  COALESCE(error_type, 'UNKNOWN') as metric,\n  COUNT(*) as value\nFROM proxy_requests\nWHERE $__timeFilter(timestamp)\n  AND status != 'SUCCESS'\nGROUP BY error_type",
           "refId": "A"
         }
       ],
@@ -308,7 +308,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT error_type) as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND error_type IS NOT NULL",
+          "rawSql": "SELECT COUNT(DISTINCT error_type) as value FROM proxy_requests WHERE $__timeFilter(timestamp) AND error_type IS NOT NULL",
           "refId": "A",
           "sql": {
             "columns": [
@@ -390,7 +390,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  p.name as value\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  AND pr.status != 'SUCCESS'\nGROUP BY p.device_id, p.name\nORDER BY COUNT(*) DESC\nLIMIT 1",
+          "rawSql": "SELECT\n  p.name as value\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.status != 'SUCCESS'\nGROUP BY p.device_id, p.name\nORDER BY COUNT(*) DESC\nLIMIT 1",
           "refId": "A"
         }
       ],
@@ -452,7 +452,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT DISTINCT error_type as value FROM proxy_requests WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND error_type IS NOT NULL",
+          "rawSql": "SELECT DISTINCT error_type as value FROM proxy_requests WHERE $__timeFilter(timestamp) AND error_type IS NOT NULL",
           "refId": "A",
           "sql": {
             "columns": [
@@ -566,7 +566,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate\nFROM proxy_requests\nWHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate\nFROM proxy_requests\nWHERE $__timeFilter(timestamp)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
       ],
@@ -622,7 +622,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  p.name,\n  p.location,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate,\n  GROUP_CONCAT(DISTINCT pr.error_type) as error_types\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\nGROUP BY p.device_id, p.name, p.location\nHAVING error_count > 0\nORDER BY error_count DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  p.name,\n p.device_id,\n  p.location,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate,\n  GROUP_CONCAT(DISTINCT pr.error_type) as error_types\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp)\nGROUP BY p.device_id, p.name, p.location\nHAVING error_count > 0\nORDER BY error_count DESC\nLIMIT 20",
           "refId": "A"
         }
       ],

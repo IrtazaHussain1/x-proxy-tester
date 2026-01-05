@@ -12,8 +12,9 @@ import { logger } from '../lib/logger';
 
 /**
  * Default retention periods (in days)
+ * Reduced from 30 to 14 days to manage database growth
  */
-const DEFAULT_RETENTION_DAYS = parseInt(process.env.DATA_RETENTION_DAYS || '30', 10);
+const DEFAULT_RETENTION_DAYS = parseInt(process.env.DATA_RETENTION_DAYS || '14', 10);
 const ARCHIVAL_BATCH_SIZE = parseInt(process.env.ARCHIVAL_BATCH_SIZE || '1000', 10);
 
 /**

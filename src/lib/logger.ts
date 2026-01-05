@@ -1,5 +1,7 @@
 import pino from 'pino';
 import { randomBytes } from 'crypto';
+import { mkdirSync, existsSync } from 'fs';
+import { join } from 'path';
 
 /**
  * Generate correlation ID for request tracing
@@ -28,25 +30,117 @@ function setCorrelationId(id: string): void {
 }
 
 /**
- * Create logger instance with correlation ID support
+ * Setup log directory and file paths
  */
-const baseLogger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'HH:MM:ss',
-      ignore: 'pid,hostname',
-      singleLine: false,
-      hideObject: false,
-      messageFormat: '{msg}',
+const LOGS_DIR = process.env.LOGS_DIR || './logs';
+const LOG_FILE = join(LOGS_DIR, 'app.log');
+const ERROR_LOG_FILE = join(LOGS_DIR, 'error.log');
+
+/**
+ * Determine if we should log to console
+ * Log to console if LOG_TO_CONSOLE is true, or if not in production
+ */
+const shouldLogToConsole = process.env.LOG_TO_CONSOLE === 'true' || process.env.NODE_ENV !== 'production';
+
+/**
+ * Create logger streams
+ * - File stream: All logs go to app.log
+ * - Error file stream: Errors also go to error.log
+ * - Console stream: Pretty formatted output (if enabled)
+ */
+const streams: Array<{ level: string; stream: any }> = [];
+
+// Always try to log to file (pino.destination will handle errors gracefully)
+// Attempt to create directory if it doesn't exist, but proceed anyway
+let canWriteToLogs = false;
+try {
+  if (!existsSync(LOGS_DIR)) {
+    mkdirSync(LOGS_DIR, { recursive: true });
+  }
+  
+  // Test if we can write to the logs directory
+  const testFile = join(LOGS_DIR, '.write-test');
+  try {
+    require('fs').writeFileSync(testFile, 'test');
+    require('fs').unlinkSync(testFile);
+    canWriteToLogs = true;
+  } catch (writeErr: any) {
+    if (writeErr.code === 'EACCES' || writeErr.code === 'EPERM') {
+      console.warn(
+        `⚠️  No write permission to ${LOGS_DIR}. File logging disabled. ` +
+        `Fix permissions on host: chmod 777 ./logs (or chown -R 1001:1001 ./logs)`
+      );
+      canWriteToLogs = false;
+    } else {
+      // Other errors, still try to proceed
+      canWriteToLogs = true;
+    }
+  }
+} catch (err: any) {
+  console.warn(`Warning: Could not create/access logs directory: ${err.message}`);
+  canWriteToLogs = false;
+}
+
+// Only add file streams if we have write permission
+if (canWriteToLogs) {
+  try {
+    streams.push({
+      level: 'info',
+      stream: pino.destination({
+        dest: LOG_FILE,
+        sync: false, // Async writes for better performance
+      }),
+    });
+
+    // Separate error log file
+    streams.push({
+      level: 'error',
+      stream: pino.destination({
+        dest: ERROR_LOG_FILE,
+        sync: false,
+      }),
+    });
+  } catch (err: any) {
+    console.warn(
+      `Warning: Could not set up file logging: ${err.message}. ` +
+      `Logging to console only.`
+    );
+  }
+} else {
+  console.warn('⚠️  File logging disabled due to permission issues. Logging to console only.');
+}
+
+// Optionally log to console with pretty formatting
+if (shouldLogToConsole) {
+  streams.push({
+    level: process.env.LOG_LEVEL || 'info',
+    stream: pino.transport({
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        translateTime: 'HH:MM:ss',
+        ignore: 'pid,hostname',
+        singleLine: false,
+        hideObject: false,
+        messageFormat: '{msg}',
+      },
+    }),
+  });
+}
+
+/**
+ * Create logger instance with correlation ID support
+ * Uses multi-stream to write to both console (pretty) and files
+ */
+const baseLogger = pino(
+  {
+    level: process.env.LOG_LEVEL || 'info',
+    base: {
+      service: 'x-proxy-tester',
     },
   },
-  base: {
-    service: 'x-proxy-tester',
-  },
-});
+  streams.length > 0 ? pino.multistream(streams) : undefined
+);
 
 /**
  * Enhanced logger with correlation ID
