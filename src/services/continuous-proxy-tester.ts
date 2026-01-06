@@ -16,6 +16,7 @@ import { getAllDevices, updateDevices } from '../helpers/devices';
 import { testProxyWithStats } from '../helpers/test-proxy';
 import { logger } from '../lib/logger';
 import { prismaWithRetry as prisma, prisma as prismaRaw, checkDatabaseHealth } from '../lib/db';
+import { batchWriter } from '../lib/batch-writer';
 import { startStabilityCalculation } from './stability-calculator';
 import {
   // checkAutoDeactivation,
@@ -301,12 +302,10 @@ export async function saveProxyTestToDatabase(
       hasCurrentIp &&
       expectedIp === metrics.outboundIp;
 
+    // Update proxy with latest IP info (immediate - needed for rotation tracking)
     // Use transaction to ensure data consistency
-    // Use callback form instead of array form to work properly with retry logic
-    // Set timeout to 10 seconds to prevent hanging transactions
     await prismaRaw.$transaction(
       async (tx) => {
-        // Update proxy with latest IP info
         await tx.proxy.update({
           where: { deviceId: proxy.deviceId },
           data: {
@@ -317,30 +316,35 @@ export async function saveProxyTestToDatabase(
             rotationCount,
           },
         });
-        
-        // Save the test request
-        await tx.proxyRequest.create({
-          data: {
-            proxyId: proxy.deviceId,
-            timestamp: metrics.timestamp,
-            targetUrl: metrics.requestUrl,
-            status: mapToRequestStatus(metrics),
-            httpStatusCode: metrics.httpStatus || null,
-            responseTimeMs: metrics.responseTimeMs,
-            expectedIp: expectedIp || null,
-            outboundIp: metrics.outboundIp || null,
-            ipChanged: ipChangedFromPrevious, // Changed from previous request (rotation)
-            errorType: metrics.errorType || null,
-            errorMessage: metrics.errorMessage || null,
-            source: source, // Track the source workflow
-          },
-        });
       },
       {
         timeout: 10000, // 10 seconds timeout
         maxWait: 5000, // Maximum time to wait for a transaction slot
       }
     );
+    
+    // Save the test request using batch writer (optimized for high volume)
+    // This batches writes to reduce database overhead from ~2.85M individual inserts
+    batchWriter.add({
+      type: 'create',
+      model: 'proxyRequest',
+      data: {
+        proxyId: proxy.deviceId,
+        timestamp: metrics.timestamp,
+        targetUrl: metrics.requestUrl,
+        status: mapToRequestStatus(metrics),
+        httpStatusCode: metrics.httpStatus || null,
+        responseTimeMs: metrics.responseTimeMs,
+        expectedIp: expectedIp || null,
+        outboundIp: metrics.outboundIp || null,
+        ipChanged: ipChangedFromPrevious, // Changed from previous request (rotation)
+        errorType: metrics.errorType || null,
+        errorMessage: metrics.errorMessage || null,
+        source: source, // Track the source workflow
+        downloadSpeedMbps: null, // Speed tests handled separately
+        uploadSpeedMbps: null,
+      },
+    });
 
     // Log IP mismatch if expected and returned are different
     if (!ipMatchesExpected && expectedIp && metrics.outboundIp) {

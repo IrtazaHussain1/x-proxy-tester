@@ -265,6 +265,14 @@ export const prismaWithRetry = {
     recordDatabaseQuery();
     return retryWithBackoff(() => prisma.$queryRaw(args), 'queryRaw');
   },
+  $queryRawUnsafe: async (...args: any[]) => {
+    recordDatabaseQuery();
+    return retryWithBackoff(() => (prisma.$queryRawUnsafe as any)(...args), 'queryRawUnsafe');
+  },
+  $executeRawUnsafe: async (...args: any[]) => {
+    recordDatabaseQuery();
+    return retryWithBackoff(() => (prisma.$executeRawUnsafe as any)(...args), 'executeRawUnsafe');
+  },
 };
 
 // Export both - use prismaWithRetry for critical operations, prisma for non-critical
