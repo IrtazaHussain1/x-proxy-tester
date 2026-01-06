@@ -97,10 +97,10 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  download_speed_mbps as value\nFROM (\n  SELECT\n    st.download_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY st.download_speed_mbps) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM speed_tests st\n  JOIN proxies p ON st.proxy_id = p.device_id\n  WHERE $__timeFilter(st.timestamp)\n    AND st.download_speed_mbps IS NOT NULL\n    AND p.location IN ($location)\n    AND p.device_id IN ($proxy)\n) ranked\nWHERE row_num = FLOOR(total_count * 0.50) + 1\nLIMIT 1"
+          "rawSql": "WITH ranked AS (\n  SELECT\n    download_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY download_speed_mbps) AS row_num,\n    COUNT(*) OVER () AS total_count\n  FROM (\n    SELECT DISTINCT\n      st.download_speed_mbps\n    FROM speed_tests st\n    JOIN proxies p ON st.proxy_id = p.device_id\n    WHERE $__timeFilter(st.timestamp)\n      AND st.download_speed_mbps IS NOT NULL\n      AND p.location IN ($location)\n      AND p.device_id IN ($proxy)\n  ) d\n)\nSELECT\n  AVG(download_speed_mbps) AS median\nFROM ranked\nWHERE row_num IN (\n  (total_count + 1) / 2,\n  (total_count + 2) / 2\n);\n"
         }
       ],
-      "title": "Median Download Speed (P50)",
+      "title": "Median Download Speed",
       "type": "stat"
     },
     {
@@ -191,7 +191,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  upload_speed_mbps as value\nFROM (\n  SELECT\n    st.upload_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY st.upload_speed_mbps) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM speed_tests st\n  JOIN proxies p ON st.proxy_id = p.device_id\n  WHERE $__timeFilter(st.timestamp)\n    AND st.upload_speed_mbps IS NOT NULL\n    AND p.location IN ($location)\n    AND p.device_id IN ($proxy)\n) ranked\nWHERE row_num = FLOOR(total_count * 0.50) + 1\nLIMIT 1"
+          "rawSql": "WITH ranked AS (\n  SELECT\n    st.upload_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY st.upload_speed_mbps) AS row_num,\n    COUNT(*) OVER () AS total_count\n  FROM speed_tests st\n  JOIN proxies p ON st.proxy_id = p.device_id\n  WHERE $__timeFilter(st.timestamp)\n    AND st.upload_speed_mbps IS NOT NULL\n    AND p.location IN ($location)\n    AND p.device_id IN ($proxy)\n)\nSELECT\n  AVG(upload_speed_mbps) AS value\nFROM ranked\nWHERE row_num IN (\n  (total_count + 1) / 2,\n  (total_count + 2) / 2\n);\n"
         }
       ],
       "title": "Median Upload Speed (P50)",
