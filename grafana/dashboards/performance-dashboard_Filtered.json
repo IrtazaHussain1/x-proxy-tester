@@ -58,7 +58,7 @@
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
-          "rawSql": "SELECT AVG(download_speed_mbps) as value FROM proxies WHERE active = true AND download_speed_mbps IS NOT NULL AND location IN ($location)",
+          "rawSql": "SELECT AVG(st.download_speed_mbps) as value FROM proxies p JOIN speed_tests st ON p.device_id = st.proxy_id WHERE p.active = true AND st.download_speed_mbps IS NOT NULL AND p.location IN ($location) AND $__timeFilter(st.timestamp)",
           "format": "table"
         }
       ]
@@ -71,7 +71,7 @@
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
-          "rawSql": "SELECT AVG(upload_speed_mbps) as value FROM proxies WHERE active = true AND upload_speed_mbps IS NOT NULL AND location IN ($location)",
+          "rawSql": "SELECT AVG(st.upload_speed_mbps) as value FROM proxies p JOIN speed_tests st ON p.device_id = st.proxy_id WHERE p.active = true AND st.upload_speed_mbps IS NOT NULL AND p.location IN ($location) AND $__timeFilter(st.timestamp)",
           "format": "table"
         }
       ]
@@ -97,7 +97,7 @@
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
-          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, AVG(r.download_speed_mbps) as avg_speed FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND r.download_speed_mbps IS NOT NULL GROUP BY time_sec ORDER BY time_sec",
+          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(st.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, AVG(st.download_speed_mbps) as avg_speed FROM speed_tests st JOIN proxies p ON st.proxy_id = p.device_id WHERE $__timeFilter(st.timestamp) AND p.location IN ($location) AND st.download_speed_mbps IS NOT NULL GROUP BY time_sec ORDER BY time_sec",
           "format": "time_series"
         }
       ]
@@ -110,7 +110,7 @@
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
-          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, AVG(r.upload_speed_mbps) as avg_speed FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND r.upload_speed_mbps IS NOT NULL GROUP BY time_sec ORDER BY time_sec",
+          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(st.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, AVG(st.upload_speed_mbps) as avg_speed FROM speed_tests st JOIN proxies p ON st.proxy_id = p.device_id WHERE $__timeFilter(st.timestamp) AND p.location IN ($location) AND st.upload_speed_mbps IS NOT NULL GROUP BY time_sec ORDER BY time_sec",
           "format": "time_series"
         }
       ]
@@ -136,7 +136,7 @@
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
-          "rawSql": "SELECT p.name, p.location, AVG(pr.response_time_ms) as avg_latency, p.download_speed_mbps as last_dl, p.upload_speed_mbps as last_ul, COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location ORDER BY avg_latency ASC LIMIT 20",
+          "rawSql": "SELECT p.name, p.location, AVG(pr.response_time_ms) as avg_latency, (SELECT download_speed_mbps FROM speed_tests st WHERE st.proxy_id = p.device_id ORDER BY timestamp DESC LIMIT 1) as last_dl, (SELECT upload_speed_mbps FROM speed_tests st WHERE st.proxy_id = p.device_id ORDER BY timestamp DESC LIMIT 1) as last_ul, COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location ORDER BY avg_latency ASC LIMIT 20",
           "format": "table"
         }
       ]

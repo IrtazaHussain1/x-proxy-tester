@@ -162,25 +162,14 @@ export async function runSpeedTests(): Promise<void> {
             `Speed test completed for ${device.name}: DL: ${downloadResult.speedMbps.toFixed(2)} Mbps, UL: ${uploadResult.speedMbps.toFixed(2)} Mbps`
           );
 
-          await prisma.proxy.update({
-            where: { deviceId: device.device_id },
-            data: {
-              lastSpeedTestAt: new Date(),
-              downloadSpeedMbps: downloadResult.speedMbps,
-              uploadSpeedMbps: uploadResult.speedMbps,
-            }
-          });
 
-          // Also record in proxy_requests for history
-          await prisma.proxyRequest.create({
+
+          // Record in speed_tests table
+          await prisma.speedTest.create({
             data: {
               proxyId: device.device_id,
-              targetUrl: config.speedTest.targetUrl,
-              status: 'SUCCESS',
-              responseTimeMs: Math.round(downloadResult.speedMbps), 
               downloadSpeedMbps: downloadResult.speedMbps,
               uploadSpeedMbps: uploadResult.speedMbps,
-              source: 'speed_test'
             }
           });
         } else {

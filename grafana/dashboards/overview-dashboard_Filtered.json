@@ -120,7 +120,7 @@
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
-          "rawSql": "SELECT AVG(download_speed_mbps) as value FROM proxies WHERE active = true AND location IN ($location)",
+          "rawSql": "SELECT AVG(st.download_speed_mbps) as value FROM proxies p JOIN (SELECT proxy_id, download_speed_mbps FROM speed_tests WHERE timestamp >= NOW() - INTERVAL 1 HOUR) st ON p.device_id = st.proxy_id WHERE p.active = true AND p.location IN ($location)",
           "format": "table"
         }
       ]
@@ -133,7 +133,7 @@
       "targets": [
         {
           "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
-          "rawSql": "SELECT AVG(upload_speed_mbps) as value FROM proxies WHERE active = true AND location IN ($location)",
+          "rawSql": "SELECT AVG(st.upload_speed_mbps) as value FROM proxies p JOIN (SELECT proxy_id, upload_speed_mbps FROM speed_tests WHERE timestamp >= NOW() - INTERVAL 1 HOUR) st ON p.device_id = st.proxy_id WHERE p.active = true AND p.location IN ($location)",
           "format": "table"
         }
       ]
