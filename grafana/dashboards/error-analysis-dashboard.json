@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 6,
   "links": [],
   "panels": [
     {
@@ -666,6 +666,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "XProxy Tester - Error Analysis",
-  "uid": "error-analysis",
+  "uid": "f5514f91-8854-4c85-8910-6c56f1764553",
   "version": 1
 }
