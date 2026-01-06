@@ -240,7 +240,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COALESCE(r.error_type, 'UNKNOWN') as metric, COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location) GROUP BY metric",
+          "rawSql": "SELECT COALESCE(r.error_type, 'UNKNOWN') as metric, COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location) GROUP BY r.error_type",
           "refId": "A"
         }
       ],
@@ -309,24 +309,7 @@
           "format": "table",
           "rawQuery": true,
           "rawSql": "SELECT COUNT(DISTINCT r.error_type) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL AND p.location IN ($location)",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
+          "refId": "A"
         }
       ],
       "title": "Unique Error Types",
@@ -334,8 +317,7 @@
     },
     {
       "datasource": {
-        "type": "mysql",
-        "uid": "xproxy-tester-mysql"
+        "type": "mysql"
       },
       "fieldConfig": {
         "defaults": {
@@ -391,7 +373,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT p.name as value FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND pr.status != 'SUCCESS' AND p.location IN ($location) GROUP BY p.device_id, p.name ORDER BY COUNT(*) DESC LIMIT 1",
+          "rawSql": "SELECT p.name as value FROM proxies p JOIN proxy_requests r ON p.device_id = r.proxy_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location) GROUP BY p.device_id, p.name ORDER BY COUNT(*) DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -454,24 +436,7 @@
           "format": "table",
           "rawQuery": true,
           "rawSql": "SELECT DISTINCT r.error_type as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL AND p.location IN ($location)",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
+          "refId": "A"
         }
       ],
       "title": "Unique Errors List",
@@ -623,7 +588,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT p.name, p.device_id, p.location, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count, COUNT(*) as total_requests, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate, GROUP_CONCAT(DISTINCT pr.error_type) as error_types FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location HAVING error_count > 0 ORDER BY error_count DESC LIMIT 20",
+          "rawSql": "SELECT\n  p.name,\n p.device_id,\n  p.location,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate,\n  GROUP_CONCAT(DISTINCT pr.error_type) as error_types\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp) AND p.location IN ($location)\nGROUP BY p.device_id, p.name, p.location\nHAVING error_count > 0\nORDER BY error_count DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -636,25 +601,36 @@
   "schemaVersion": 42,
   "tags": [
     "x-proxy-tester",
-    "errors"
+    "errors",
+    "filtered"
   ],
   "templating": {
     "list": [
       {
         "current": {
-          "text": "All",
-          "value": "$__all"
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
           "type": "mysql",
           "uid": "xproxy-tester-mysql"
         },
+        "definition": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "location",
         "options": [],
         "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
         "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
         "type": "query"
       }
     ]
@@ -665,7 +641,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "XProxy Tester - Error Analysis",
-  "uid": "error-analysis",
+  "title": "XProxy Tester - Error Analysis_Filtered",
+  "uid": "error-analysis-filtered",
   "version": 1
 }

@@ -18,8 +18,9 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": null,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
       "fieldConfig": {
@@ -72,7 +73,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'Stable'",
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'Stable' AND location IN ($location)",
           "refId": "A"
         }
       ],
@@ -102,8 +103,8 @@
                 "value": 5
               }
             ]
-      }
-    },
+          }
+        },
         "overrides": []
       },
       "gridPos": {
@@ -138,7 +139,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableHourly'",
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableHourly' AND location IN ($location)",
           "refId": "A"
         }
       ],
@@ -171,7 +172,7 @@
           }
         },
         "overrides": []
-    },
+      },
       "gridPos": {
         "h": 4,
         "w": 8,
@@ -204,7 +205,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableDaily'",
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableDaily' AND location IN ($location)",
           "refId": "A"
         }
       ],
@@ -217,56 +218,8 @@
           "color": {
             "mode": "palette-classic"
           },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
           "unit": "short"
-    },
+        },
         "overrides": []
       },
       "gridPos": {
@@ -297,7 +250,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN stability_status = 'Stable' THEN 1 END) as stable,\n  COUNT(CASE WHEN stability_status = 'UnstableHourly' THEN 1 END) as unstable_hourly,\n  COUNT(CASE WHEN stability_status = 'UnstableDaily' THEN 1 END) as unstable_daily\nFROM proxies\nWHERE active = true AND $__timeFilter(updated_at)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN stability_status = 'Stable' THEN 1 END) as stable,\n  COUNT(CASE WHEN stability_status = 'UnstableHourly' THEN 1 END) as unstable_hourly,\n  COUNT(CASE WHEN stability_status = 'UnstableDaily' THEN 1 END) as unstable_daily\nFROM proxies\nWHERE active = true AND $__timeFilter(updated_at) AND location IN ($location)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
       ],
@@ -324,8 +277,8 @@
               {
                 "color": "green",
                 "value": 0
-    },
-    {
+              },
+              {
                 "color": "red",
                 "value": 80
               }
@@ -353,7 +306,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  name,\n  location,\n  stability_status,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  updated_at\nFROM proxies\nWHERE active = true AND stability_status IN ('UnstableHourly', 'UnstableDaily')\nORDER BY updated_at DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  name,\n  location,\n  stability_status,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  updated_at\nFROM proxies\nWHERE active = true AND stability_status IN ('UnstableHourly', 'UnstableDaily') AND location IN ($location)\nORDER BY updated_at DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -361,27 +314,10 @@
       "type": "table"
     },
     {
-      "datasource": {
-        "type": "mysql"
-      },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-    },
-    {
-                "color": "red",
-                "value": 80
-              }
-            ]
           }
         },
         "overrides": []
@@ -395,16 +331,6 @@
       "id": 6,
       "options": {
         "displayMode": "gradient",
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "maxVizHeight": 300,
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "namePlacement": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
           "calcs": [
@@ -425,7 +351,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  location,\n  stability_status,\n  COUNT(*) as count\nFROM proxies\nWHERE active = true\nGROUP BY location, stability_status\nORDER BY location, stability_status",
+          "rawSql": "SELECT\n  location,\n  stability_status,\n  COUNT(*) as count\nFROM proxies\nWHERE active = true AND location IN ($location)\nGROUP BY location, stability_status\nORDER BY location, stability_status",
           "refId": "A"
         }
       ],
@@ -433,7 +359,6 @@
       "type": "bargauge"
     }
   ],
-  "preload": false,
   "refresh": "1m",
   "schemaVersion": 42,
   "tags": [
@@ -441,7 +366,35 @@
     "stability"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-30m",
@@ -450,6 +403,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "XProxy Tester - Stability Analysis",
-  "uid": "6f1557bf-b3a6-4300-be5e-0f7364fc5f01",
+  "uid": "stability-analysis",
   "version": 1
 }
