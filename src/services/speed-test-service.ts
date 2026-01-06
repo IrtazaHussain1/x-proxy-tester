@@ -168,43 +168,49 @@ export async function runSpeedTests(): Promise<void> {
             const downloadResult = await measureDownloadSpeed(device);
             const uploadResult = await measureUploadSpeed(device);
 
-            if (downloadResult.success || uploadResult.success) {
-              const latencyMs = downloadResult.latencyMs ?? uploadResult.latencyMs ?? null;
+            const latencyMs = downloadResult.latencyMs ?? uploadResult.latencyMs ?? null;
+            const downloadSpeed = downloadResult.success ? downloadResult.speedMbps : 0;
+            const uploadSpeed = uploadResult.success ? uploadResult.speedMbps : 0;
 
-              logger.info(
-                {
-                  deviceId: device.device_id,
-                  downloadMbps: downloadResult.speedMbps.toFixed(2),
-                  uploadMbps: uploadResult.speedMbps.toFixed(2),
-                  latencyMs,
-                },
-                `Speed test completed for ${device.name}: DL: ${downloadResult.speedMbps.toFixed(
-                  2
-                )} Mbps, UL: ${uploadResult.speedMbps.toFixed(2)} Mbps`
-              );
+            logger.info(
+              {
+                deviceId: device.device_id,
+                downloadMbps: downloadSpeed.toFixed(2),
+                uploadMbps: uploadSpeed.toFixed(2),
+                latencyMs,
+                downloadSuccess: downloadResult.success,
+                uploadSuccess: uploadResult.success,
+                downloadError: downloadResult.error,
+                uploadError: uploadResult.error,
+              },
+              `Speed test completed for ${device.name}: DL: ${downloadSpeed.toFixed(
+                2
+              )} Mbps, UL: ${uploadSpeed.toFixed(2)} Mbps`
+            );
 
-              // Record in speed_tests table
-              await prisma.speedTest.create({
-                data: {
-                  proxyId: device.device_id,
-                  timestamp: cycleTimestamp,
-                  downloadSpeedMbps: downloadResult.speedMbps,
-                  uploadSpeedMbps: uploadResult.speedMbps,
-                  latencyMs: latencyMs ?? undefined,
-                },
-              });
-            } else {
-              logger.error(
-                {
-                  deviceId: device.device_id,
-                  downloadError: downloadResult.error,
-                  uploadError: uploadResult.error,
-                },
-                `Speed test failed for ${device.name}`
-              );
-            }
+            // Record in speed_tests table (always insert, even on failure)
+            await prisma.speedTest.create({
+              data: {
+                proxyId: device.device_id,
+                timestamp: cycleTimestamp,
+                downloadSpeedMbps: downloadSpeed,
+                uploadSpeedMbps: uploadSpeed,
+                latencyMs: latencyMs ?? undefined,
+                error: downloadResult.error || uploadResult.error || undefined,
+              },
+            });
           } catch (err) {
             logger.error({ deviceId: device.device_id, error: err }, 'Unexpected error during speed test');
+            await prisma.speedTest.create({
+              data: {
+                proxyId: device.device_id,
+                timestamp: cycleTimestamp,
+                downloadSpeedMbps: 0,
+                uploadSpeedMbps: 0,
+                latencyMs: null,
+                error: `Unexpected error during speed test: ${err instanceof Error ? err.message : 'Unknown error'}`,
+              },
+            });
           } finally {
             currentlyTestingProxies.delete(device.device_id);
           }
