@@ -50,7 +50,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT AVG(st.download_speed_mbps) as value FROM speed_tests st JOIN proxies p ON st.proxy_id = p.device_id WHERE $__timeFilter(st.timestamp) AND st.download_speed_mbps IS NOT NULL AND p.location IN ($location)"
+          "rawSql": "SELECT AVG(st.download_speed_mbps) as value FROM speed_tests st JOIN proxies p ON st.proxy_id = p.device_id WHERE $__timeFilter(st.timestamp) AND st.download_speed_mbps IS NOT NULL AND p.location IN ($location) AND p.device_id IN ($proxy)"
         }
       ],
       "title": "Avg Download Speed",
@@ -97,7 +97,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  download_speed_mbps as value\nFROM (\n  SELECT\n    st.download_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY st.download_speed_mbps) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM speed_tests st\n  JOIN proxies p ON st.proxy_id = p.device_id\n  WHERE $__timeFilter(st.timestamp)\n    AND st.download_speed_mbps IS NOT NULL\n    AND p.location IN ($location)\n) ranked\nWHERE row_num = FLOOR(total_count * 0.50) + 1\nLIMIT 1"
+          "rawSql": "SELECT\n  download_speed_mbps as value\nFROM (\n  SELECT\n    st.download_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY st.download_speed_mbps) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM speed_tests st\n  JOIN proxies p ON st.proxy_id = p.device_id\n  WHERE $__timeFilter(st.timestamp)\n    AND st.download_speed_mbps IS NOT NULL\n    AND p.location IN ($location)\n    AND p.device_id IN ($proxy)\n) ranked\nWHERE row_num = FLOOR(total_count * 0.50) + 1\nLIMIT 1"
         }
       ],
       "title": "Median Download Speed (P50)",
@@ -144,7 +144,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT AVG(st.upload_speed_mbps) as value FROM speed_tests st JOIN proxies p ON st.proxy_id = p.device_id WHERE $__timeFilter(st.timestamp) AND st.upload_speed_mbps IS NOT NULL AND p.location IN ($location)"
+          "rawSql": "SELECT AVG(st.upload_speed_mbps) as value FROM speed_tests st JOIN proxies p ON st.proxy_id = p.device_id WHERE $__timeFilter(st.timestamp) AND st.upload_speed_mbps IS NOT NULL AND p.location IN ($location) AND p.device_id IN ($proxy)"
         }
       ],
       "title": "Avg Upload Speed",
@@ -191,7 +191,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  upload_speed_mbps as value\nFROM (\n  SELECT\n    st.upload_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY st.upload_speed_mbps) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM speed_tests st\n  JOIN proxies p ON st.proxy_id = p.device_id\n  WHERE $__timeFilter(st.timestamp)\n    AND st.upload_speed_mbps IS NOT NULL\n    AND p.location IN ($location)\n) ranked\nWHERE row_num = FLOOR(total_count * 0.50) + 1\nLIMIT 1"
+          "rawSql": "SELECT\n  upload_speed_mbps as value\nFROM (\n  SELECT\n    st.upload_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY st.upload_speed_mbps) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM speed_tests st\n  JOIN proxies p ON st.proxy_id = p.device_id\n  WHERE $__timeFilter(st.timestamp)\n    AND st.upload_speed_mbps IS NOT NULL\n    AND p.location IN ($location)\n    AND p.device_id IN ($proxy)\n) ranked\nWHERE row_num = FLOOR(total_count * 0.50) + 1\nLIMIT 1"
         }
       ],
       "title": "Median Upload Speed (P50)",
@@ -220,7 +220,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(st.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n  AVG(st.download_speed_mbps) as avg_download\nFROM speed_tests st\nJOIN proxies p ON st.proxy_id = p.device_id\nWHERE $__timeFilter(st.timestamp)\n  AND st.download_speed_mbps IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(st.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n  AVG(st.download_speed_mbps) as avg_download\nFROM speed_tests st\nJOIN proxies p ON st.proxy_id = p.device_id\nWHERE $__timeFilter(st.timestamp)\n  AND st.download_speed_mbps IS NOT NULL\n  AND p.location IN ($location)\n  AND p.device_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
       ],
@@ -250,7 +250,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(st.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n  AVG(st.upload_speed_mbps) as avg_upload\nFROM speed_tests st\nJOIN proxies p ON st.proxy_id = p.device_id\nWHERE $__timeFilter(st.timestamp)\n  AND st.upload_speed_mbps IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(st.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n  AVG(st.upload_speed_mbps) as avg_upload\nFROM speed_tests st\nJOIN proxies p ON st.proxy_id = p.device_id\nWHERE $__timeFilter(st.timestamp)\n  AND st.upload_speed_mbps IS NOT NULL\n  AND p.location IN ($location)\n  AND p.device_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "B"
         }
       ],
@@ -272,7 +272,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "WITH ProxyStats AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) as avg_download,\n      MIN(download_speed_mbps) as min_download,\n      MAX(download_speed_mbps) as max_download,\n      AVG(upload_speed_mbps) as avg_upload,\n      MIN(upload_speed_mbps) as min_upload,\n      MAX(upload_speed_mbps) as max_upload,\n      COUNT(*) as test_count\n    FROM speed_tests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id\n),\nMedianDL AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) as median_download\n    FROM (\n      SELECT\n        proxy_id,\n        download_speed_mbps,\n        ROW_NUMBER() OVER (PARTITION BY proxy_id ORDER BY download_speed_mbps) as row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) as total_count\n      FROM speed_tests\n      WHERE $__timeFilter(timestamp) AND download_speed_mbps IS NOT NULL\n    ) t\n    WHERE row_num IN (FLOOR((total_count+1)/2), FLOOR((total_count+2)/2))\n    GROUP BY proxy_id\n),\nMedianUL AS (\n    SELECT\n      proxy_id,\n      AVG(upload_speed_mbps) as median_upload\n    FROM (\n      SELECT\n        proxy_id,\n        upload_speed_mbps,\n        ROW_NUMBER() OVER (PARTITION BY proxy_id ORDER BY upload_speed_mbps) as row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) as total_count\n      FROM speed_tests\n      WHERE $__timeFilter(timestamp) AND upload_speed_mbps IS NOT NULL\n    ) t\n    WHERE row_num IN (FLOOR((total_count+1)/2), FLOOR((total_count+2)/2))\n    GROUP BY proxy_id\n)\nSELECT\n  p.name,\n  p.location,\n  ps.avg_download,\n  md.median_download,\n  ps.min_download,\n  ps.max_download,\n  ps.avg_upload,\n  mu.median_upload,\n  ps.min_upload,\n  ps.max_upload,\n  ps.test_count\nFROM proxies p\nJOIN ProxyStats ps ON p.device_id = ps.proxy_id\nLEFT JOIN MedianDL md ON p.device_id = md.proxy_id\nLEFT JOIN MedianUL mu ON p.device_id = mu.proxy_id\nWHERE p.location IN ($location)\nORDER BY ps.avg_download DESC\nLIMIT 100",
+          "rawSql": "WITH ProxyStats AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) as avg_download,\n      MIN(download_speed_mbps) as min_download,\n      MAX(download_speed_mbps) as max_download,\n      AVG(upload_speed_mbps) as avg_upload,\n      MIN(upload_speed_mbps) as min_upload,\n      MAX(upload_speed_mbps) as max_upload,\n      COUNT(*) as test_count\n    FROM speed_tests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id\n),\nMedianDL AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) as median_download\n    FROM (\n      SELECT\n        proxy_id,\n        download_speed_mbps,\n        ROW_NUMBER() OVER (PARTITION BY proxy_id ORDER BY download_speed_mbps) as row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) as total_count\n      FROM speed_tests\n      WHERE $__timeFilter(timestamp) AND download_speed_mbps IS NOT NULL\n    ) t\n    WHERE row_num IN (FLOOR((total_count+1)/2), FLOOR((total_count+2)/2))\n    GROUP BY proxy_id\n),\nMedianUL AS (\n    SELECT\n      proxy_id,\n      AVG(upload_speed_mbps) as median_upload\n    FROM (\n      SELECT\n        proxy_id,\n        upload_speed_mbps,\n        ROW_NUMBER() OVER (PARTITION BY proxy_id ORDER BY upload_speed_mbps) as row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) as total_count\n      FROM speed_tests\n      WHERE $__timeFilter(timestamp) AND upload_speed_mbps IS NOT NULL\n    ) t\n    WHERE row_num IN (FLOOR((total_count+1)/2), FLOOR((total_count+2)/2))\n    GROUP BY proxy_id\n)\nSELECT\n  p.name,\n  p.location,\n  ps.avg_download,\n  md.median_download,\n  ps.min_download,\n  ps.max_download,\n  ps.avg_upload,\n  mu.median_upload,\n  ps.min_upload,\n  ps.max_upload,\n  ps.test_count\nFROM proxies p\nJOIN ProxyStats ps ON p.device_id = ps.proxy_id\nLEFT JOIN MedianDL md ON p.device_id = md.proxy_id\nLEFT JOIN MedianUL mu ON p.device_id = mu.proxy_id\nWHERE p.location IN ($location)\n  AND p.device_id IN ($proxy)\nORDER BY ps.avg_download DESC\nLIMIT 100",
           "refId": "A"
         }
       ],
@@ -309,6 +309,33 @@
         "name": "location",
         "options": [],
         "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT CONCAT(name, ' - ', device_id) as __text, device_id as __value FROM proxies WHERE location IN ($location) AND active = true",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "proxy",
+        "options": [],
+        "query": "SELECT CONCAT(name, ' - ', device_id) as __text, device_id as __value FROM proxies WHERE location IN ($location) AND active = true",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
