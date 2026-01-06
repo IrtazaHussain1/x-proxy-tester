@@ -12,7 +12,7 @@ import { getAllDevices } from '../helpers/devices';
 import { buildProxyUrl } from '../clients/proxyClient';
 
 let speedTestTimeout: NodeJS.Timeout | null = null;
-let isSpeedTesting = false;
+const currentlyTestingProxies = new Set<string>();
 
 /**
  * Measures download speed through a proxy
@@ -119,80 +119,92 @@ async function measureUploadSpeed(device: any): Promise<{ speedMbps: number; suc
  * Runs a speed test for all active proxies
  */
 export async function runSpeedTests(): Promise<void> {
-  if (isSpeedTesting) {
-    logger.warn('Speed test already in progress, skipping');
-    return;
-  }
-
   const dbHealth = await checkDatabaseHealth();
   if (!dbHealth.connected) {
     logger.error('Database not connected, skipping speed tests');
     return;
   }
 
-  isSpeedTesting = true;
-  logger.info('Starting periodic speed tests for all proxies');
+  logger.info('Checking for idle proxies to run speed tests');
 
   try {
     const devices = await getAllDevices();
-    const activeDevices = devices.filter(d => d.proxy_status === 'active');
 
-    logger.info({ total: devices.length, active: activeDevices.length }, `Found ${activeDevices.length} active proxies for speed testing`);
+    // Filter out proxies that are already undergoing a speed test
+    const idleDevices = devices.filter((d) => !currentlyTestingProxies.has(d.device_id));
 
-    if (activeDevices.length === 0) {
-      logger.warn('No active proxies found for speed testing');
+    logger.info(
+      { 
+        total: devices.length, 
+        inProgress: currentlyTestingProxies.size,
+        toTest: idleDevices.length 
+      },
+      `Speed test status: ${idleDevices.length} idle proxies to test, ${currentlyTestingProxies.size} currently in progress`
+    );
+
+    if (idleDevices.length === 0) {
       return;
     }
 
     // batch processing to avoid overwhelming system
     const batchSize = config.speedTest.maxConcurrentTests;
-    for (let i = 0; i < activeDevices.length; i += batchSize) {
-      const batch = activeDevices.slice(i, i + batchSize);
-      await Promise.all(batch.map(async (device) => {
-        const downloadResult = await measureDownloadSpeed(device);
-        const uploadResult = await measureUploadSpeed(device);
-        
-        if (downloadResult.success || uploadResult.success) {
-          logger.info(
-            { 
-              deviceId: device.device_id, 
-              downloadMbps: downloadResult.speedMbps.toFixed(2),
-              uploadMbps: uploadResult.speedMbps.toFixed(2)
-            },
-            `Speed test completed for ${device.name}: DL: ${downloadResult.speedMbps.toFixed(2)} Mbps, UL: ${uploadResult.speedMbps.toFixed(2)} Mbps`
-          );
+    for (let i = 0; i < idleDevices.length; i += batchSize) {
+      const batch = idleDevices.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(async (device) => {
+          // Double check in case another cycle started recently
+          if (currentlyTestingProxies.has(device.device_id)) return;
+          
+          currentlyTestingProxies.add(device.device_id);
+          try {
+            const downloadResult = await measureDownloadSpeed(device);
+            const uploadResult = await measureUploadSpeed(device);
 
+            if (downloadResult.success || uploadResult.success) {
+              logger.info(
+                {
+                  deviceId: device.device_id,
+                  downloadMbps: downloadResult.speedMbps.toFixed(2),
+                  uploadMbps: uploadResult.speedMbps.toFixed(2),
+                },
+                `Speed test completed for ${device.name}: DL: ${downloadResult.speedMbps.toFixed(
+                  2
+                )} Mbps, UL: ${uploadResult.speedMbps.toFixed(2)} Mbps`
+              );
 
-
-          // Record in speed_tests table
-          await prisma.speedTest.create({
-            data: {
-              proxyId: device.device_id,
-              downloadSpeedMbps: downloadResult.speedMbps,
-              uploadSpeedMbps: uploadResult.speedMbps,
+              // Record in speed_tests table
+              await prisma.speedTest.create({
+                data: {
+                  proxyId: device.device_id,
+                  downloadSpeedMbps: downloadResult.speedMbps,
+                  uploadSpeedMbps: uploadResult.speedMbps,
+                },
+              });
+            } else {
+              logger.error(
+                {
+                  deviceId: device.device_id,
+                  downloadError: downloadResult.error,
+                  uploadError: uploadResult.error,
+                },
+                `Speed test failed for ${device.name}`
+              );
             }
-          });
-        } else {
-          logger.error(
-            { 
-              deviceId: device.device_id, 
-              downloadError: downloadResult.error,
-              uploadError: uploadResult.error
-            },
-            `Speed test failed for ${device.name}`
-          );
-        }
-      }));
+          } catch (err) {
+            logger.error({ deviceId: device.device_id, error: err }, 'Unexpected error during speed test');
+          } finally {
+            currentlyTestingProxies.delete(device.device_id);
+          }
+        })
+      );
     }
 
-    logger.info('All speed tests completed');
+    logger.info('Speed test check completed');
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       'Error during speed testing cycle'
     );
-  } finally {
-    isSpeedTesting = false;
   }
 }
 
