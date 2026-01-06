@@ -17,7 +17,7 @@ const currentlyTestingProxies = new Set<string>();
 /**
  * Measures download speed through a proxy
  */
-async function measureDownloadSpeed(device: any): Promise<{ speedMbps: number; success: boolean; error?: string }> {
+async function measureDownloadSpeed(device: any): Promise<{ speedMbps: number; success: boolean; latencyMs: number; error?: string }> {
   const proxyUrl = buildProxyUrl(device);
   const agent = new ProxyAgent(proxyUrl);
 
@@ -38,7 +38,8 @@ async function measureDownloadSpeed(device: any): Promise<{ speedMbps: number; s
       await response.body.dump();
       return { 
         speedMbps: 0, 
-        success: false, 
+        success: false,
+        latencyMs: Date.now() - start, 
         error: `HTTP Error ${response.statusCode}` 
       };
     }
@@ -49,16 +50,18 @@ async function measureDownloadSpeed(device: any): Promise<{ speedMbps: number; s
       totalBytes += chunk.length;
     }
 
-    const durationSeconds = (Date.now() - start) / 1000;
-    if (durationSeconds <= 0) return { speedMbps: 0, success: false, error: 'Duration too short' };
+    const durationMs = Date.now() - start;
+    const durationSeconds = durationMs / 1000;
+    if (durationSeconds <= 0) return { speedMbps: 0, success: false, latencyMs: durationMs, error: 'Duration too short' };
     
     const speedMbps = (totalBytes * 8) / (1024 * 1024) / durationSeconds;
 
-    return { speedMbps, success: true };
+    return { speedMbps, success: true, latencyMs: durationMs };
   } catch (error) {
     return { 
       speedMbps: 0, 
-      success: false, 
+      success: false,
+      latencyMs: Date.now() - start, 
       error: error instanceof Error ? error.message : 'Unknown download speed test error' 
     };
   }
@@ -67,7 +70,7 @@ async function measureDownloadSpeed(device: any): Promise<{ speedMbps: number; s
 /**
  * Measures upload speed through a proxy by sending a chunk of data
  */
-async function measureUploadSpeed(device: any): Promise<{ speedMbps: number; success: boolean; error?: string }> {
+async function measureUploadSpeed(device: any): Promise<{ speedMbps: number; success: boolean; latencyMs: number; error?: string }> {
   const proxyUrl = buildProxyUrl(device);
   const agent = new ProxyAgent(proxyUrl);
   
@@ -95,21 +98,24 @@ async function measureUploadSpeed(device: any): Promise<{ speedMbps: number; suc
     if (response.statusCode >= 400) {
       return { 
         speedMbps: 0, 
-        success: false, 
+        success: false,
+        latencyMs: Date.now() - start, 
         error: `HTTP Error ${response.statusCode}` 
       };
     }
 
-    const durationSeconds = (Date.now() - start) / 1000;
-    if (durationSeconds <= 0) return { speedMbps: 0, success: false, error: 'Duration too short' };
+    const durationMs = Date.now() - start;
+    const durationSeconds = durationMs / 1000;
+    if (durationSeconds <= 0) return { speedMbps: 0, success: false, latencyMs: durationMs, error: 'Duration too short' };
     
     const speedMbps = (dummyData.length * 8) / (1024 * 1024) / durationSeconds;
 
-    return { speedMbps, success: true };
+    return { speedMbps, success: true, latencyMs: durationMs };
   } catch (error) {
     return { 
       speedMbps: 0, 
-      success: false, 
+      success: false,
+      latencyMs: Date.now() - start, 
       error: error instanceof Error ? error.message : 'Unknown upload speed test error' 
     };
   }
@@ -128,6 +134,8 @@ export async function runSpeedTests(): Promise<void> {
   logger.info('Checking for idle proxies to run speed tests');
 
   try {
+    // Use a single timestamp for all records in this cycle to simplify aggregation
+    const cycleTimestamp = new Date();
     const devices = await getAllDevices();
 
     // Filter out proxies that are already undergoing a speed test
@@ -161,11 +169,14 @@ export async function runSpeedTests(): Promise<void> {
             const uploadResult = await measureUploadSpeed(device);
 
             if (downloadResult.success || uploadResult.success) {
+              const latencyMs = downloadResult.latencyMs ?? uploadResult.latencyMs ?? null;
+
               logger.info(
                 {
                   deviceId: device.device_id,
                   downloadMbps: downloadResult.speedMbps.toFixed(2),
                   uploadMbps: uploadResult.speedMbps.toFixed(2),
+                  latencyMs,
                 },
                 `Speed test completed for ${device.name}: DL: ${downloadResult.speedMbps.toFixed(
                   2
@@ -176,8 +187,10 @@ export async function runSpeedTests(): Promise<void> {
               await prisma.speedTest.create({
                 data: {
                   proxyId: device.device_id,
+                  timestamp: cycleTimestamp,
                   downloadSpeedMbps: downloadResult.speedMbps,
                   uploadSpeedMbps: uploadResult.speedMbps,
+                  latencyMs: latencyMs ?? undefined,
                 },
               });
             } else {
