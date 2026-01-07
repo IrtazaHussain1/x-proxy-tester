@@ -333,7 +333,7 @@
       }
     ]
   },
-  "time": { "from": "now-30m", "to": "now" },
+  "time": { "from": "now-24h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "XProxy Tester - Speed Metrics",
