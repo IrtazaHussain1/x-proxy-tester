@@ -1,9 +1,9 @@
 /**
  * Batch Writer Module
  * 
- * NOTE: Currently unused - kept for future performance optimization.
  * Provides batching functionality for database writes to improve performance.
- * Accumulates writes and flushes them in batches.
+ * Accumulates writes and flushes them in batches to reduce database overhead.
+ * Optimized for high-volume writes (~2.85M records/day).
  */
 
 import { Prisma } from '@prisma/client';
@@ -111,7 +111,8 @@ class BatchWriter {
 // Export BatchWriter class for potential future use
 export { BatchWriter };
 
-// Create singleton instance
-// Note: For now, we'll use direct writes. Batch writer can be enabled later if needed.
-// export const batchWriter = new BatchWriter(100, 5000);
+// Create singleton instance for batch writing
+// Batch size: 500 records (optimized for ~2.85M records/day)
+// Flush interval: 2 seconds (balance between latency and throughput)
+export const batchWriter = new BatchWriter(500, 2000);
 

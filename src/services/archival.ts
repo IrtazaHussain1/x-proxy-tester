@@ -4,15 +4,22 @@
  * Archives old proxy request data to manage database size.
  * Implements data retention policies and archival strategies.
  * 
+ * Strategy:
+ * 1. Aggregate data older than 2 weeks into daily summaries
+ * 2. Delete raw data older than 2 weeks (keeping only aggregated data)
+ * 3. Keep daily summaries indefinitely for long-term analytics
+ * 
  * @module services/archival
  */
 
 import { prismaWithRetry as prisma } from '../lib/db';
 import { logger } from '../lib/logger';
+import { aggregateDailySummary } from './daily-aggregation';
 
 /**
  * Default retention periods (in days)
- * Reduced from 30 to 14 days to manage database growth
+ * Raw data: 14 days (2 weeks) - after which it's aggregated and deleted
+ * Daily summaries: Kept indefinitely for long-term analytics
  */
 const DEFAULT_RETENTION_DAYS = parseInt(process.env.DATA_RETENTION_DAYS || '14', 10);
 const ARCHIVAL_BATCH_SIZE = parseInt(process.env.ARCHIVAL_BATCH_SIZE || '1000', 10);
@@ -20,21 +27,70 @@ const ARCHIVAL_BATCH_SIZE = parseInt(process.env.ARCHIVAL_BATCH_SIZE || '1000', 
 /**
  * Archive old proxy requests
  * 
- * @param retentionDays - Number of days to retain (default: 30)
- * @returns Number of records archived
+ * Process:
+ * 1. First, aggregate any days older than retention period that haven't been aggregated yet
+ * 2. Then, delete raw data older than retention period (aggregated data is kept)
+ * 
+ * @param retentionDays - Number of days to retain raw data (default: 14)
+ * @returns Number of records archived (deleted)
  */
 export async function archiveOldRequests(retentionDays: number = DEFAULT_RETENTION_DAYS): Promise<number> {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+  cutoffDate.setHours(0, 0, 0, 0); // Start of day
 
   logger.info(
     {
       retentionDays,
       cutoffDate: cutoffDate.toISOString(),
     },
-    'Starting data archival'
+    'Starting data archival (aggregate then delete)'
   );
 
+  // Step 1: Aggregate any days older than cutoff that haven't been aggregated yet
+  logger.info('Step 1: Aggregating unaggregated days older than retention period');
+  
+  // Find days that need aggregation (older than cutoff, have data, but no daily summary)
+  const daysToAggregate = await prisma.$queryRawUnsafe(
+    `SELECT DISTINCT DATE(timestamp) as day
+     FROM proxy_requests
+     WHERE DATE(timestamp) < DATE(?)
+       AND DATE(timestamp) NOT IN (
+         SELECT DISTINCT day FROM proxy_requests_daily_summary
+       )
+     ORDER BY day ASC
+     LIMIT 30`,
+    cutoffDate.toISOString().split('T')[0]
+  ) as Array<{ day: Date }>;
+
+  if (daysToAggregate.length > 0) {
+    logger.info(
+      { daysToAggregate: daysToAggregate.length },
+      'Found days that need aggregation before archival'
+    );
+
+    for (const row of daysToAggregate) {
+      const day = new Date(row.day);
+      try {
+        await aggregateDailySummary(day);
+        logger.debug({ day: day.toISOString().split('T')[0] }, 'Aggregated day before archival');
+        // Small delay between aggregations
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      } catch (error) {
+        logger.error(
+          { error: error instanceof Error ? error.message : 'Unknown error', day: day.toISOString() },
+          'Failed to aggregate day before archival'
+        );
+        // Continue with other days even if one fails
+      }
+    }
+  } else {
+    logger.info('All days older than retention period are already aggregated');
+  }
+
+  // Step 2: Delete raw data older than cutoff (aggregated data remains)
+  logger.info('Step 2: Deleting raw data older than retention period');
+  
   let totalArchived = 0;
   let hasMore = true;
 
@@ -103,8 +159,9 @@ export async function archiveOldRequests(retentionDays: number = DEFAULT_RETENTI
       totalArchived,
       retentionDays,
       cutoffDate: cutoffDate.toISOString(),
+      daysAggregated: daysToAggregate.length,
     },
-    'Data archival completed'
+    'Data archival completed (raw data deleted, daily summaries kept)'
   );
 
   return totalArchived;

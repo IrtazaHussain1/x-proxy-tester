@@ -69,6 +69,14 @@ interface Config {
     runMode: 'infinite' | 'fixed';
     monitorCheckIntervalMs: number;
   };
+  speedTest: {
+    enabled: boolean;
+    intervalMs: number;
+    targetUrl: string;
+    uploadTargetUrl: string;
+    timeoutMs: number;
+    maxConcurrentTests: number;
+  };
   logging: {
     level: string;
   };
@@ -108,7 +116,7 @@ function validateConfig(): Config {
   const requestTimeoutMs = parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10);
   const rotationThreshold = parseInt(process.env.ROTATION_THRESHOLD || '10', 10);
   const proxyRefreshIntervalMs = parseInt(
-    process.env.PROXY_REFRESH_INTERVAL_MS || '21600000',
+    process.env.PROXY_REFRESH_INTERVAL_MS || '3600000',
     10
   );
   const stabilityCheckIntervalMs = parseInt(
@@ -185,6 +193,14 @@ function validateConfig(): Config {
     process.env.IP_ROTATION_TESTING_BATCH_SIZE || '50',
     10
   ); // 50 proxies per batch default
+
+  // Speed test configuration
+  const speedTestEnabled = process.env.SPEED_TEST_ENABLED !== 'false';
+  const speedTestIntervalMs = parseInt(process.env.SPEED_TEST_INTERVAL_MS || '3600000', 10); // 1 hour default
+  const speedTestTargetUrl = process.env.SPEED_TEST_TARGET_URL || 'https://speed.cloudflare.com/__down?bytes=1048576'; // 1MB chunk
+  const speedTestUploadTargetUrl = process.env.SPEED_TEST_UPLOAD_TARGET_URL || 'https://httpbin.org/post';
+  const speedTestTimeoutMs = parseInt(process.env.SPEED_TEST_TIMEOUT_MS || '60000', 10);
+  const speedTestMaxConcurrent = parseInt(process.env.SPEED_TEST_MAX_CONCURRENT || '5', 10);
 
   // Validation
   if (testIntervalMs < 1000) {
@@ -296,6 +312,14 @@ function validateConfig(): Config {
       minRunHours,
       runMode,
       monitorCheckIntervalMs,
+    },
+    speedTest: {
+      enabled: speedTestEnabled,
+      intervalMs: speedTestIntervalMs,
+      targetUrl: speedTestTargetUrl,
+      uploadTargetUrl: speedTestUploadTargetUrl,
+      timeoutMs: speedTestTimeoutMs,
+      maxConcurrentTests: speedTestMaxConcurrent,
     },
     logging: {
       level: process.env.LOG_LEVEL || 'info',

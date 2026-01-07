@@ -323,3 +323,229 @@ GROUP BY p.device_id, p.name, p.location, p.stability_status, p.rotation_status;
 -- Example 5: Location comparison
 -- SELECT location, proxy_count, success_rate, avg_response_time FROM v_location_stats ORDER BY success_rate DESC;
 
+-- ============================================
+-- View 15: Daily Summary (Long-Term Analytics)
+-- ============================================
+-- Uses daily summary table for long-term analytics (data older than 2 weeks)
+CREATE OR REPLACE VIEW v_daily_summary AS
+SELECT 
+  day,
+  proxy_id,
+  location,
+  total_requests,
+  success_count,
+  failure_count,
+  success_count * 100.0 / NULLIF(total_requests, 0) as success_rate,
+  avg_response_time_ms,
+  min_response_time_ms,
+  max_response_time_ms,
+  p50_response_time_ms,
+  p95_response_time_ms,
+  p99_response_time_ms,
+  timeout_count,
+  connection_error_count,
+  http_error_count,
+  dns_error_count,
+  rotation_count,
+  avg_download_speed_mbps,
+  avg_upload_speed_mbps,
+  max_download_speed_mbps,
+  max_upload_speed_mbps,
+  min_download_speed_mbps,
+  min_upload_speed_mbps,
+  unique_ips_count
+FROM proxy_requests_daily_summary
+ORDER BY day DESC, proxy_id;
+
+-- ============================================
+-- View 16: System-Wide Daily Stats (Long-Term)
+-- ============================================
+-- System-wide daily aggregates for long-term trends
+CREATE OR REPLACE VIEW v_system_daily_stats AS
+SELECT 
+  day,
+  SUM(total_requests) as total_requests,
+  COUNT(DISTINCT proxy_id) as active_proxies,
+  SUM(success_count) as success_count,
+  SUM(failure_count) as failure_count,
+  SUM(success_count) * 100.0 / NULLIF(SUM(total_requests), 0) as success_rate,
+  AVG(avg_response_time_ms) as avg_response_time,
+  MIN(min_response_time_ms) as min_response_time,
+  MAX(max_response_time_ms) as max_response_time,
+  AVG(p50_response_time_ms) as avg_p50_response_time,
+  AVG(p95_response_time_ms) as avg_p95_response_time,
+  AVG(p99_response_time_ms) as avg_p99_response_time,
+  SUM(rotation_count) as total_rotations,
+  SUM(timeout_count) as timeout_count,
+  SUM(connection_error_count) as connection_error_count,
+  SUM(http_error_count) as http_error_count,
+  SUM(dns_error_count) as dns_error_count,
+  AVG(avg_download_speed_mbps) as avg_download_speed,
+  AVG(avg_upload_speed_mbps) as avg_upload_speed,
+  SUM(unique_ips_count) as total_unique_ips
+FROM proxy_requests_daily_summary
+GROUP BY day
+ORDER BY day DESC;
+
+-- ============================================
+-- View 17: Location-Based Daily Stats (Long-Term)
+-- ============================================
+-- Location-based daily aggregates for long-term location analysis
+CREATE OR REPLACE VIEW v_location_daily_stats AS
+SELECT 
+  day,
+  location,
+  COUNT(DISTINCT proxy_id) as proxy_count,
+  SUM(total_requests) as total_requests,
+  SUM(success_count) * 100.0 / NULLIF(SUM(total_requests), 0) as success_rate,
+  AVG(avg_response_time_ms) as avg_response_time,
+  MIN(min_response_time_ms) as min_response_time,
+  MAX(max_response_time_ms) as max_response_time,
+  AVG(avg_download_speed_mbps) as avg_download_speed,
+  AVG(avg_upload_speed_mbps) as avg_upload_speed,
+  SUM(rotation_count) as total_rotations
+FROM proxy_requests_daily_summary
+GROUP BY day, location
+ORDER BY day DESC, location;
+
+-- ============================================
+-- View 18: Combined Recent + Historical Data
+-- ============================================
+-- Combines hourly summaries (last 2 weeks) with daily summaries (older data)
+-- For seamless long-term analytics
+CREATE OR REPLACE VIEW v_proxy_requests_combined AS
+-- Recent data (last 14 days) from hourly summaries
+SELECT 
+  hour as timestamp,
+  proxy_id,
+  location,
+  total_requests,
+  success_count,
+  failure_count,
+  avg_response_time_ms,
+  min_response_time_ms,
+  max_response_time_ms,
+  NULL as p50_response_time_ms,
+  NULL as p95_response_time_ms,
+  NULL as p99_response_time_ms,
+  timeout_count,
+  connection_error_count,
+  http_error_count,
+  dns_error_count,
+  rotation_count,
+  avg_download_speed_mbps,
+  avg_upload_speed_mbps,
+  NULL as max_download_speed_mbps,
+  NULL as max_upload_speed_mbps,
+  NULL as min_download_speed_mbps,
+  NULL as min_upload_speed_mbps,
+  NULL as unique_ips_count,
+  'hourly' as aggregation_level
+FROM proxy_requests_hourly_summary
+WHERE hour >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+
+UNION ALL
+
+-- Historical data (older than 14 days) from daily summaries
+SELECT 
+  CONCAT(day, ' 12:00:00') as timestamp,
+  proxy_id,
+  location,
+  total_requests,
+  success_count,
+  failure_count,
+  avg_response_time_ms,
+  min_response_time_ms,
+  max_response_time_ms,
+  p50_response_time_ms,
+  p95_response_time_ms,
+  p99_response_time_ms,
+  timeout_count,
+  connection_error_count,
+  http_error_count,
+  dns_error_count,
+  rotation_count,
+  avg_download_speed_mbps,
+  avg_upload_speed_mbps,
+  max_download_speed_mbps,
+  max_upload_speed_mbps,
+  min_download_speed_mbps,
+  min_upload_speed_mbps,
+  unique_ips_count,
+  'daily' as aggregation_level
+FROM proxy_requests_daily_summary
+WHERE day < DATE_SUB(NOW(), INTERVAL 14 DAY)
+
+ORDER BY timestamp DESC, proxy_id;
+
+-- ============================================
+-- View 12: Optimized 24h Proxy Requests (Uses Hourly Summary)
+-- ============================================
+-- Optimized view that uses pre-aggregated hourly summary table for much faster queries
+-- Falls back to direct query if summary data is not available
+CREATE OR REPLACE VIEW v_proxy_requests_24h_optimized AS
+SELECT 
+  h.hour as timestamp,
+  h.proxy_id,
+  h.location,
+  h.total_requests,
+  h.success_count,
+  h.failure_count,
+  h.avg_response_time_ms,
+  h.min_response_time_ms,
+  h.max_response_time_ms,
+  h.timeout_count,
+  h.connection_error_count,
+  h.http_error_count,
+  h.dns_error_count,
+  h.rotation_count,
+  h.avg_download_speed_mbps,
+  h.avg_upload_speed_mbps
+FROM proxy_requests_hourly_summary h
+WHERE h.hour >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+ORDER BY h.hour DESC, h.proxy_id;
+
+-- ============================================
+-- View 13: System-Wide Hourly Stats (Optimized from Summary)
+-- ============================================
+-- Uses hourly summary table for much better performance
+CREATE OR REPLACE VIEW v_system_hourly_stats_optimized AS
+SELECT 
+  hour,
+  SUM(total_requests) as total_requests,
+  COUNT(DISTINCT proxy_id) as active_proxies,
+  SUM(success_count) as success_count,
+  SUM(failure_count) as failure_count,
+  SUM(success_count) * 100.0 / NULLIF(SUM(total_requests), 0) as success_rate,
+  AVG(avg_response_time_ms) as avg_response_time,
+  MIN(min_response_time_ms) as min_response_time,
+  MAX(max_response_time_ms) as max_response_time,
+  SUM(rotation_count) as total_rotations,
+  SUM(timeout_count) as timeout_count,
+  SUM(connection_error_count) as connection_error_count,
+  SUM(http_error_count) as http_error_count,
+  SUM(dns_error_count) as dns_error_count
+FROM proxy_requests_hourly_summary
+WHERE hour >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+GROUP BY hour
+ORDER BY hour DESC;
+
+-- ============================================
+-- View 14: Location-Based Stats (Optimized from Summary)
+-- ============================================
+-- Uses hourly summary for better performance
+CREATE OR REPLACE VIEW v_location_stats_optimized AS
+SELECT 
+  location,
+  COUNT(DISTINCT proxy_id) as proxy_count,
+  SUM(total_requests) as total_requests,
+  SUM(success_count) * 100.0 / NULLIF(SUM(total_requests), 0) as success_rate,
+  AVG(avg_response_time_ms) as avg_response_time,
+  MIN(min_response_time_ms) as min_response_time,
+  MAX(max_response_time_ms) as max_response_time,
+  SUM(rotation_count) as total_rotations
+FROM proxy_requests_hourly_summary
+WHERE hour >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+GROUP BY location
+ORDER BY success_rate DESC;
+

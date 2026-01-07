@@ -246,6 +246,17 @@ export const prismaWithRetry = {
       return retryWithBackoff(() => prisma.proxyRequest.findMany(args), 'proxyRequest.findMany');
     },
   },
+  speedTest: {
+    ...prisma.speedTest,
+    create: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.speedTest.create(args), 'speedTest.create');
+    },
+    findMany: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.speedTest.findMany(args), 'speedTest.findMany');
+    },
+  },
   $transaction: async (args: any) => {
     recordDatabaseQuery();
     return retryWithBackoff(() => prisma.$transaction(args), 'transaction');
@@ -253,6 +264,14 @@ export const prismaWithRetry = {
   $queryRaw: async (args: any) => {
     recordDatabaseQuery();
     return retryWithBackoff(() => prisma.$queryRaw(args), 'queryRaw');
+  },
+  $queryRawUnsafe: async (...args: any[]) => {
+    recordDatabaseQuery();
+    return retryWithBackoff(() => (prisma.$queryRawUnsafe as any)(...args), 'queryRawUnsafe');
+  },
+  $executeRawUnsafe: async (...args: any[]) => {
+    recordDatabaseQuery();
+    return retryWithBackoff(() => (prisma.$executeRawUnsafe as any)(...args), 'executeRawUnsafe');
   },
 };
 

@@ -81,7 +81,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests WHERE $__timeFilter(timestamp) AND status != 'SUCCESS'",
+          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location)",
           "refId": "A"
         }
       ],
@@ -151,7 +151,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests WHERE $__timeFilter(timestamp)",
+          "rawSql": "SELECT COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location)",
           "refId": "A"
         }
       ],
@@ -240,7 +240,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  COALESCE(error_type, 'UNKNOWN') as metric,\n  COUNT(*) as value\nFROM proxy_requests\nWHERE $__timeFilter(timestamp)\n  AND status != 'SUCCESS'\nGROUP BY error_type",
+          "rawSql": "SELECT COALESCE(r.error_type, 'UNKNOWN') as metric, COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location) GROUP BY metric",
           "refId": "A"
         }
       ],
@@ -308,7 +308,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT error_type) as value FROM proxy_requests WHERE $__timeFilter(timestamp) AND error_type IS NOT NULL",
+          "rawSql": "SELECT COUNT(DISTINCT r.error_type) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL AND p.location IN ($location)",
           "refId": "A",
           "sql": {
             "columns": [
@@ -334,7 +334,8 @@
     },
     {
       "datasource": {
-        "type": "mysql"
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
       },
       "fieldConfig": {
         "defaults": {
@@ -390,7 +391,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  p.name as value\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.status != 'SUCCESS'\nGROUP BY p.device_id, p.name\nORDER BY COUNT(*) DESC\nLIMIT 1",
+          "rawSql": "SELECT p.name as value FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND pr.status != 'SUCCESS' AND p.location IN ($location) GROUP BY p.device_id, p.name ORDER BY COUNT(*) DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -452,7 +453,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT DISTINCT error_type as value FROM proxy_requests WHERE $__timeFilter(timestamp) AND error_type IS NOT NULL",
+          "rawSql": "SELECT DISTINCT r.error_type as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL AND p.location IN ($location)",
           "refId": "A",
           "sql": {
             "columns": [
@@ -566,7 +567,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate\nFROM proxy_requests\nWHERE $__timeFilter(timestamp)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) GROUP BY time_sec ORDER BY time_sec",
           "refId": "A"
         }
       ],
@@ -622,7 +623,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  p.name,\n p.device_id,\n  p.location,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate,\n  GROUP_CONCAT(DISTINCT pr.error_type) as error_types\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp)\nGROUP BY p.device_id, p.name, p.location\nHAVING error_count > 0\nORDER BY error_count DESC\nLIMIT 20",
+          "rawSql": "SELECT p.name, p.device_id, p.location, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count, COUNT(*) as total_requests, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate, GROUP_CONCAT(DISTINCT pr.error_type) as error_types FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location HAVING error_count > 0 ORDER BY error_count DESC LIMIT 20",
           "refId": "A"
         }
       ],
@@ -638,7 +639,25 @@
     "errors"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-30m",

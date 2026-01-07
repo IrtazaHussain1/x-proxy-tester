@@ -5,11 +5,14 @@
 
 import 'dotenv/config';
 import { startContinuousTesting, stopContinuousTesting } from './services/continuous-proxy-tester';
+import { startSpeedTestService, stopSpeedTestService } from './services/speed-test-service';
 import { startIpRotationTesting, stopIpRotationTesting } from './services/ip-rotation-testing';
+import { stopHourlySummaryService } from './services/hourly-summary';
+import { stopDailyAggregationService } from './services/daily-aggregation';
+import { batchWriter } from './lib/batch-writer';
 import { logger } from './lib/logger';
 import { config } from './config';
 import { startServer } from './server';
-import { startPeriodicArchival } from './services/archival';
 import {
   startAlertMonitoring,
   registerAlertHandler,
@@ -19,6 +22,7 @@ import {
 } from './lib/monitoring';
 import { initGrafanaViews } from './lib/init-grafana-views';
 import { initDatabaseSchema } from './lib/init-db';
+import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers } from './services/ip-rotation';
 
@@ -65,8 +69,14 @@ async function main(): Promise<void> {
       stopPeriodicIpRotation();
       cleanupWorkers();
       stopContinuousTesting();
-      void stopIpRotationTesting().then(() => {
-        process.exit(0);
+      stopSpeedTestService();
+      stopHourlySummaryService();
+      stopDailyAggregationService();
+      // Flush any pending batch writes before shutdown
+      void batchWriter.forceFlush().then(() => {
+        void stopIpRotationTesting().then(() => {
+          process.exit(0);
+        });
       });
     } else {
       // Fixed mode: check if minimum runtime met
@@ -82,8 +92,14 @@ async function main(): Promise<void> {
         stopPeriodicIpRotation();
         cleanupWorkers();
         stopContinuousTesting();
-        void stopIpRotationTesting().then(() => {
-          process.exit(0);
+        stopSpeedTestService();
+        stopHourlySummaryService();
+        stopDailyAggregationService();
+        // Flush any pending batch writes before shutdown
+        void batchWriter.forceFlush().then(() => {
+          void stopIpRotationTesting().then(() => {
+            process.exit(0);
+          });
         });
       } else {
         const remainingHours = (getRemainingTimeMs() / (60 * 60 * 1000)).toFixed(2);
@@ -128,11 +144,17 @@ async function main(): Promise<void> {
     // Initialize database schema (create tables if they don't exist)
     await initDatabaseSchema();
 
+    // Initialize performance optimizations (indexes, summary tables)
+    await initPerformanceOptimizations();
+
     // Initialize Grafana views (after database schema is ready)
     await initGrafanaViews();
 
     // Start continuous testing
     await startContinuousTesting();
+
+    // Start speed test service
+    startSpeedTestService();
 
     // Start IP rotation testing service (runs alongside continuous testing)
     if (config.ipRotationTesting.enabled) {
@@ -149,23 +171,26 @@ async function main(): Promise<void> {
       logger.info('IP rotation testing service is disabled');
     }
 
-    // Start periodic data archival (if enabled)
-    // Run every 12 hours (instead of 24) to keep database size manageable
-    const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
-    const archivalIntervalMs = parseInt(process.env.ARCHIVAL_INTERVAL_MS || String(12 * 60 * 60 * 1000), 10);
-    // Reduced from 30 to 14 days to manage rapid database growth
-    const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || '14', 10);
-    
-    if (archivalEnabled) {
-      startPeriodicArchival(archivalIntervalMs, retentionDays);
-      logger.info(
-        {
-          retentionDays,
-          intervalHours: archivalIntervalMs / (60 * 60 * 1000),
-        },
-        'Periodic data archival enabled'
-      );
-    }
+    // TEMP: disable aggregation/archival to avoid errors when summary tables are missing
+    // startHourlySummaryService();
+    // logger.info('Hourly summary service started');
+
+    // startDailyAggregationService();
+    // logger.info('Daily aggregation service started');
+
+    // const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
+    // const archivalIntervalMs = parseInt(process.env.ARCHIVAL_INTERVAL_MS || String(12 * 60 * 60 * 1000), 10);
+    // const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || '14', 10);
+    // if (archivalEnabled) {
+    //   startPeriodicArchival(archivalIntervalMs, retentionDays);
+    //   logger.info(
+    //     {
+    //       retentionDays,
+    //       intervalHours: archivalIntervalMs / (60 * 60 * 1000),
+    //     },
+    //     'Periodic data archival enabled'
+    //   );
+    // }
 
     // Set up alert monitoring
     const alertMonitoringEnabled = process.env.ENABLE_ALERT_MONITORING !== 'false';
@@ -225,8 +250,14 @@ async function main(): Promise<void> {
           stopPeriodicIpRotation();
           cleanupWorkers();
           stopContinuousTesting();
-          void stopIpRotationTesting().then(() => {
-            process.exit(0);
+          stopSpeedTestService();
+          stopHourlySummaryService();
+          stopDailyAggregationService();
+          // Flush any pending batch writes before shutdown
+          void batchWriter.forceFlush().then(() => {
+            void stopIpRotationTesting().then(() => {
+              process.exit(0);
+            });
           });
         } else {
           const remainingHours = (getRemainingTimeMs() / (60 * 60 * 1000)).toFixed(2);
