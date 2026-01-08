@@ -429,5 +429,6 @@
     "timezone": "browser",
     "title": "X-Proxy Tester - Aggregate Stats for proxies",
     "uid": "adbf6vm",
+    "refresh": "1m",
     "version": 6
 }
