@@ -23,6 +23,12 @@ import { mapProxyStatusToActive } from './continuous-proxy-tester';
 import { getAllDevices } from '../helpers/devices';
 import { rotateIp } from '../api/commands';
 import type { Device } from '../types';
+import {
+  createRotationCycle,
+  startRotationCycle,
+  completeRotationCycle,
+} from './rotation-cycle-manager';
+import { verifyRotationCycle } from './rotation-verification';
 
 /**
  * Map to track devices that are currently being rotated
@@ -174,7 +180,7 @@ export async function rotateIpForInactiveProxy(
 }
 
 /**
- * Check for inactive proxies and attempt IP rotation
+ * Check for inactive proxies and attempt IP rotation using rotation cycle manager
  * 
  * @param devices - Array of all devices from portal
  * @param onProxyActivated - Callback when proxy becomes active (to start testing)
@@ -201,11 +207,13 @@ export async function checkAndRotateInactiveProxies(
       'Checking inactive proxies for IP rotation'
     );
 
-    // Check each inactive device
-    const rotationPromises = inactiveDevices.map(async (device) => {
+    // Filter devices that are not in cooldown
+    const devicesToRotate: Device[] = [];
+    
+    for (const device of inactiveDevices) {
       // Check if rotation is already in progress
       if (rotationInProgress.has(device.device_id)) {
-        return;
+        continue;
       }
 
       // Check database to see if we've already tried rotating recently
@@ -219,7 +227,7 @@ export async function checkAndRotateInactiveProxies(
         });
 
         if (!proxy) {
-          return; // Proxy not in database yet
+          continue; // Proxy not in database yet
         }
 
         // Skip if we've tried rotating recently (within cooldown period)
@@ -236,31 +244,70 @@ export async function checkAndRotateInactiveProxies(
             },
             'Skipping rotation - still in cooldown period'
           );
-          return;
+          continue;
         }
 
-        // Attempt rotation
-        const useUniqueRotation = config.ipRotation.preferUniqueRotation;
-        const becameActive = await rotateIpForInactiveProxy(
-          device.device_id,
-          useUniqueRotation
-        );
-
-        if (becameActive && onProxyActivated) {
-          await onProxyActivated(device);
-        }
+        devicesToRotate.push(device);
       } catch (error) {
         logger.error(
           {
             deviceId: device.device_id,
             error: error instanceof Error ? error.message : 'Unknown error',
           },
-          'Failed to check/rotate inactive proxy'
+          'Failed to check proxy cooldown'
         );
       }
+    }
+
+    if (devicesToRotate.length === 0) {
+      return; // No devices to rotate
+    }
+
+    const proxyIds = devicesToRotate.map((d) => d.device_id);
+    const rotationType = config.ipRotation.preferUniqueRotation ? 'unique' : 'standard';
+
+    // Create rotation cycle with shared timestamp
+    const cycleId = await createRotationCycle('inactive_proxy', proxyIds);
+
+    // Start rotation cycle - send commands
+    await startRotationCycle(cycleId, proxyIds, rotationType);
+
+    // Wait a bit before starting verification
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Verify rotations with adaptive retry
+    await verifyRotationCycle(cycleId);
+
+    // Complete cycle and update aggregates
+    await completeRotationCycle(cycleId);
+
+    // Check which proxies became active and trigger callback
+    const cycle = await prisma.rotationCycle.findUnique({
+      where: { id: cycleId },
+      include: {
+        rotations: {
+          where: { success: true },
+          select: { proxyId: true },
+        },
+      },
     });
 
-    await Promise.allSettled(rotationPromises);
+    if (cycle && onProxyActivated) {
+      const successfulProxyIds = new Set(cycle.rotations.map((r) => r.proxyId));
+      for (const device of devicesToRotate) {
+        if (successfulProxyIds.has(device.device_id)) {
+          await onProxyActivated(device);
+        }
+      }
+    }
+
+    logger.info(
+      {
+        cycleId,
+        total: devicesToRotate.length,
+      },
+      'Inactive proxy rotation cycle completed'
+    );
   } catch (error) {
     logger.error(
       {
@@ -353,9 +400,9 @@ async function sendRotationCommand(deviceId: string): Promise<boolean> {
 }
 
 /**
- * Send IP rotation commands to all devices
+ * Send IP rotation commands to all devices using rotation cycle manager
  * 
- * Fetches all devices and sends rotation command to each one in parallel.
+ * Creates a rotation cycle with shared timestamp, sends commands, and verifies results.
  * Errors for individual devices are logged but don't stop the process.
  */
 async function rotateAllDevices(): Promise<void> {
@@ -367,28 +414,30 @@ async function rotateAllDevices(): Promise<void> {
       return;
     }
 
-    logger.debug(
-      { deviceCount: devices.length },
-      `Sending IP rotation commands to ${devices.length} devices`
-    );
+    const proxyIds = devices.map((d) => d.device_id);
+    const rotationType = config.ipRotation.preferUniqueRotation ? 'unique' : 'standard';
 
-    // Send rotation commands to all devices in parallel
-    const rotationPromises = devices.map((device) =>
-      sendRotationCommand(device.device_id)
-    );
+    // Create rotation cycle with shared timestamp
+    const cycleId = await createRotationCycle('periodic', proxyIds);
 
-    const results = await Promise.allSettled(rotationPromises);
-    
-    const successful = results.filter((r) => r.status === 'fulfilled' && r.value).length;
-    const failed = results.length - successful;
+    // Start rotation cycle - send commands
+    await startRotationCycle(cycleId, proxyIds, rotationType);
+
+    // Wait a bit before starting verification
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Verify rotations with adaptive retry
+    await verifyRotationCycle(cycleId);
+
+    // Complete cycle and update aggregates
+    await completeRotationCycle(cycleId);
 
     logger.info(
       {
+        cycleId,
         total: devices.length,
-        successful,
-        failed,
       },
-      `IP rotation commands sent: ${successful}/${devices.length} successful`
+      'Periodic IP rotation cycle completed'
     );
   } catch (error) {
     logger.error(

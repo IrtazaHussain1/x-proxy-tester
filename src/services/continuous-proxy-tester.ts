@@ -269,6 +269,52 @@ export async function saveProxyTestToDatabase(
       rotationStatus = 'Rotated'; // Mark as Rotated when actual rotation is detected
       lastRotationAt = new Date(); // Record rotation timestamp
       rotationCount = (proxy.rotationCount || 0) + 1; // Increment rotation count
+
+      // Check if this IP change is part of a rotation cycle and update the rotation record
+      try {
+        const pendingRotation = await prismaRaw.ipRotation.findFirst({
+          where: {
+            proxyId: proxy.deviceId,
+            ipAfter: null, // Not yet verified
+            success: false, // Still pending
+            commandSentAt: {
+              gte: new Date(Date.now() - 5 * 60 * 1000), // Within last 5 minutes
+            },
+          },
+          orderBy: {
+            commandSentAt: 'desc',
+          },
+        });
+
+        if (pendingRotation && metrics.outboundIp) {
+          // Update rotation record with new IP
+          await prismaRaw.ipRotation.update({
+            where: { id: pendingRotation.id },
+            data: {
+              ipAfter: metrics.outboundIp,
+              // Verification will be handled by verification service, but we can mark as detected
+            },
+          });
+
+          logger.debug(
+            {
+              rotationId: pendingRotation.id,
+              proxyId: proxy.deviceId,
+              ipAfter: metrics.outboundIp,
+            },
+            'Updated rotation record with IP change detected from test request'
+          );
+        }
+      } catch (error) {
+        // Don't fail the test if rotation record update fails
+        logger.debug(
+          {
+            proxyId: proxy.deviceId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+          'Failed to update rotation record with IP change'
+        );
+      }
     } else {
       // Same IP as previous - no rotation occurred
       sameIpCount = (proxy.sameIpCount || 0) + 1;

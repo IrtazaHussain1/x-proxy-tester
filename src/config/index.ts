@@ -80,6 +80,11 @@ interface Config {
   logging: {
     level: string;
   };
+  rotationTracking: {
+    verificationWaitTimes: number[];
+    maxVerificationAttempts: number;
+    verificationTimeoutMs: number;
+  };
 }
 
 /**
@@ -323,6 +328,14 @@ function validateConfig(): Config {
     },
     logging: {
       level: process.env.LOG_LEVEL || 'info',
+    },
+    rotationTracking: {
+      verificationWaitTimes: (process.env.ROTATION_VERIFICATION_WAIT_TIMES || '5000,10000,20000,30000')
+        .split(',')
+        .map((t) => parseInt(t.trim(), 10))
+        .filter((t) => !isNaN(t)),
+      maxVerificationAttempts: parseInt(process.env.ROTATION_MAX_VERIFICATION_ATTEMPTS || '4', 10),
+      verificationTimeoutMs: parseInt(process.env.ROTATION_VERIFICATION_TIMEOUT_MS || '30000', 10),
     },
   };
 }
