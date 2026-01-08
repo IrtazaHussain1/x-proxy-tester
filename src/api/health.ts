@@ -9,7 +9,7 @@
 
 import { checkDatabaseHealth } from '../lib/db';
 import { logger } from '../lib/logger';
-import { getMetrics, getSuccessRate, getAverageResponseTime } from '../lib/metrics';
+import { getMetrics, getSuccessRate, getContinuousSuccessRate, getSuccessRateBySource, getAverageResponseTime } from '../lib/metrics';
 import { getTestingStatus } from '../services/continuous-proxy-tester';
 
 export interface HealthStatus {
@@ -30,6 +30,14 @@ export interface HealthStatus {
   metrics: {
     totalRequests: number;
     successRate: number;
+    continuousSuccessRate: number; // Success rate excluding periodic rotation verification
+    successRateBySource: {
+      overall: number;
+      continuous: number;
+      periodicRotation: number;
+      manual: number;
+      continuousOnly: number;
+    };
     averageResponseTime: number;
     activeProxies: number;
   };
@@ -97,7 +105,8 @@ export async function getHealthStatus(): Promise<HealthStatus> {
     status = 'unhealthy';
   } else if (memory.percentage > 90) {
     status = 'degraded';
-  } else if (getSuccessRate() < 50 && metrics.totalRequests > 100) {
+  } else if (getContinuousSuccessRate() < 50 && metrics.totalRequests > 100) {
+    // Use continuous success rate (excluding periodic rotation) for health check
     status = 'degraded';
   }
 
@@ -112,6 +121,8 @@ export async function getHealthStatus(): Promise<HealthStatus> {
     metrics: {
       totalRequests: metrics.totalRequests,
       successRate: getSuccessRate(),
+      continuousSuccessRate: getContinuousSuccessRate(),
+      successRateBySource: getSuccessRateBySource(),
       averageResponseTime: getAverageResponseTime(),
       activeProxies: metrics.activeProxies,
     },
