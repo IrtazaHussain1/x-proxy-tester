@@ -21,7 +21,7 @@ import { prismaWithRetry as prisma } from '../lib/db';
 import { config } from '../config';
 import { mapProxyStatusToActive } from './continuous-proxy-tester';
 import { getAllDevices } from '../helpers/devices';
-import { rotateIp } from '../api/commands';
+
 import type { Device } from '../types';
 import {
   createRotationCycle,
@@ -293,7 +293,7 @@ export async function checkAndRotateInactiveProxies(
     });
 
     if (cycle && onProxyActivated) {
-      const successfulProxyIds = new Set(cycle.rotations.map((r) => r.proxyId));
+      const successfulProxyIds = new Set((cycle as any).rotations.map((r: any) => r.proxyId));
       for (const device of devicesToRotate) {
         if (successfulProxyIds.has(device.device_id)) {
           await onProxyActivated(device);
@@ -365,39 +365,7 @@ export function startInactiveProxyRotation(
 let periodicRotationInterval: NodeJS.Timeout | null = null;
 let periodicRotationRunning = false;
 
-/**
- * Send IP rotation command to a single device
- * 
- * @param deviceId - Device ID to rotate IP for
- * @returns Promise resolving to true if command was sent successfully
- */
-async function sendRotationCommand(deviceId: string): Promise<boolean> {
-  try {
-    const response = await rotateIp(deviceId);
-    if (response.success) {
-      logger.debug(
-        { deviceId, message: response.message },
-        'IP rotation command sent successfully'
-      );
-      return true;
-    } else {
-      logger.warn(
-        { deviceId, message: response.message },
-        'IP rotation command failed'
-      );
-      return false;
-    }
-  } catch (error) {
-    logger.error(
-      {
-        deviceId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      'Failed to send IP rotation command'
-    );
-    return false;
-  }
-}
+
 
 /**
  * Send IP rotation commands to all devices using rotation cycle manager

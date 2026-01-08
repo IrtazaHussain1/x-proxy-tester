@@ -257,6 +257,48 @@ export const prismaWithRetry = {
       return retryWithBackoff(() => prisma.speedTest.findMany(args), 'speedTest.findMany');
     },
   },
+  rotationCycle: {
+    ...prisma.rotationCycle,
+    create: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.rotationCycle.create(args), 'rotationCycle.create');
+    },
+    update: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.rotationCycle.update(args), 'rotationCycle.update');
+    },
+    findUnique: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.rotationCycle.findUnique(args), 'rotationCycle.findUnique');
+    },
+    findMany: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.rotationCycle.findMany(args), 'rotationCycle.findMany');
+    },
+  },
+  ipRotation: {
+    ...prisma.ipRotation,
+    create: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.create(args), 'ipRotation.create');
+    },
+    update: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.update(args), 'ipRotation.update');
+    },
+    findUnique: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.findUnique(args), 'ipRotation.findUnique');
+    },
+    findMany: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.findMany(args), 'ipRotation.findMany');
+    },
+    findFirst: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.findFirst(args), 'ipRotation.findFirst');
+    },
+  },
   $transaction: async (args: any) => {
     recordDatabaseQuery();
     return retryWithBackoff(() => prisma.$transaction(args), 'transaction');

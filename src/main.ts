@@ -6,25 +6,18 @@
 import 'dotenv/config';
 import { startContinuousTesting, stopContinuousTesting } from './services/continuous-proxy-tester';
 import { startSpeedTestService, stopSpeedTestService } from './services/speed-test-service';
-import { startIpRotationTesting, stopIpRotationTesting } from './services/ip-rotation-testing';
+import { stopIpRotationTesting } from './services/ip-rotation-testing';
 import { stopHourlySummaryService } from './services/hourly-summary';
 import { stopDailyAggregationService } from './services/daily-aggregation';
 import { batchWriter } from './lib/batch-writer';
 import { logger } from './lib/logger';
 import { config } from './config';
 import { startServer } from './server';
-import {
-  startAlertMonitoring,
-  registerAlertHandler,
-  consoleAlertHandler,
-  createWebhookAlertHandler,
-  createSlackAlertHandler,
-} from './lib/monitoring';
 import { initGrafanaViews } from './lib/init-grafana-views';
 import { initDatabaseSchema } from './lib/init-db';
-import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
+// import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
 import { waitForDatabase } from './lib/db';
-import { stopPeriodicIpRotation, cleanupWorkers } from './services/ip-rotation';
+import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 
 /**
  * Main application entry point
@@ -145,7 +138,7 @@ async function main(): Promise<void> {
     await initDatabaseSchema();
 
     // Initialize performance optimizations (indexes, summary tables)
-    await initPerformanceOptimizations();
+    // await initPerformanceOptimizations();
 
     // Initialize Grafana views (after database schema is ready)
     await initGrafanaViews();
@@ -156,20 +149,36 @@ async function main(): Promise<void> {
     // Start speed test service
     startSpeedTestService();
 
-    // Start IP rotation testing service (runs alongside continuous testing)
-    if (config.ipRotationTesting.enabled) {
-      startIpRotationTesting();
+    // Start periodic IP rotation service (standard service with DB logging)
+    // This handles the "Periodic: Run every n minutes for all proxies" requirement
+    if (config.ipRotation.enabled) {
+      startPeriodicIpRotation(config.ipRotation.periodicRotationIntervalMs);
       logger.info(
         {
-          rotationIntervalMs: config.ipRotationTesting.rotationIntervalMs,
-          rotationIntervalMinutes: (config.ipRotationTesting.rotationIntervalMs / 60000).toFixed(1),
-          testConcurrency: config.ipRotationTesting.testConcurrency,
+          intervalMs: config.ipRotation.periodicRotationIntervalMs,
+          intervalMinutes: (config.ipRotation.periodicRotationIntervalMs / 60000).toFixed(1),
         },
-        'IP rotation testing service started'
+        'Periodic IP rotation service started'
       );
     } else {
-      logger.info('IP rotation testing service is disabled');
+      logger.info('Periodic IP rotation service is disabled');
     }
+
+    // Start IP rotation testing service (runs alongside continuous testing)
+    // NOTE: Disabled by default to avoid conflict with standard periodic rotation
+    // if (config.ipRotationTesting.enabled) {
+    //   startIpRotationTesting();
+    //   logger.info(
+    //     {
+    //       rotationIntervalMs: config.ipRotationTesting.rotationIntervalMs,
+    //       rotationIntervalMinutes: (config.ipRotationTesting.rotationIntervalMs / 60000).toFixed(1),
+    //       testConcurrency: config.ipRotationTesting.testConcurrency,
+    //     },
+    //     'IP rotation testing service started'
+    //   );
+    // } else {
+    //   logger.info('IP rotation testing service is disabled');
+    // }
 
     // TEMP: disable aggregation/archival to avoid errors when summary tables are missing
     // startHourlySummaryService();
@@ -191,36 +200,6 @@ async function main(): Promise<void> {
     //     'Periodic data archival enabled'
     //   );
     // }
-
-    // Set up alert monitoring
-    const alertMonitoringEnabled = process.env.ENABLE_ALERT_MONITORING !== 'false';
-    const alertIntervalMs = parseInt(process.env.ALERT_CHECK_INTERVAL_MS || '60000', 10);
-    
-    if (alertMonitoringEnabled) {
-      // Register console handler (always enabled for logging)
-      registerAlertHandler(consoleAlertHandler);
-
-      // Register webhook handler if URL provided
-      if (process.env.ALERT_WEBHOOK_URL) {
-        registerAlertHandler(createWebhookAlertHandler(process.env.ALERT_WEBHOOK_URL));
-        logger.info('Webhook alert handler registered');
-      }
-
-      // Register Slack handler if webhook URL provided
-      if (process.env.SLACK_WEBHOOK_URL) {
-        registerAlertHandler(createSlackAlertHandler(process.env.SLACK_WEBHOOK_URL));
-        logger.info('Slack alert handler registered');
-      }
-
-      startAlertMonitoring(alertIntervalMs);
-      logger.info(
-        {
-          intervalMs: alertIntervalMs,
-          intervalSeconds: alertIntervalMs / 1000,
-        },
-        'Alert monitoring enabled'
-      );
-    }
 
     // Set up signal handlers
     process.on('SIGINT', () => handleShutdownRequest('SIGINT'));

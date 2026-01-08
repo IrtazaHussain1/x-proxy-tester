@@ -24,6 +24,7 @@ import {
   startRecoveryChecking,
 } from './auto-deactivation';
 import { startInactiveProxyRotation } from './ip-rotation';
+import { rotateIp } from '../api/commands';
 import { config } from '../config';
 import { recordRequest, setActiveProxies } from '../lib/metrics';
 import type { Device, ProxyMetrics, RequestStatus, RotationStatus, RequestSource } from '../types';
@@ -39,6 +40,7 @@ import type { Device, ProxyMetrics, RequestStatus, RotationStatus, RequestSource
  */
 let deviceIntervals = new Map<string, ReturnType<typeof setTimeout>>();
 let deviceTestingFlags = new Map<string, boolean>(); // Track if device is currently being tested
+let deviceConsecutiveFailures = new Map<string, number>(); // Track consecutive failures per device
 let lastDevicesFetch: Date | null = null;
 let isRunning = false;
 let stabilityInterval: NodeJS.Timeout | null = null;
@@ -513,7 +515,41 @@ async function testAndSaveDevice(device: Device): Promise<void> {
     const metrics = await testProxyWithStats(device);
     
     // Record metrics
+    // Record metrics
     recordRequest(metrics.success, metrics.responseTimeMs, 'continuous');
+    
+    if (metrics.success) {
+      // Reset consecutive failures on success
+      if (deviceConsecutiveFailures.has(device.device_id)) {
+        deviceConsecutiveFailures.delete(device.device_id);
+      }
+    } else {
+      // Handle failure (logic similar to catch block)
+      const currentFailures = (deviceConsecutiveFailures.get(device.device_id) || 0) + 1;
+      deviceConsecutiveFailures.set(device.device_id, currentFailures);
+      
+      const threshold = config.autoDeactivation.consecutiveFailureThreshold;
+
+      if (currentFailures >= threshold) {
+        logger.warn(
+            {
+              deviceId: device.device_id,
+              deviceName: device.name,
+              currentFailures,
+              threshold,
+            },
+            '❌ Triggering IP rotation due to consecutive failures (metrics failed)'
+        );
+
+        // Reset counter
+        deviceConsecutiveFailures.set(device.device_id, 0);
+
+        // Trigger rotation
+        void rotateIp(device.device_id).catch((err) => {
+            logger.error({ deviceId: device.device_id, error: err }, 'Exception triggering rotation on failure');
+        });
+      }
+    }
     
     await saveProxyTestToDatabase(device, metrics, 'continuous');
   } catch (error) {
@@ -528,7 +564,47 @@ async function testAndSaveDevice(device: Device): Promise<void> {
     );
     // Record failed request
     recordRequest(false, 0);
+
+    // Track consecutive failures and trigger rotation if needed
+    const currentFailures = (deviceConsecutiveFailures.get(device.device_id) || 0) + 1;
+    deviceConsecutiveFailures.set(device.device_id, currentFailures);
+
+    const threshold = config.autoDeactivation.consecutiveFailureThreshold;
+    
+    if (currentFailures >= threshold) {
+      logger.warn(
+        {
+          deviceId: device.device_id,
+          deviceName: device.name,
+          currentFailures,
+          threshold,
+        },
+        '❌ Triggering IP rotation due to consecutive failures'
+      );
+
+      // Reset counter after triggering rotation to avoid spamming commands
+      deviceConsecutiveFailures.set(device.device_id, 0);
+
+      // Trigger rotation in background
+      rotateIp(device.device_id)
+        .then((response) => {
+          if (response.success) {
+            logger.info({ deviceId: device.device_id }, '✅ Rotation triggered successfully on failure');
+          } else {
+            logger.error({ deviceId: device.device_id, error: response.message }, 'Failed to trigger rotation on failure');
+          }
+        })
+        .catch((err) => {
+          logger.error({ deviceId: device.device_id, error: err }, 'Exception triggering rotation on failure');
+        });
+    }
   }
+
+  // Reset failures on success (metrics won't be available here if it went to catch block, but if we are here it might have succeeded?)
+  // Wait, testAndSaveDevice calls testProxyWithStats which returns metrics.
+  // If testProxyWithStats throws, we go to catch.
+  // We need to check success inside try block too.
+
 }
 
 /**

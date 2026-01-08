@@ -30,12 +30,18 @@ async function verifyRotationByIpComparison(rotationId: string): Promise<{
       select: {
         proxyId: true,
         ipBefore: true,
+        ipAfter: true,
         commandSentAt: true,
       },
     });
 
     if (!rotation) {
       return { success: false, ipAfter: null, method: 'none' };
+    }
+
+    // If ipAfter is already populated (by continuous tester), trust it
+    if (rotation.ipAfter && rotation.ipBefore && rotation.ipAfter !== rotation.ipBefore) {
+      return { success: true, ipAfter: rotation.ipAfter, method: 'ip_comparison' };
     }
 
     // Find proxy requests after rotation command
@@ -113,10 +119,10 @@ async function verifyRotationByStatusCheck(rotationId: string): Promise<{
     const device = await getDeviceById(rotation.proxyId);
     const statusAfter = device.proxy_status || null;
     const isActive = mapProxyStatusToActive(statusAfter);
-    const wasActive = mapProxyStatusToActive(rotation.statusBefore);
 
-    // Success if proxy became active or was already active
-    const success = isActive || (wasActive && isActive);
+    // Success if proxy is active now (or was active before and still is)
+    // Note: We're being lenient here - if device is active, rotation likely worked
+    const success = isActive;
 
     return {
       success,
@@ -187,6 +193,7 @@ export async function verifyRotationAdaptive(
       commandSentAt: true,
       retryCount: true,
       success: true,
+      verifiedAt: true,
     },
   });
 
@@ -194,8 +201,8 @@ export async function verifyRotationAdaptive(
     return { success: false, verified: false };
   }
 
-  // If already verified, return current status
-  if (rotation.success !== null && rotation.retryCount >= attempt) {
+  // If already verified (has verifiedAt timestamp), return current status
+  if (rotation.verifiedAt !== null) {
     return { success: rotation.success, verified: true };
   }
 
@@ -203,11 +210,22 @@ export async function verifyRotationAdaptive(
   const maxAttempts = config.rotationTracking.maxVerificationAttempts;
   const timeoutMs = config.rotationTracking.verificationTimeoutMs;
 
-  // Check if we've exceeded max attempts or timeout
+  // Check if we've exceeded max attempts (but allow at least one try)
+  // Or if timeout exceeded AND we've already tried at least once
   const elapsedMs = Date.now() - rotation.commandSentAt.getTime();
-  if (attempt >= maxAttempts || elapsedMs > timeoutMs) {
-    // Final attempt - mark as failed if not successful
+  if (attempt >= maxAttempts || (attempt > 0 && elapsedMs > timeoutMs)) {
+    // Final attempt - verify one last time
     const result = await verifyRotationByBoth(rotationId);
+    
+    // Determine appropriate error message
+    let errorMessage = null;
+    if (!result.success) {
+      if (attempt >= maxAttempts) {
+        errorMessage = `Verification failed after ${attempt + 1} attempts`;
+      } else {
+        errorMessage = `Verification timeout after ${elapsedMs}ms`;
+      }
+    }
     
     await prisma.ipRotation.update({
       where: { id: rotationId },
@@ -220,7 +238,7 @@ export async function verifyRotationAdaptive(
         waitTimeMs: elapsedMs,
         rotationDurationMs: elapsedMs,
         retryCount: attempt + 1,
-        errorMessage: result.success ? null : 'Verification timeout or max attempts reached',
+        errorMessage,
       },
     });
 
@@ -315,7 +333,7 @@ export async function verifyRotationCycle(cycleId: string): Promise<void> {
   const rotations = await prisma.ipRotation.findMany({
     where: {
       cycleId,
-      success: false, // Only verify unverified rotations
+      verifiedAt: null, // Only verify rotations that haven't been verified yet
     },
     select: {
       id: true,

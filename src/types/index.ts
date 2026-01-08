@@ -59,6 +59,7 @@ export interface Device {
   country: string;
   state: string;
   city: string;
+  location: string;
   street: string;
   longitude: number;
   latitude: number;

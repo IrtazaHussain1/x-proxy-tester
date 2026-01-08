@@ -7,16 +7,11 @@
  * @module services/rotation-cycle-manager
  */
 
-import { randomUUID } from 'crypto';
 import { prismaWithRetry as prisma } from '../lib/db';
 import { logger } from '../lib/logger';
-import { config } from '../config';
 import { rotateIp, rotateUniqueIp } from '../api/commands';
 import { getAllDevices } from '../helpers/devices';
 import { getDeviceById } from '../api/devices';
-import { mapProxyStatusToActive } from './continuous-proxy-tester';
-import type { Device } from '../types';
-
 export type CycleType = 'periodic' | 'inactive_proxy' | 'manual';
 export type CycleStatus = 'in_progress' | 'verifying' | 'completed' | 'failed';
 
@@ -82,7 +77,6 @@ async function getDeviceMetadata(deviceId: string): Promise<Record<string, any> 
     const device = await getDeviceById(deviceId);
     return {
       name: device.name,
-      location: device.location || null,
       country: device.country || null,
       state: device.state || null,
       city: device.city || null,
