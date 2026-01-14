@@ -1,8 +1,9 @@
-#!/bin/bash
+#!/bin/sh
 # Initialize Grafana views in MySQL
-# NOTE: This script runs during MySQL initialization, but tables may not exist yet.
-# The application will handle Grafana views initialization after tables are created.
-# This script exits gracefully if tables don't exist yet.
+# NOTE: This script runs during MySQL initialization (first time only, when data directory is empty).
+# It waits for tables to be created by Prisma (up to 2 minutes), then initializes views and indexes.
+# If tables aren't found within the timeout, the application will handle initialization on startup.
+# Note: Uses /bin/sh for Alpine Linux compatibility
 
 set +e  # Don't exit on error - allow graceful failure
 
@@ -25,32 +26,43 @@ until mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PAS
   WAIT_COUNT=$((WAIT_COUNT + 1))
 done
 
-# Check if tables exist (don't wait - just check once)
-if mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" -e "SHOW TABLES LIKE 'proxies'" 2>/dev/null | grep -q "proxies"; then
-  echo "Tables found, initializing Grafana views and indexes..."
-  
-  # Execute Grafana views SQL
-  if [ -f "/app/grafana-views.sql" ]; then
-    mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < /app/grafana-views.sql 2>/dev/null
-    echo "Grafana views initialized successfully"
-  elif [ -f "./grafana-views.sql" ]; then
-    mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < ./grafana-views.sql 2>/dev/null
-    echo "Grafana views initialized successfully"
-  else
-    echo "grafana-views.sql not found. The application will initialize views after tables are created."
+# Wait for tables to be created (with timeout)
+# Tables are created by Prisma when the app starts, so we need to wait
+MAX_TABLE_WAIT=120  # Maximum 120 seconds to wait for tables (2 minutes)
+TABLE_WAIT_COUNT=0
+echo "Waiting for database tables to be created..."
+until mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" -e "SHOW TABLES LIKE 'proxies'" 2>/dev/null | grep -q "proxies"; do
+  if [ $TABLE_WAIT_COUNT -ge $MAX_TABLE_WAIT ]; then
+    echo "Tables not found after ${MAX_TABLE_WAIT} seconds. The application will initialize Grafana views after tables are created."
+    exit 0
   fi
-  
-  # Execute Grafana views optimization SQL (indexes)
-  if [ -f "/app/grafana-views-optimized.sql" ]; then
-    mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < /app/grafana-views-optimized.sql 2>/dev/null
-    echo "Grafana views optimization indexes initialized successfully"
-  elif [ -f "./grafana-views-optimized.sql" ]; then
-    mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < ./grafana-views-optimized.sql 2>/dev/null
-    echo "Grafana views optimization indexes initialized successfully"
-  else
-    echo "grafana-views-optimized.sql not found. Skipping optimization indexes."
+  if [ $((TABLE_WAIT_COUNT % 10)) -eq 0 ]; then
+    echo "Still waiting for tables... (${TABLE_WAIT_COUNT}/${MAX_TABLE_WAIT}s)"
   fi
+  sleep 2
+  TABLE_WAIT_COUNT=$((TABLE_WAIT_COUNT + 2))
+done
+
+echo "Tables found, initializing Grafana views and indexes..."
+
+# Execute Grafana views SQL
+if [ -f "/app/grafana-views.sql" ]; then
+  mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < /app/grafana-views.sql 2>/dev/null
+  echo "Grafana views initialized successfully"
+elif [ -f "./grafana-views.sql" ]; then
+  mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < ./grafana-views.sql 2>/dev/null
+  echo "Grafana views initialized successfully"
 else
-  echo "Tables not found yet. The application will initialize Grafana views after tables are created."
-  exit 0
+  echo "grafana-views.sql not found. The application will initialize views after tables are created."
+fi
+
+# Execute Grafana views optimization SQL (indexes)
+if [ -f "/app/grafana-views-optimized.sql" ]; then
+  mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < /app/grafana-views-optimized.sql 2>/dev/null
+  echo "Grafana views optimization indexes initialized successfully"
+elif [ -f "./grafana-views-optimized.sql" ]; then
+  mysql -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" < ./grafana-views-optimized.sql 2>/dev/null
+  echo "Grafana views optimization indexes initialized successfully"
+else
+  echo "grafana-views-optimized.sql not found. Skipping optimization indexes."
 fi
