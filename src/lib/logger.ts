@@ -142,6 +142,28 @@ const baseLogger = pino(
   streams.length > 0 ? pino.multistream(streams) : undefined
 );
 
+type LogBindings = Record<string, unknown>;
+
+function buildLogArgs(
+  correlationId: string,
+  objOrMsg?: unknown,
+  msg?: string
+): { obj: LogBindings; msg?: string } {
+  if (typeof objOrMsg === 'string') {
+    return { obj: { correlationId }, msg: objOrMsg };
+  }
+
+  if (objOrMsg instanceof Error) {
+    return { obj: { err: objOrMsg, correlationId }, msg };
+  }
+
+  if (objOrMsg && typeof objOrMsg === 'object') {
+    return { obj: { ...(objOrMsg as LogBindings), correlationId }, msg };
+  }
+
+  return { obj: { correlationId }, msg };
+}
+
 /**
  * Enhanced logger with correlation ID
  * Handles both object-first and message-first calling patterns

@@ -47,6 +47,58 @@ let stabilityInterval: NodeJS.Timeout | null = null;
 let refreshInterval: NodeJS.Timeout | null = null;
 let recoveryInterval: NodeJS.Timeout | null = null;
 let ipRotationInterval: NodeJS.Timeout | null = null;
+const lastOutboundIpByDevice = new Map<string, string>();
+
+type HistoricalRotationStats = {
+  lastOutboundIp: string | null;
+  sameIpStreak: number;
+  rotationCount: number;
+  lastRotationAt: Date | null;
+};
+
+async function getHistoricalRotationStats(
+  deviceId: string,
+  rotationThreshold: number
+): Promise<HistoricalRotationStats> {
+  const recentRequests = await prisma.proxyRequest.findMany({
+    where: {
+      proxyId: deviceId,
+      outboundIp: { not: null },
+      status: 'SUCCESS',
+    },
+    orderBy: { timestamp: 'desc' },
+    take: Math.max(rotationThreshold, 1) + 1,
+    select: { outboundIp: true },
+  });
+
+  const lastOutboundIp = recentRequests[0]?.outboundIp ?? null;
+  let sameIpStreak = 0;
+
+  if (lastOutboundIp) {
+    for (const request of recentRequests) {
+      if (request.outboundIp !== lastOutboundIp) {
+        break;
+      }
+      sameIpStreak++;
+    }
+  }
+
+  const aggregate = await prisma.proxyRequest.aggregate({
+    where: {
+      proxyId: deviceId,
+      ipChanged: true,
+    },
+    _count: { _all: true },
+    _max: { timestamp: true },
+  });
+
+  return {
+    lastOutboundIp,
+    sameIpStreak,
+    rotationCount: aggregate._count._all,
+    lastRotationAt: aggregate._max.timestamp ?? null,
+  };
+}
 
 /**
  * Maps ProxyMetrics error types to database RequestStatus values
@@ -233,38 +285,43 @@ export async function saveProxyTestToDatabase(
     }
 
     // Check if IP changed from previous request (rotation detection)
-    // Store the previous IP before we update it
-    const previousIp = proxy?.lastIp || null;
+    // Use historical request data for rotation decisions
+    const rotationThreshold = config.testing.rotationThreshold;
+    const history = await getHistoricalRotationStats(device.device_id, rotationThreshold);
+    const previousIp = history.lastOutboundIp;
     const hasPreviousIp = previousIp !== null && previousIp !== undefined;
     
     // IP changed if we have both IPs and they're different
+    const shouldCompareForRotation = metrics.success && hasCurrentIp;
     const ipChangedFromPrevious = 
-      hasPreviousIp && 
-      hasCurrentIp &&
+      shouldCompareForRotation &&
+      hasPreviousIp &&
       previousIp !== metrics.outboundIp;
-    
-    // Get rotation threshold from config
-    const rotationThreshold = config.testing.rotationThreshold;
     
     // Track consecutive requests with same IP
     let sameIpCount: number;
     let rotationStatus: RotationStatus;
-    let lastRotationAt: Date | null = null;
-    let rotationCount: number = proxy.rotationCount || 0;
+    let lastRotationAt: Date | null = history.lastRotationAt;
+    let rotationCount: number = history.rotationCount;
     
-    if (!hasCurrentIp) {
+    if (!shouldCompareForRotation) {
       // No IP returned - can't determine rotation
-      sameIpCount = proxy.sameIpCount || 0;
-      rotationStatus = (proxy.rotationStatus as RotationStatus) || 'Unknown';
-      lastRotationAt = proxy.lastRotationAt || null;
-      // rotationCount stays the same
+      sameIpCount = history.sameIpStreak;
+
+      if (sameIpCount >= rotationThreshold) {
+        rotationStatus = 'NoRotation';
+      } else if (lastRotationAt) {
+        rotationStatus = 'Rotated';
+      } else {
+        rotationStatus = 'Unknown';
+      }
     } else if (!hasPreviousIp) {
       // First request with IP - start counting
       // Can't determine rotation status yet (need previous IP to compare)
       sameIpCount = 1;
       rotationStatus = 'Unknown'; // First IP, can't determine rotation yet
       lastRotationAt = null; // No rotation yet
-      // rotationCount stays 0 (first IP, not a rotation)
+      rotationCount = 0; // First IP, not a rotation
     } else if (ipChangedFromPrevious) {
       // IP changed - actual rotation detected!
       sameIpCount = 1; // Start counting from 1 (this is the first request with new IP)
@@ -319,26 +376,14 @@ export async function saveProxyTestToDatabase(
       }
     } else {
       // Same IP as previous - no rotation occurred
-      sameIpCount = (proxy.sameIpCount || 0) + 1;
+      sameIpCount = history.sameIpStreak + 1;
       
       // Flag as NoRotation if IP hasn't changed after threshold attempts
       // Otherwise keep previous status (could be 'Rotated' from last actual rotation, or 'Unknown')
       if (sameIpCount >= rotationThreshold) {
         rotationStatus = 'NoRotation';
       } else {
-        // Keep previous status - if it was 'Rotated', it means rotation is still healthy
-        // (hasn't exceeded threshold yet since last rotation)
-        const previousStatus = (proxy.rotationStatus as RotationStatus) || 'Unknown';
-        
-        // Fix inconsistency: if status is 'Rotated' but lastRotationAt is null, set to 'Unknown'
-        // This handles old data where rotation was set without timestamp
-        if (previousStatus === 'Rotated' && !proxy.lastRotationAt) {
-          rotationStatus = 'Unknown';
-          lastRotationAt = null;
-        } else {
-          rotationStatus = previousStatus;
-          lastRotationAt = proxy.lastRotationAt || null; // Keep previous rotation timestamp
-        }
+        rotationStatus = lastRotationAt ? 'Rotated' : 'Unknown';
       }
       // rotationCount stays the same
     }
@@ -357,7 +402,8 @@ export async function saveProxyTestToDatabase(
         await tx.proxy.update({
           where: { deviceId: proxy.deviceId },
           data: {
-            lastIp: metrics.outboundIp || null,
+            // Only update last IP when we successfully observe one.
+            lastIp: hasCurrentIp ? metrics.outboundIp : proxy.lastIp,
             sameIpCount,
             rotationStatus,
             lastRotationAt,
@@ -393,6 +439,10 @@ export async function saveProxyTestToDatabase(
         uploadSpeedMbps: null,
       },
     });
+
+    if (hasCurrentIp && metrics.success) {
+      lastOutboundIpByDevice.set(device.device_id, metrics.outboundIp!);
+    }
 
     // Log IP mismatch if expected and returned are different
     if (!ipMatchesExpected && expectedIp && metrics.outboundIp) {

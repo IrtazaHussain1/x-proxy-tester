@@ -19,6 +19,10 @@ ON proxy_requests(ip_changed, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_proxy_requests_proxy_timestamp 
 ON proxy_requests(proxy_id, timestamp DESC);
 
+-- Index to support rotation stats (latest outbound IP and success filter)
+CREATE INDEX IF NOT EXISTS idx_proxy_requests_proxy_timestamp_status_ip
+ON proxy_requests(proxy_id, timestamp DESC, status, outbound_ip);
+
 -- Index for error analysis queries
 -- MySQL will use this index even when filtering error_type IS NOT NULL
 CREATE INDEX IF NOT EXISTS idx_proxy_requests_error_type_timestamp 
@@ -99,4 +103,3 @@ ON proxy_requests(timestamp DESC, response_time_ms);
 -- GROUP BY error_type
 -- ORDER BY count DESC
 -- LIMIT 20;
-

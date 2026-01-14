@@ -10,6 +10,8 @@ import { logger } from '../lib/logger';
 import { config } from '../config';
 import { getAllDevices } from '../helpers/devices';
 import { buildProxyUrl } from '../clients/proxyClient';
+import { mapProxyStatusToActive } from './continuous-proxy-tester';
+import type { Device } from '../types';
 
 let speedTestTimeout: NodeJS.Timeout | null = null;
 const currentlyTestingProxies = new Set<string>();
@@ -17,7 +19,7 @@ const currentlyTestingProxies = new Set<string>();
 /**
  * Measures download speed through a proxy
  */
-async function measureDownloadSpeed(device: any): Promise<{ speedMbps: number; success: boolean; latencyMs: number; error?: string }> {
+async function measureDownloadSpeed(device: Device): Promise<{ speedMbps: number; success: boolean; latencyMs: number; error?: string }> {
   const proxyUrl = buildProxyUrl(device);
   const agent = new ProxyAgent(proxyUrl);
 
@@ -70,7 +72,7 @@ async function measureDownloadSpeed(device: any): Promise<{ speedMbps: number; s
 /**
  * Measures upload speed through a proxy by sending a chunk of data
  */
-async function measureUploadSpeed(device: any): Promise<{ speedMbps: number; success: boolean; latencyMs: number; error?: string }> {
+async function measureUploadSpeed(device: Device): Promise<{ speedMbps: number; success: boolean; latencyMs: number; error?: string }> {
   const proxyUrl = buildProxyUrl(device);
   const agent = new ProxyAgent(proxyUrl);
   
@@ -189,6 +191,8 @@ export async function runSpeedTests(): Promise<void> {
             );
 
             // Record in speed_tests table (always insert, even on failure)
+            // Capture device status at time of test to avoid ambiguity
+            const deviceActive = mapProxyStatusToActive(device.proxy_status);
             await prisma.speedTest.create({
               data: {
                 proxyId: device.device_id,
@@ -197,10 +201,16 @@ export async function runSpeedTests(): Promise<void> {
                 uploadSpeedMbps: uploadSpeed,
                 latencyMs: latencyMs ?? undefined,
                 error: downloadResult.error || uploadResult.error || undefined,
+                // Device status at time of test
+                deviceActive: deviceActive,
+                wsStatus: device.ws_status || null,
+                proxyStatus: device.proxy_status || null,
               },
             });
           } catch (err) {
             logger.error({ deviceId: device.device_id, error: err }, 'Unexpected error during speed test');
+            // Capture device status even on error
+            const deviceActive = mapProxyStatusToActive(device.proxy_status);
             await prisma.speedTest.create({
               data: {
                 proxyId: device.device_id,
@@ -209,6 +219,10 @@ export async function runSpeedTests(): Promise<void> {
                 uploadSpeedMbps: 0,
                 latencyMs: null,
                 error: `Unexpected error during speed test: ${err instanceof Error ? err.message : 'Unknown error'}`,
+                // Device status at time of test
+                deviceActive: deviceActive,
+                wsStatus: device.ws_status || null,
+                proxyStatus: device.proxy_status || null,
               },
             });
           } finally {
