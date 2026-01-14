@@ -55,6 +55,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
 COPY --from=builder --chown=nodejs:nodejs /app/grafana-views.sql ./grafana-views.sql
+COPY --from=builder --chown=nodejs:nodejs /app/grafana-views-optimized.sql ./grafana-views-optimized.sql
 
 # Switch to non-root user
 USER nodejs
