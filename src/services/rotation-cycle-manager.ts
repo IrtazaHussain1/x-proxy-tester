@@ -74,7 +74,22 @@ async function getIpBeforeRotation(proxyId: string): Promise<string | null> {
  */
 async function getDeviceMetadata(deviceId: string): Promise<Record<string, any> | null> {
   try {
-    const device = await getDeviceById(deviceId);
+    // Fetch deviceApiId (integer ID) from Proxy table - API expects integer ID, not string device_id
+    const proxy = await prisma.proxy.findUnique({
+      where: { deviceId },
+      select: { deviceApiId: true },
+    });
+
+    if (!proxy || !proxy.deviceApiId) {
+      logger.warn(
+        { deviceId },
+        'Proxy not found or deviceApiId missing - cannot fetch device metadata'
+      );
+      return null;
+    }
+
+    // Use deviceApiId (integer) instead of deviceId (string device_id)
+    const device = await getDeviceById(proxy.deviceApiId);
     return {
       name: device.name,
       country: device.country || null,
@@ -95,7 +110,8 @@ async function sendRotationCommandForProxy(
   cycleTimestamp: Date,
   proxyId: string,
   rotationType: 'standard' | 'unique',
-  statusBefore: string | null
+  statusBefore: string | null,
+  wsStatusBefore: string | null
 ): Promise<string> {
   const commandSentAt = new Date();
   const ipBefore = await getIpBeforeRotation(proxyId);
@@ -129,6 +145,7 @@ async function sendRotationCommandForProxy(
       commandResponse: commandResponse ? JSON.parse(JSON.stringify(commandResponse)) : null,
       ipBefore,
       statusBefore: statusBefore || null,
+      wsStatusBefore: wsStatusBefore || null,
       success: false, // Will be updated during verification
       deviceMetadata: deviceMetadata ? JSON.parse(JSON.stringify(deviceMetadata)) : null,
       retryCount: 0,
@@ -176,6 +193,7 @@ export async function startRotationCycle(
   const rotationPromises = proxyIds.map(async (proxyId) => {
     const device = deviceMap.get(proxyId);
     const statusBefore = device?.proxy_status || null;
+    const wsStatusBefore = device?.ws_status || null;
     
     try {
       await sendRotationCommandForProxy(
@@ -183,7 +201,8 @@ export async function startRotationCycle(
         cycle.cycleTimestamp,
         proxyId,
         rotationType,
-        statusBefore
+        statusBefore,
+        wsStatusBefore
       );
     } catch (error) {
       logger.error(

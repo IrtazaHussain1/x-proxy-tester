@@ -62,6 +62,8 @@ SELECT
     ir.ip_after,
     ir.status_before,
     ir.status_after,
+    ir.ws_status_before,
+    ir.ws_status_after,
     ir.success,
     ir.verification_method,
     ir.verified_at,

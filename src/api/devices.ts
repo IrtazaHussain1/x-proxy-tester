@@ -164,8 +164,15 @@ export async function getDeviceById(deviceId: string | number): Promise<Device> 
     async () => {
       recordApiCall();
       try {
-        const response = await client.get<Device>(`${DEVICES_ENDPOINT}/${deviceId}`);
-        return response.data;
+        const response = await client.get<any>(`${DEVICES_ENDPOINT}/${deviceId}`);
+        
+        // Handle wrapped response structure: { success: true, data: {...} }
+        if (response.data?.data && typeof response.data.data === 'object') {
+          return response.data.data as Device;
+        }
+        
+        // Fallback: assume response.data is the device directly
+        return response.data as Device;
       } catch (error) {
         recordApiError();
         
@@ -175,8 +182,15 @@ export async function getDeviceById(deviceId: string | number): Promise<Device> 
           try {
             await handleInvalidToken(error);
             // Retry the request once after token refresh
-            const response = await client.get<Device>(`${DEVICES_ENDPOINT}/${deviceId}`);
-            return response.data;
+            const response = await client.get<any>(`${DEVICES_ENDPOINT}/${deviceId}`);
+            
+            // Handle wrapped response structure: { success: true, data: {...} }
+            if (response.data?.data && typeof response.data.data === 'object') {
+              return response.data.data as Device;
+            }
+            
+            // Fallback: assume response.data is the device directly
+            return response.data as Device;
           } catch (retryError) {
             logger.error(
               { error: retryError instanceof Error ? retryError.message : 'Unknown error' },

@@ -162,6 +162,7 @@ SELECT
   p.city,
   p.active,
   p.stability_status,
+  p.version,
   p.updated_at,
   COALESCE(si.same_ip_count, 0) AS same_ip_count,
   si.last_ip,

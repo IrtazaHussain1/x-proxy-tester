@@ -33,6 +33,8 @@ model Proxy {
   downloadNetSpeed  Float?   @map("download_net_speed")
   uploadNetSpeed    Float?   @map("upload_net_speed")
   lastIpRotation    String?  @map("last_ip_rotation")
+  extra             String?  @map("extra") @db.Text // Base64 encoded JSON from API
+  version           String?  @map("version") @db.VarChar(50) // Extracted from extra.version
   lastIp            String?  @map("last_ip")
   sameIpCount       Int      @default(0) @map("same_ip_count")
   stabilityStatus   String   @default("Unknown") @map("stability_status")
@@ -91,6 +93,8 @@ model IpRotation {
   ipAfter             String?       @map("ip_after") @db.VarChar(45)
   statusBefore        String?       @map("status_before") @db.VarChar(50)
   statusAfter         String?       @map("status_after") @db.VarChar(50)
+  wsStatusBefore      String?       @map("ws_status_before") @db.VarChar(50)
+  wsStatusAfter       String?       @map("ws_status_after") @db.VarChar(50)
   success             Boolean       @default(false)
   verificationMethod  String?      @map("verification_method") @db.VarChar(50)
   verifiedAt          DateTime?     @map("verified_at")

@@ -69,6 +69,7 @@ export interface Device {
   last_ip_rotation: string;
   username: string;
   password: string;
+  extra?: string; // Base64 encoded JSON
   created_at: string;
   updated_at: string;
   relay_server_ip_address: string;

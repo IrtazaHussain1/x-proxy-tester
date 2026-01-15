@@ -15,6 +15,7 @@
 import { getAllDevices, updateDevices } from '../helpers/devices';
 import { testProxyWithStats } from '../helpers/test-proxy';
 import { logger } from '../lib/logger';
+import { extractAppVersion } from '../helpers/extra-parser';
 import { prismaWithRetry as prisma, prisma as prismaRaw, checkDatabaseHealth } from '../lib/db';
 import { batchWriter } from '../lib/batch-writer';
 import { startStabilityCalculation } from './stability-calculator';
@@ -245,6 +246,8 @@ export async function saveProxyTestToDatabase(
           downloadNetSpeed: device.download_net_speed || null,
           uploadNetSpeed: device.upload_net_speed || null,
           lastIpRotation: device.last_ip_rotation || null,
+          extra: device.extra || null,
+          version: extractAppVersion(device.extra),
           lastIp: metrics.outboundIp || null,
           sameIpCount: hasCurrentIp ? 1 : 0,
           rotationStatus: 'Rotated',
@@ -280,6 +283,8 @@ export async function saveProxyTestToDatabase(
           downloadNetSpeed: device.download_net_speed || null,
           uploadNetSpeed: device.upload_net_speed || null,
           lastIpRotation: device.last_ip_rotation || null,
+          extra: device.extra || null,
+          version: extractAppVersion(device.extra),
         },
       });
     }
@@ -936,11 +941,13 @@ async function refreshDeviceTesters(): Promise<void> {
             street: device.street || null,
             longitude: device.longitude || null,
             latitude: device.latitude || null,
-            relayServerId: device.relay_server_id || null,
-            relayServerIpAddress: device.relay_server_ip_address || null,
-            downloadNetSpeed: device.download_net_speed || null,
-            uploadNetSpeed: device.upload_net_speed || null,
-            lastIpRotation: device.last_ip_rotation || null,
+          relayServerId: device.relay_server_id || null,
+          relayServerIpAddress: device.relay_server_ip_address || null,
+          downloadNetSpeed: device.download_net_speed || null,
+          uploadNetSpeed: device.upload_net_speed || null,
+          lastIpRotation: device.last_ip_rotation || null,
+          extra: device.extra || null,
+          version: extractAppVersion(device.extra),
           },
         });
         
@@ -1047,6 +1054,8 @@ async function refreshDeviceTesters(): Promise<void> {
             downloadNetSpeed: device.download_net_speed || null,
             uploadNetSpeed: device.upload_net_speed || null,
             lastIpRotation: device.last_ip_rotation || null,
+            extra: device.extra || null,
+            version: extractAppVersion(device.extra),
             lastIp: null,
             sameIpCount: 0,
             rotationStatus: 'Unknown', // New proxy - haven't tested rotation yet

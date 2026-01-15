@@ -101,8 +101,11 @@ async function verifyRotationByIpComparison(rotationId: string): Promise<{
 async function verifyRotationByStatusCheck(rotationId: string): Promise<{
   success: boolean;
   statusAfter: string | null;
+  wsStatusAfter: string | null;
   method: VerificationMethod;
 }> {
+  let proxyId: string | null = null;
+  
   try {
     const rotation = await prisma.ipRotation.findUnique({
       where: { id: rotationId },
@@ -113,31 +116,107 @@ async function verifyRotationByStatusCheck(rotationId: string): Promise<{
     });
 
     if (!rotation) {
-      return { success: false, statusAfter: null, method: 'none' };
+      logger.warn({ rotationId }, 'Rotation record not found - cannot fetch status');
+      return { success: false, statusAfter: null, wsStatusAfter: null, method: 'none' };
     }
 
-    const device = await getDeviceById(rotation.proxyId);
-    const statusAfter = device.proxy_status || null;
+    proxyId = rotation.proxyId;
+
+    // Fetch deviceApiId (integer ID) from Proxy table - API expects integer ID, not string device_id
+    const proxy = await prisma.proxy.findUnique({
+      where: { deviceId: rotation.proxyId },
+      select: { deviceApiId: true },
+    });
+
+    if (!proxy || !proxy.deviceApiId) {
+      logger.warn(
+        {
+          rotationId,
+          proxyId: rotation.proxyId,
+        },
+        'Proxy not found or deviceApiId missing - cannot fetch status from API'
+      );
+      return { success: false, statusAfter: null, wsStatusAfter: null, method: 'none' };
+    }
+
+    logger.debug(
+      {
+        rotationId,
+        proxyId: rotation.proxyId,
+        deviceApiId: proxy.deviceApiId,
+        statusBefore: rotation.statusBefore,
+      },
+      'Fetching device status from API for verification'
+    );
+
+    // Always try to fetch status from API - even if verification fails, we want to log the current state
+    // Use deviceApiId (integer) instead of proxyId (string device_id)
+    const device = await getDeviceById(proxy.deviceApiId);
+    
+    // Explicitly handle undefined vs null - preserve empty strings if they exist
+    const statusAfter = device.proxy_status !== undefined 
+      ? (device.proxy_status || null)  // Convert empty string to null, but keep other values
+      : null;
+    
+    const wsStatusAfter = device.ws_status !== undefined
+      ? (device.ws_status || null)  // Convert empty string to null, but keep other values
+      : null;
+    
     const isActive = mapProxyStatusToActive(statusAfter);
+
+    logger.debug(
+      {
+        rotationId,
+        proxyId: rotation.proxyId,
+        statusBefore: rotation.statusBefore,
+        statusAfter,
+        wsStatusAfter,
+        isActive,
+        deviceProxyStatus: device.proxy_status,
+        deviceWsStatus: device.ws_status,
+        deviceHasProxyStatus: 'proxy_status' in device,
+        deviceHasWsStatus: 'ws_status' in device,
+      },
+      'Status check result - values captured even if verification fails'
+    );
 
     // Success if proxy is active now (or was active before and still is)
     // Note: We're being lenient here - if device is active, rotation likely worked
+    // BUT: We still return statusAfter/wsStatusAfter even if success = false
     const success = isActive;
 
     return {
       success,
-      statusAfter,
+      statusAfter,  // Always return the actual status value, even if success = false
+      wsStatusAfter,  // Always return the actual ws_status value, even if success = false
       method: 'status_check',
     };
   } catch (error) {
+    // Even if API call fails, try to get proxyId from rotation record to log it
+    if (!proxyId) {
+      try {
+        const rotation = await prisma.ipRotation.findUnique({
+          where: { id: rotationId },
+          select: { proxyId: true },
+        });
+        proxyId = rotation?.proxyId || null;
+      } catch {
+        // Ignore - we'll just log without proxyId
+      }
+    }
+
     logger.error(
       {
         rotationId,
+        proxyId,
         error: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined,
       },
-      'Failed to verify rotation by status check'
+      'Failed to fetch device status from API - status values will be null'
     );
-    return { success: false, statusAfter: null, method: 'none' };
+    
+    // Return null values but log that we tried - this is a log table, so we record the failure
+    return { success: false, statusAfter: null, wsStatusAfter: null, method: 'none' };
   }
 }
 
@@ -148,6 +227,7 @@ async function verifyRotationByBoth(rotationId: string): Promise<{
   success: boolean;
   ipAfter: string | null;
   statusAfter: string | null;
+  wsStatusAfter: string | null;
   method: VerificationMethod;
 }> {
   const [ipResult, statusResult] = await Promise.all([
@@ -169,6 +249,7 @@ async function verifyRotationByBoth(rotationId: string): Promise<{
     success,
     ipAfter: ipResult.ipAfter,
     statusAfter: statusResult.statusAfter,
+    wsStatusAfter: statusResult.wsStatusAfter,
     method,
   };
 }
@@ -227,12 +308,27 @@ export async function verifyRotationAdaptive(
       }
     }
     
+    logger.debug(
+      {
+        rotationId,
+        attempt: attempt + 1,
+        resultSuccess: result.success,
+        resultIpAfter: result.ipAfter,
+        resultStatusAfter: result.statusAfter,
+        resultWsStatusAfter: result.wsStatusAfter,
+        resultMethod: result.method,
+        elapsedMs,
+      },
+      'Final verification attempt result'
+    );
+    
     await prisma.ipRotation.update({
       where: { id: rotationId },
       data: {
         success: result.success,
-        ipAfter: result.ipAfter || undefined,
-        statusAfter: result.statusAfter || undefined,
+        ipAfter: result.ipAfter ?? null,  // Use nullish coalescing to preserve null
+        statusAfter: result.statusAfter ?? null,  // Use nullish coalescing to preserve null
+        wsStatusAfter: result.wsStatusAfter ?? null,  // Use nullish coalescing to preserve null
         verificationMethod: result.method,
         verifiedAt: new Date(),
         waitTimeMs: elapsedMs,
@@ -241,6 +337,19 @@ export async function verifyRotationAdaptive(
         errorMessage,
       },
     });
+
+    logger.info(
+      {
+        rotationId,
+        success: result.success,
+        ipAfter: result.ipAfter,
+        statusAfter: result.statusAfter,
+        wsStatusAfter: result.wsStatusAfter,
+        method: result.method,
+        elapsedMs,
+      },
+      'Final verification completed'
+    );
 
     return { success: result.success, verified: true };
   }
@@ -260,24 +369,39 @@ export async function verifyRotationAdaptive(
 
   // Perform verification
   const result = await verifyRotationByBoth(rotationId);
+  const elapsedMsAfterVerification = Date.now() - rotation.commandSentAt.getTime();
+
+  // ALWAYS store status values - this is a log table, we want to record device state
+  // regardless of whether verification succeeded or not
+  // The success field indicates if rotation worked, but we still log the actual status values
+  const updateData: any = {
+    retryCount: attempt + 1,
+  };
+
+  // Store status values if we have them (even if verification failed)
+  // Use nullish coalescing to preserve null values (don't convert to undefined)
+  if (result.ipAfter !== undefined) {
+    updateData.ipAfter = result.ipAfter ?? null;
+  }
+  if (result.statusAfter !== undefined) {
+    updateData.statusAfter = result.statusAfter ?? null;
+  }
+  if (result.wsStatusAfter !== undefined) {
+    updateData.wsStatusAfter = result.wsStatusAfter ?? null;
+  }
 
   if (result.success) {
-    // Success - update and return
-    const elapsedMs = Date.now() - rotation.commandSentAt.getTime();
-    
+    // Success - mark as verified and store all values
+    updateData.success = true;
+    updateData.verificationMethod = result.method;
+    updateData.verifiedAt = new Date();
+    updateData.waitTimeMs = elapsedMsAfterVerification;
+    updateData.rotationDurationMs = elapsedMsAfterVerification;
+    updateData.errorMessage = null;
+
     await prisma.ipRotation.update({
       where: { id: rotationId },
-      data: {
-        success: true,
-        ipAfter: result.ipAfter || undefined,
-        statusAfter: result.statusAfter || undefined,
-        verificationMethod: result.method,
-        verifiedAt: new Date(),
-        waitTimeMs: elapsedMs,
-        rotationDurationMs: elapsedMs,
-        retryCount: attempt + 1,
-        errorMessage: null,
-      },
+      data: updateData,
     });
 
     logger.info(
@@ -285,34 +409,66 @@ export async function verifyRotationAdaptive(
         rotationId,
         attempt: attempt + 1,
         method: result.method,
-        elapsedMs,
+        ipAfter: result.ipAfter,
+        statusAfter: result.statusAfter,
+        wsStatusAfter: result.wsStatusAfter,
+        elapsedMs: elapsedMsAfterVerification,
       },
-      'Rotation verified successfully'
+      'Rotation verified successfully - status values stored'
     );
 
     return { success: true, verified: true };
   }
 
-  // Not successful yet - update retry count and continue
+  // Not successful yet - but STILL store current status values (this is a log table!)
+  // We want to record the device state at each attempt, even if verification hasn't succeeded
   await prisma.ipRotation.update({
     where: { id: rotationId },
-    data: {
-      retryCount: attempt + 1,
-    },
+    data: updateData,
   });
 
+  logger.debug(
+    {
+      rotationId,
+      attempt: attempt + 1,
+      ipAfter: result.ipAfter,
+      statusAfter: result.statusAfter,
+      wsStatusAfter: result.wsStatusAfter,
+      elapsedMs: elapsedMsAfterVerification,
+    },
+    'Status values stored for retry attempt (verification not yet successful)'
+  );
+
   // Retry if we haven't exceeded limits
-  if (attempt + 1 < maxAttempts && elapsedMs < timeoutMs) {
+  if (attempt + 1 < maxAttempts && elapsedMsAfterVerification < timeoutMs) {
     return verifyRotationAdaptive(rotationId, attempt + 1);
   }
 
-  // Final failure
+  // Final failure - IMPORTANT: Get fresh result and include statusAfter
   const finalElapsedMs = Date.now() - rotation.commandSentAt.getTime();
+  const finalResult = await verifyRotationByBoth(rotationId); // Get fresh result for final failure
+  debugger;
+  logger.debug(
+    {
+      rotationId,
+      finalResultSuccess: finalResult.success,
+      finalResultIpAfter: finalResult.ipAfter,
+      finalResultStatusAfter: finalResult.statusAfter,
+      finalResultWsStatusAfter: finalResult.wsStatusAfter,
+      finalResultMethod: finalResult.method,
+      finalElapsedMs,
+    },
+    'Final failure verification result'
+  );
+  
   await prisma.ipRotation.update({
     where: { id: rotationId },
     data: {
       success: false,
-      verificationMethod: result.method,
+      ipAfter: finalResult.ipAfter ?? null,  // Use nullish coalescing to preserve null
+      statusAfter: finalResult.statusAfter ?? null,  // Use nullish coalescing to preserve null
+      wsStatusAfter: finalResult.wsStatusAfter ?? null,  // Use nullish coalescing to preserve null
+      verificationMethod: finalResult.method,
       verifiedAt: new Date(),
       waitTimeMs: finalElapsedMs,
       rotationDurationMs: finalElapsedMs,
@@ -320,6 +476,19 @@ export async function verifyRotationAdaptive(
       errorMessage: 'Rotation verification failed after all attempts',
     },
   });
+
+  logger.info(
+    {
+      rotationId,
+      success: false,
+      ipAfter: finalResult.ipAfter,
+      statusAfter: finalResult.statusAfter,
+      wsStatusAfter: finalResult.wsStatusAfter,
+      method: finalResult.method,
+      finalElapsedMs,
+    },
+    'Rotation verification failed - final status stored'
+  );
 
   return { success: false, verified: true };
 }
