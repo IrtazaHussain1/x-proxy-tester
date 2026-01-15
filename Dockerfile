@@ -71,7 +71,8 @@ COPY prisma ./prisma/
 
 # Install production dependencies
 # Note: git is not needed since all dependencies are from npm registry (no git-based packages in package.json)
-RUN npm ci --omit=dev && \
+# Using npm install instead of npm ci to handle package-lock.json sync issues
+RUN npm install --omit=dev && \
     npm cache clean --force
 
 # Copy built application from builder
