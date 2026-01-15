@@ -16,6 +16,93 @@ import { mapProxyStatusToActive } from './continuous-proxy-tester';
 export type VerificationMethod = 'ip_comparison' | 'status_check' | 'both' | 'none';
 
 /**
+ * Update device details in database if they have changed
+ * Called AFTER ip_rotations record is updated to ensure status_before/status_after capture correct values
+ * 
+ * @param proxyId - Device ID (string)
+ * @param statusAfter - Proxy status from API
+ * @param wsStatusAfter - WebSocket status from API
+ * @param rotationId - Rotation ID for logging context
+ */
+async function updateDeviceDetailsAfterRotation(
+  proxyId: string,
+  statusAfter: string | null,
+  wsStatusAfter: string | null,
+  rotationId: string
+): Promise<void> {
+  try {
+    // Fetch current proxy state to compare
+    const currentProxy = await prisma.proxy.findUnique({
+      where: { deviceId: proxyId },
+      select: {
+        wsStatus: true,
+        proxyStatus: true,
+        active: true,
+      },
+    });
+
+    if (!currentProxy) {
+      logger.warn({ rotationId, proxyId }, 'Proxy not found - cannot update device details');
+      return;
+    }
+
+    const updateData: any = {};
+    let needsUpdate = false;
+
+    // Check if ws_status changed
+    if (wsStatusAfter !== null && wsStatusAfter !== undefined && currentProxy.wsStatus !== wsStatusAfter) {
+      updateData.wsStatus = wsStatusAfter;
+      needsUpdate = true;
+    }
+
+    // Check if proxy_status changed
+    if (statusAfter !== null && statusAfter !== undefined && currentProxy.proxyStatus !== statusAfter) {
+      updateData.proxyStatus = statusAfter;
+      needsUpdate = true;
+    }
+
+    // Check if active status changed (based on proxy_status)
+    const isActive = mapProxyStatusToActive(statusAfter);
+    if (statusAfter !== null && statusAfter !== undefined && currentProxy.active !== isActive) {
+      updateData.active = isActive;
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      await prisma.proxy.update({
+        where: { deviceId: proxyId },
+        data: updateData,
+      });
+
+      logger.debug(
+        {
+          rotationId,
+          proxyId,
+          updatedFields: Object.keys(updateData),
+          oldWsStatus: currentProxy.wsStatus,
+          newWsStatus: updateData.wsStatus,
+          oldProxyStatus: currentProxy.proxyStatus,
+          newProxyStatus: updateData.proxyStatus,
+          oldActive: currentProxy.active,
+          newActive: updateData.active,
+        },
+        'Updated device details in database after rotation verification'
+      );
+    }
+  } catch (updateError) {
+    // Log but don't fail - device update is non-critical for rotation verification
+    logger.warn(
+      {
+        rotationId,
+        proxyId,
+        error: updateError instanceof Error ? updateError.message : 'Unknown error',
+      },
+      'Failed to update device details in database (non-critical)'
+    );
+  }
+}
+
+/**
  * Verify rotation by comparing IP from test requests
  * Checks if IP changed in proxy_requests after rotation command
  */
@@ -271,6 +358,7 @@ export async function verifyRotationAdaptive(
   const rotation = await prisma.ipRotation.findUnique({
     where: { id: rotationId },
     select: {
+      proxyId: true,
       commandSentAt: true,
       retryCount: true,
       success: true,
@@ -338,6 +426,17 @@ export async function verifyRotationAdaptive(
       },
     });
 
+    // Update device details AFTER ip_rotations log is created
+    // This ensures status_before/status_after capture the correct values
+    if (rotation.proxyId && (result.statusAfter !== null || result.wsStatusAfter !== null)) {
+      await updateDeviceDetailsAfterRotation(
+        rotation.proxyId,
+        result.statusAfter,
+        result.wsStatusAfter,
+        rotationId
+      );
+    }
+
     logger.info(
       {
         rotationId,
@@ -404,6 +503,17 @@ export async function verifyRotationAdaptive(
       data: updateData,
     });
 
+    // Update device details AFTER ip_rotations log is created
+    // This ensures status_before/status_after capture the correct values
+    if (rotation.proxyId && (result.statusAfter !== null || result.wsStatusAfter !== null)) {
+      await updateDeviceDetailsAfterRotation(
+        rotation.proxyId,
+        result.statusAfter,
+        result.wsStatusAfter,
+        rotationId
+      );
+    }
+
     logger.info(
       {
         rotationId,
@@ -427,6 +537,17 @@ export async function verifyRotationAdaptive(
     data: updateData,
   });
 
+  // Update device details AFTER ip_rotations log is created
+  // This ensures status_before/status_after capture the correct values
+  if (rotation.proxyId && (result.statusAfter !== null || result.wsStatusAfter !== null)) {
+    await updateDeviceDetailsAfterRotation(
+      rotation.proxyId,
+      result.statusAfter,
+      result.wsStatusAfter,
+      rotationId
+    );
+  }
+
   logger.debug(
     {
       rotationId,
@@ -447,7 +568,7 @@ export async function verifyRotationAdaptive(
   // Final failure - IMPORTANT: Get fresh result and include statusAfter
   const finalElapsedMs = Date.now() - rotation.commandSentAt.getTime();
   const finalResult = await verifyRotationByBoth(rotationId); // Get fresh result for final failure
-  debugger;
+  
   logger.debug(
     {
       rotationId,
@@ -476,6 +597,17 @@ export async function verifyRotationAdaptive(
       errorMessage: 'Rotation verification failed after all attempts',
     },
   });
+
+  // Update device details AFTER ip_rotations log is created
+  // This ensures status_before/status_after capture the correct values
+  if (rotation.proxyId && (finalResult.statusAfter !== null || finalResult.wsStatusAfter !== null)) {
+    await updateDeviceDetailsAfterRotation(
+      rotation.proxyId,
+      finalResult.statusAfter,
+      finalResult.wsStatusAfter,
+      rotationId
+    );
+  }
 
   logger.info(
     {

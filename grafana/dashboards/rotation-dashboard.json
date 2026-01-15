@@ -411,7 +411,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  name,\n  location,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  rotation_status,\n  last_rotation_at,\n  updated_at\nFROM proxies\nWHERE active = true\n  AND same_ip_count >= 10\n  AND location IN ($location)\nORDER BY same_ip_count DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  name,\n  location,\n  version,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  rotation_status,\n  last_rotation_at,\n  updated_at\nFROM proxies\nWHERE active = true\n  AND same_ip_count >= 10\n  AND location IN ($location)\nORDER BY same_ip_count DESC\nLIMIT 20",
           "refId": "A"
         }
       ],

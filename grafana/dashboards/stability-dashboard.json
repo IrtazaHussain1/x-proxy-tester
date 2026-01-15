@@ -306,7 +306,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  name,\n  location,\n  stability_status,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  updated_at\nFROM proxies\nWHERE active = true AND stability_status IN ('UnstableHourly', 'UnstableDaily') AND location IN ($location)\nORDER BY updated_at DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  name,\n  location,\n  version,\n  stability_status,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  updated_at\nFROM proxies\nWHERE active = true AND stability_status IN ('UnstableHourly', 'UnstableDaily') AND location IN ($location)\nORDER BY updated_at DESC\nLIMIT 20",
           "refId": "A"
         }
       ],

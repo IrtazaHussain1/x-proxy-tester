@@ -339,7 +339,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n    p.device_id as proxy_id,\n    p.name as proxy_name,\n    p.proxy_status,\n    p.country,\n    p.city,\n    COUNT(ir.id) as total_rotation_attempts,\n    SUM(CASE WHEN ir.success = 1 THEN 1 ELSE 0 END) as successful_rotations,\n    SUM(CASE WHEN ir.success = 0 THEN 1 ELSE 0 END) as failed_rotations,\n    MAX(ir.rotation_timestamp) as last_rotation_attempt,\n    MAX(ir.error_message) as last_error\nFROM \n    proxies p\nLEFT JOIN \n    ip_rotations ir ON p.device_id = ir.proxy_id\nWHERE \n    ir.id IS NOT NULL  -- Has rotation attempts\n    AND NOT EXISTS (\n        SELECT 1 \n        FROM ip_rotations ir2 \n        WHERE ir2.proxy_id = p.device_id \n        AND ir2.success = 1\n    )  -- But no successful rotations\n    AND $__timeFilter(ir.rotation_timestamp)\nGROUP BY \n    p.device_id, p.name, p.proxy_status, p.country, p.city\nORDER BY \n    total_rotation_attempts DESC;",
+          "rawSql": "SELECT \n    p.device_id as proxy_id,\n    p.name as proxy_name,\n    p.proxy_status,\n    p.country,\n    p.city,\n    p.version,\n    COUNT(ir.id) as total_rotation_attempts,\n    SUM(CASE WHEN ir.success = 1 THEN 1 ELSE 0 END) as successful_rotations,\n    SUM(CASE WHEN ir.success = 0 THEN 1 ELSE 0 END) as failed_rotations,\n    MAX(ir.rotation_timestamp) as last_rotation_attempt,\n    MAX(ir.error_message) as last_error\nFROM \n    proxies p\nLEFT JOIN \n    ip_rotations ir ON p.device_id = ir.proxy_id\nWHERE \n    ir.id IS NOT NULL  -- Has rotation attempts\n    AND NOT EXISTS (\n        SELECT 1 \n        FROM ip_rotations ir2 \n        WHERE ir2.proxy_id = p.device_id \n        AND ir2.success = 1\n    )  -- But no successful rotations\n    AND $__timeFilter(ir.rotation_timestamp)\nGROUP BY \n    p.device_id, p.name, p.proxy_status, p.country, p.city, p.version\nORDER BY \n    total_rotation_attempts DESC;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -647,7 +647,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n    p.name as proxy_name,\n    p.country,\n    p.state,\n    p.city,\n    p.proxy_status,\n    ipr.*\nFROM \n    xproxy_tester.ip_rotations as ipr \nJOIN \n    rotation_cycles as rc ON rc.id = ipr.cycle_id \nLEFT JOIN\n    proxies as p ON p.device_id = ipr.proxy_id\nWHERE \n    rc.cycle_type = 'periodic' \n    AND $__timeFilter(ipr.rotation_timestamp)\nORDER BY\n    ipr.rotation_timestamp DESC",
+          "rawSql": "SELECT \n    p.name as proxy_name,\n    p.country,\n    p.state,\n    p.city,\n    p.proxy_status,\n    p.version,\n    ipr.*\nFROM \n    xproxy_tester.ip_rotations as ipr \nJOIN \n    rotation_cycles as rc ON rc.id = ipr.cycle_id \nLEFT JOIN\n    proxies as p ON p.device_id = ipr.proxy_id\nWHERE \n    rc.cycle_type = 'periodic' \n    AND $__timeFilter(ipr.rotation_timestamp)\nORDER BY\n    ipr.rotation_timestamp DESC",
           "refId": "A",
           "sql": {
             "columns": [
