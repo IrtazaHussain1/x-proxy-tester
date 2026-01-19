@@ -50,56 +50,8 @@ let recoveryInterval: NodeJS.Timeout | null = null;
 let ipRotationInterval: NodeJS.Timeout | null = null;
 const lastOutboundIpByDevice = new Map<string, string>();
 
-type HistoricalRotationStats = {
-  lastOutboundIp: string | null;
-  sameIpStreak: number;
-  rotationCount: number;
-  lastRotationAt: Date | null;
-};
-
-async function getHistoricalRotationStats(
-  deviceId: string,
-  rotationThreshold: number
-): Promise<HistoricalRotationStats> {
-  const recentRequests = await prisma.proxyRequest.findMany({
-    where: {
-      proxyId: deviceId,
-      outboundIp: { not: null },
-      status: 'SUCCESS',
-    },
-    orderBy: { timestamp: 'desc' },
-    take: Math.max(rotationThreshold, 1) + 1,
-    select: { outboundIp: true },
-  });
-
-  const lastOutboundIp = recentRequests[0]?.outboundIp ?? null;
-  let sameIpStreak = 0;
-
-  if (lastOutboundIp) {
-    for (const request of recentRequests) {
-      if (request.outboundIp !== lastOutboundIp) {
-        break;
-      }
-      sameIpStreak++;
-    }
-  }
-
-  const aggregate = await prisma.proxyRequest.aggregate({
-    where: {
-      proxyId: deviceId,
-      ipChanged: true,
-    },
-    _count: { _all: true },
-    _max: { timestamp: true },
-  });
-
-  return {
-    lastOutboundIp,
-    sameIpStreak,
-    rotationCount: aggregate._count._all,
-    lastRotationAt: aggregate._max.timestamp ?? null,
-  };
-}
+// Removed getHistoricalRotationStats - now using proxy table fields directly
+// This eliminates expensive aggregate queries that were causing connection pool exhaustion
 
 /**
  * Maps ProxyMetrics error types to database RequestStatus values
@@ -280,11 +232,14 @@ export async function saveProxyTestToDatabase(
     }
 
     // Check if IP changed from previous request (rotation detection)
-    // Use historical request data for rotation decisions
+    // Use proxy.lastIp instead of querying proxy_requests (much faster)
     const rotationThreshold = config.testing.rotationThreshold;
-    const history = await getHistoricalRotationStats(device.device_id, rotationThreshold);
-    const previousIp = history.lastOutboundIp;
+    const previousIp = proxy.lastIp;
     const hasPreviousIp = previousIp !== null && previousIp !== undefined;
+    
+    // Get rotation stats from proxy table (already fetched, no additional query needed)
+    const rotationCount = proxy.rotationCount ?? 0;
+    const lastRotationAt = proxy.lastRotationAt;
     
     // IP changed if we have both IPs and they're different
     const shouldCompareForRotation = metrics.success && hasCurrentIp;
@@ -294,18 +249,19 @@ export async function saveProxyTestToDatabase(
       previousIp !== metrics.outboundIp;
     
     // Track consecutive requests with same IP
+    // Calculate sameIpCount from proxy.sameIpCount (already tracked in proxy table)
     let sameIpCount: number;
     let rotationStatus: RotationStatus;
-    let lastRotationAt: Date | null = history.lastRotationAt;
-    let rotationCount: number = history.rotationCount;
+    let finalRotationCount: number = rotationCount;
+    let finalLastRotationAt: Date | null = lastRotationAt;
     
     if (!shouldCompareForRotation) {
       // No IP returned - can't determine rotation
-      sameIpCount = history.sameIpStreak;
+      sameIpCount = proxy.sameIpCount ?? 0;
 
       if (sameIpCount >= rotationThreshold) {
         rotationStatus = 'NoRotation';
-      } else if (lastRotationAt) {
+      } else if (finalLastRotationAt) {
         rotationStatus = 'Rotated';
       } else {
         rotationStatus = 'Unknown';
@@ -315,14 +271,14 @@ export async function saveProxyTestToDatabase(
       // Can't determine rotation status yet (need previous IP to compare)
       sameIpCount = 1;
       rotationStatus = 'Unknown'; // First IP, can't determine rotation yet
-      lastRotationAt = null; // No rotation yet
-      rotationCount = 0; // First IP, not a rotation
+      finalLastRotationAt = null; // No rotation yet
+      finalRotationCount = 0; // First IP, not a rotation
     } else if (ipChangedFromPrevious) {
       // IP changed - actual rotation detected!
       sameIpCount = 1; // Start counting from 1 (this is the first request with new IP)
       rotationStatus = 'Rotated'; // Mark as Rotated when actual rotation is detected
-      lastRotationAt = new Date(); // Record rotation timestamp
-      rotationCount = (proxy.rotationCount || 0) + 1; // Increment rotation count
+      finalLastRotationAt = new Date(); // Record rotation timestamp
+      finalRotationCount = rotationCount + 1; // Increment rotation count
 
       // Check if this IP change is part of a rotation cycle and update the rotation record
       try {
@@ -371,14 +327,14 @@ export async function saveProxyTestToDatabase(
       }
     } else {
       // Same IP as previous - no rotation occurred
-      sameIpCount = history.sameIpStreak + 1;
+      sameIpCount = (proxy.sameIpCount ?? 0) + 1;
       
       // Flag as NoRotation if IP hasn't changed after threshold attempts
       // Otherwise keep previous status (could be 'Rotated' from last actual rotation, or 'Unknown')
       if (sameIpCount >= rotationThreshold) {
         rotationStatus = 'NoRotation';
       } else {
-        rotationStatus = lastRotationAt ? 'Rotated' : 'Unknown';
+        rotationStatus = finalLastRotationAt ? 'Rotated' : 'Unknown';
       }
       // rotationCount stays the same
     }
@@ -401,8 +357,8 @@ export async function saveProxyTestToDatabase(
             lastIp: hasCurrentIp ? metrics.outboundIp : proxy.lastIp,
             sameIpCount,
             rotationStatus,
-            lastRotationAt,
-            rotationCount,
+            lastRotationAt: finalLastRotationAt,
+            rotationCount: finalRotationCount,
           },
         });
       },
@@ -475,8 +431,8 @@ export async function saveProxyTestToDatabase(
           deviceName: device.name,
           previousIp: previousIp,
           newIp: metrics.outboundIp,
-          rotationCount,
-          lastRotationAt: lastRotationAt?.toISOString(),
+          rotationCount: finalRotationCount,
+          lastRotationAt: finalLastRotationAt?.toISOString(),
         },
         '✅ Rotation detected: IP changed, status reset to Rotated'
       );
@@ -490,8 +446,8 @@ export async function saveProxyTestToDatabase(
           deviceName: device.name,
           previousIp: previousIp,
           newIp: metrics.outboundIp,
-          rotationCount,
-          lastRotationAt: lastRotationAt?.toISOString(),
+          rotationCount: finalRotationCount,
+          lastRotationAt: finalLastRotationAt?.toISOString(),
         },
         'IP rotation detected'
       );
