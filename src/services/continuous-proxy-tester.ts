@@ -16,7 +16,7 @@ import { getAllDevices, updateDevices } from '../helpers/devices';
 import { testProxyWithStats } from '../helpers/test-proxy';
 import { logger } from '../lib/logger';
 import { extractAppVersion } from '../helpers/extra-parser';
-import { prismaWithRetry as prisma, prisma as prismaRaw, checkDatabaseHealth } from '../lib/db';
+import { prismaWithRetry as prisma, prisma as prismaRaw } from '../lib/db';
 import { batchWriter } from '../lib/batch-writer';
 import { startStabilityCalculation } from './stability-calculator';
 import {
@@ -186,19 +186,9 @@ export async function saveProxyTestToDatabase(
   metrics: ProxyMetrics,
   source: RequestSource = 'continuous'
 ): Promise<void> {
-  // Check database connection before proceeding
-  const dbHealth = await checkDatabaseHealth();
-  if (!dbHealth.connected) {
-    logger.error(
-      {
-        deviceId: device.device_id,
-        workflow: 'continuous',
-        error: dbHealth.error || 'Database not connected',
-      },
-      'Database not connected, skipping save operation (continuous workflow)'
-    );
-    return;
-  }
+  // Removed health check here - it was causing connection pool exhaustion
+  // Health checks are cached and called less frequently elsewhere
+  // Database operations will fail gracefully if connection is unavailable
 
   try {
     // Expected IP is the device's IP address
@@ -551,20 +541,9 @@ export async function saveProxyTestToDatabase(
  * ```
  */
 async function testAndSaveDevice(device: Device): Promise<void> {
-  // Check database connection before testing
-  const dbHealth = await checkDatabaseHealth();
-  if (!dbHealth.connected) {
-    logger.warn(
-      {
-        deviceId: device.device_id,
-        error: dbHealth.error || 'Database not connected',
-      },
-      'Database not connected, skipping device test'
-    );
-    // Record failed request due to DB issue
-    recordRequest(false, 0);
-    return;
-  }
+  // Removed health check here - it was causing connection pool exhaustion
+  // Health checks are cached and called less frequently elsewhere
+  // Database operations will fail gracefully if connection is unavailable
 
   try {
     const metrics = await testProxyWithStats(device);
