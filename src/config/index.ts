@@ -27,6 +27,7 @@ interface Config {
     timeoutMs: number;
   };
   testing: {
+    testInactiveProxies: boolean;
     targetUrl: string;
     intervalMs: number;
     requestTimeoutMs: number;
@@ -280,6 +281,7 @@ function validateConfig(): Config {
       intervalMs: testIntervalMs,
       requestTimeoutMs,
       rotationThreshold,
+      testInactiveProxies: process.env.TEST_INACTIVE_PROXIES === 'true',
     },
     refresh: {
       intervalMs: proxyRefreshIntervalMs,

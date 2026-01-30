@@ -644,21 +644,31 @@ function startDeviceTesting(device: Device): void {
 
     // Check if proxy is still active before testing
     // Note: If proxy doesn't exist yet, allow first test to create it
+    // Skip active check if we want to test inactive proxies
     try {
-      const proxy = await prisma.proxy.findUnique({
-        where: { deviceId },
-        select: { active: true },
-      });
-
-      // Only stop if proxy exists AND is inactive
-      // If proxy doesn't exist, allow first test to create it
-      if (proxy && !proxy.active) {
+      if (config.testing.testInactiveProxies) {
+        // Skip active check - we want to test inactive proxies
         logger.debug(
-          { deviceId, active: proxy.active },
-          'Proxy is inactive, stopping testing'
+          { deviceId, testInactiveProxies: config.testing.testInactiveProxies },
+          'Skipping active check - testing inactive proxies is enabled'
         );
-        stopDeviceTesting(deviceId);
-        return;
+      } else {
+        // Only check active status if we DON'T want to test inactive proxies
+        const proxy = await prisma.proxy.findUnique({
+          where: { deviceId },
+          select: { active: true },
+        });
+
+        // Only stop if proxy exists AND is inactive
+        // If proxy doesn't exist, allow first test to create it
+        if (proxy && !proxy.active) {
+          logger.debug(
+            { deviceId, active: proxy.active, testInactiveProxies: config.testing.testInactiveProxies },
+            'Proxy is inactive, stopping testing (testInactiveProxies is false)'
+          );
+          stopDeviceTesting(deviceId);
+          return;
+        }
       }
     } catch (error) {
       logger.error(
@@ -694,21 +704,31 @@ function startDeviceTesting(device: Device): void {
 
     // Check if proxy became inactive during test
     // Note: If proxy doesn't exist yet (first test), allow it to be created
+    // Skip active check if we want to test inactive proxies
     try {
-      const proxy = await prisma.proxy.findUnique({
-        where: { deviceId },
-        select: { active: true },
-      });
-
-      // Only stop if proxy exists AND is inactive
-      // If proxy doesn't exist yet, it will be created by the test
-      if (proxy && !proxy.active) {
+      if (config.testing.testInactiveProxies) {
+        // Skip active check - we want to test inactive proxies
         logger.debug(
-          { deviceId, active: proxy.active },
-          'Proxy became inactive during test, stopping'
+          { deviceId, testInactiveProxies: config.testing.testInactiveProxies },
+          'Skipping post-test active check - testing inactive proxies is enabled'
         );
-        stopDeviceTesting(deviceId);
-        return;
+      } else {
+        // Only check active status if we DON'T want to test inactive proxies
+        const proxy = await prisma.proxy.findUnique({
+          where: { deviceId },
+          select: { active: true },
+        });
+
+        // Only stop if proxy exists AND is inactive
+        // If proxy doesn't exist yet, it will be created by the test
+        if (proxy && !proxy.active) {
+          logger.debug(
+            { deviceId, active: proxy.active, testInactiveProxies: config.testing.testInactiveProxies },
+            'Proxy became inactive during test, stopping (testInactiveProxies is false)'
+          );
+          stopDeviceTesting(deviceId);
+          return;
+        }
       }
     } catch (error) {
       // Continue if check fails
@@ -908,6 +928,7 @@ async function refreshDeviceTesters(): Promise<void> {
   }
 
   // Stop testers for devices that no longer exist, are inactive in portal, or auto-deactivated
+  // If testInactiveProxies is enabled, only stop if device was removed (not if just inactive)
   for (const deviceId of deviceIntervals.keys()) {
     const device = deviceMap.get(deviceId);
     const portalActive = device ? mapProxyStatusToActive(device.proxy_status) : false;
@@ -924,16 +945,30 @@ async function refreshDeviceTesters(): Promise<void> {
       // If check fails, assume active to avoid stopping unnecessarily
     }
     
-    if (!currentDeviceIds.has(deviceId) || !portalActive || !dbActive) {
+    // Stop if:
+    // - Device was removed from portal, OR
+    // - testInactiveProxies is false AND (device is inactive in portal OR DB)
+    const wasRemoved = !currentDeviceIds.has(deviceId);
+    const shouldStopForInactive = !config.testing.testInactiveProxies && (!portalActive || !dbActive);
+    const shouldStop = wasRemoved || shouldStopForInactive;
+    
+    if (shouldStop) {
       stopDeviceTesting(deviceId);
+      const reason = wasRemoved
+        ? 'removed_from_portal'
+        : shouldStopForInactive
+        ? (!portalActive ? 'inactive_in_portal' : 'auto_deactivated')
+        : 'unknown';
+      
       logger.info(
         {
           deviceId,
-          reason: !currentDeviceIds.has(deviceId)
-            ? 'removed'
-            : !portalActive
-            ? 'inactive_in_portal'
-            : 'auto_deactivated',
+          reason,
+          testInactiveProxies: config.testing.testInactiveProxies,
+          portalActive,
+          dbActive,
+          wasRemoved,
+          shouldStopForInactive,
         },
         'Stopped testing device'
       );
@@ -1040,11 +1075,24 @@ async function refreshDeviceTesters(): Promise<void> {
       }
     }
     
-    // Start testing if device is active in both portal and DB, and not already testing
-    if (!deviceIntervals.has(device.device_id) && portalActive && dbActive) {
+    // Start testing if:
+    // - Device is not already being tested
+    // - AND either:
+    //   a) We want to test inactive proxies (testInactiveProxies = true), OR
+    //   b) Device is active in both portal and DB (testInactiveProxies = false)
+    const shouldStartTesting = !deviceIntervals.has(device.device_id) && 
+      (config.testing.testInactiveProxies || (portalActive && dbActive));
+    
+    if (shouldStartTesting) {
       startDeviceTesting(device);
       logger.info(
-        { deviceId: device.device_id, deviceName: device.name },
+        { 
+          deviceId: device.device_id, 
+          deviceName: device.name,
+          testInactiveProxies: config.testing.testInactiveProxies,
+          portalActive,
+          dbActive,
+        },
         'Started testing device'
       );
     }
@@ -1110,7 +1158,9 @@ export async function startContinuousTesting(): Promise<void> {
         const device = devices.find((d) => d.device_id === deviceId);
         if (device) {
           const portalActive = mapProxyStatusToActive(device.proxy_status);
-          if (portalActive && !deviceIntervals.has(deviceId)) {
+          // Start testing if testInactiveProxies is enabled OR device is active
+          const shouldStart = config.testing.testInactiveProxies || portalActive;
+          if (shouldStart && !deviceIntervals.has(deviceId)) {
             startDeviceTesting(device);
             logger.info(
               { deviceId, deviceName: device.name },
