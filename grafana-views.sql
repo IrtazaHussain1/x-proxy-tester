@@ -114,7 +114,71 @@ WHERE active = true
 GROUP BY stability_status;
 
 -- ============================================
--- View 5: Rotation Status Summary
+-- View 5: Rotation Stats (Historical)
+-- ============================================
+-- Rotation status and counts derived from proxy_requests history
+CREATE OR REPLACE VIEW v_rotation_stats AS
+WITH ordered_requests AS (
+  SELECT
+    pr.proxy_id,
+    pr.outbound_ip,
+    pr.timestamp,
+    CASE
+      WHEN pr.outbound_ip = LAG(pr.outbound_ip) OVER (PARTITION BY pr.proxy_id ORDER BY pr.timestamp DESC) THEN 0
+      ELSE 1
+    END AS change_flag
+  FROM proxy_requests pr
+  WHERE pr.outbound_ip IS NOT NULL
+    AND pr.status = 'SUCCESS'
+),
+same_ip AS (
+  SELECT
+    proxy_id,
+    outbound_ip AS last_ip,
+    COUNT(*) AS same_ip_count
+  FROM (
+    SELECT
+      proxy_id,
+      outbound_ip,
+      SUM(change_flag) OVER (PARTITION BY proxy_id ORDER BY timestamp DESC) AS grp
+    FROM ordered_requests
+  ) grouped
+  WHERE grp = 1
+  GROUP BY proxy_id, outbound_ip
+),
+rotation_counts AS (
+  SELECT
+    proxy_id,
+    COUNT(*) AS rotation_count,
+    MAX(timestamp) AS last_rotation_at
+  FROM proxy_requests
+  WHERE ip_changed = true
+  GROUP BY proxy_id
+)
+SELECT
+  p.device_id,
+  p.name,
+  p.location,
+  p.city,
+  p.active,
+  p.stability_status,
+  p.version,
+  p.updated_at,
+  COALESCE(si.same_ip_count, 0) AS same_ip_count,
+  si.last_ip,
+  COALESCE(rc.rotation_count, 0) AS rotation_count,
+  rc.last_rotation_at,
+  CASE
+    WHEN COALESCE(si.same_ip_count, 0) >= 10 THEN 'NoRotation'
+    WHEN rc.last_rotation_at IS NOT NULL THEN 'Rotated'
+    ELSE 'Unknown'
+  END AS rotation_status
+FROM proxies p
+LEFT JOIN same_ip si ON p.device_id = si.proxy_id
+LEFT JOIN rotation_counts rc ON p.device_id = rc.proxy_id;
+
+-- ============================================
+-- View 6: Rotation Status Summary
 -- ============================================
 -- Current rotation status breakdown
 CREATE OR REPLACE VIEW v_rotation_summary AS
@@ -124,12 +188,12 @@ SELECT
   AVG(rotation_count) as avg_rotation_count,
   AVG(same_ip_count) as avg_same_ip_count,
   MAX(same_ip_count) as max_same_ip_count
-FROM proxies
+FROM v_rotation_stats
 WHERE active = true
 GROUP BY rotation_status;
 
 -- ============================================
--- View 6: Error Type Summary (Last 24h)
+-- View 7: Error Type Summary (Last 24h)
 -- ============================================
 -- Error breakdown by type
 CREATE OR REPLACE VIEW v_error_summary_24h AS
@@ -548,4 +612,3 @@ FROM proxy_requests_hourly_summary
 WHERE hour >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
 GROUP BY location
 ORDER BY success_rate DESC;
-

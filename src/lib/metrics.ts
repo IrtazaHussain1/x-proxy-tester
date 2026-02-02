@@ -24,6 +24,13 @@ interface Metrics {
   continuousRequests: number;
   periodicRotationRequests: number;
   manualRequests: number;
+  // Source-specific success/failure tracking
+  continuousSuccessful: number;
+  continuousFailed: number;
+  periodicRotationSuccessful: number;
+  periodicRotationFailed: number;
+  manualSuccessful: number;
+  manualFailed: number;
 }
 
 const metrics: Metrics = {
@@ -39,6 +46,12 @@ const metrics: Metrics = {
   continuousRequests: 0,
   periodicRotationRequests: 0,
   manualRequests: 0,
+  continuousSuccessful: 0,
+  continuousFailed: 0,
+  periodicRotationSuccessful: 0,
+  periodicRotationFailed: 0,
+  manualSuccessful: 0,
+  manualFailed: 0,
 };
 
 /**
@@ -63,10 +76,25 @@ export function recordRequest(
   // Track source-specific metrics
   if (source === 'continuous') {
     metrics.continuousRequests++;
+    if (success) {
+      metrics.continuousSuccessful++;
+    } else {
+      metrics.continuousFailed++;
+    }
   } else if (source === 'periodic_rotation') {
     metrics.periodicRotationRequests++;
+    if (success) {
+      metrics.periodicRotationSuccessful++;
+    } else {
+      metrics.periodicRotationFailed++;
+    }
   } else if (source === 'manual') {
     metrics.manualRequests++;
+    if (success) {
+      metrics.manualSuccessful++;
+    } else {
+      metrics.manualFailed++;
+    }
   }
   
   // Keep only last 1000 durations for percentile calculation
@@ -137,6 +165,50 @@ export function getSuccessRate(): number {
 }
 
 /**
+ * Get success rate percentage excluding periodic rotation verification requests
+ * 
+ * This is useful for monitoring actual proxy health without being skewed by
+ * rotation verification failures during the 2-4 second IP rotation window.
+ * 
+ * @returns Success rate as percentage (0-100), excluding periodic_rotation requests
+ */
+export function getContinuousSuccessRate(): number {
+  const totalContinuous = metrics.continuousSuccessful + metrics.continuousFailed + 
+                          metrics.manualSuccessful + metrics.manualFailed;
+  
+  if (totalContinuous === 0) return 0;
+  
+  const successfulContinuous = metrics.continuousSuccessful + metrics.manualSuccessful;
+  return (successfulContinuous / totalContinuous) * 100;
+}
+
+/**
+ * Get success rate breakdown by source
+ * 
+ * @returns Object with success rates for each source type
+ */
+export function getSuccessRateBySource(): {
+  overall: number;
+  continuous: number;
+  periodicRotation: number;
+  manual: number;
+  continuousOnly: number; // continuous + manual (excludes periodic_rotation)
+} {
+  const continuousTotal = metrics.continuousSuccessful + metrics.continuousFailed;
+  const periodicRotationTotal = metrics.periodicRotationSuccessful + metrics.periodicRotationFailed;
+  const manualTotal = metrics.manualSuccessful + metrics.manualFailed;
+  const continuousOnlyTotal = continuousTotal + manualTotal;
+  
+  return {
+    overall: getSuccessRate(),
+    continuous: continuousTotal > 0 ? (metrics.continuousSuccessful / continuousTotal) * 100 : 0,
+    periodicRotation: periodicRotationTotal > 0 ? (metrics.periodicRotationSuccessful / periodicRotationTotal) * 100 : 0,
+    manual: manualTotal > 0 ? (metrics.manualSuccessful / manualTotal) * 100 : 0,
+    continuousOnly: continuousOnlyTotal > 0 ? ((metrics.continuousSuccessful + metrics.manualSuccessful) / continuousOnlyTotal) * 100 : 0,
+  };
+}
+
+/**
  * Get average response time
  */
 export function getAverageResponseTime(): number {
@@ -165,6 +237,8 @@ export function getResponseTimePercentiles(): {
  */
 export function exportPrometheusMetrics(): string {
   const successRate = getSuccessRate();
+  const continuousSuccessRate = getContinuousSuccessRate();
+  const successRateBySource = getSuccessRateBySource();
   const avgResponseTime = getAverageResponseTime();
   const percentiles = getResponseTimePercentiles();
 
@@ -181,9 +255,19 @@ export function exportPrometheusMetrics(): string {
     '# TYPE proxy_tester_requests_failed_total counter',
     `proxy_tester_requests_failed_total ${metrics.failedRequests}`,
     '',
-    '# HELP proxy_tester_success_rate Success rate percentage',
+    '# HELP proxy_tester_success_rate Success rate percentage (all requests)',
     '# TYPE proxy_tester_success_rate gauge',
     `proxy_tester_success_rate ${successRate}`,
+    '',
+    '# HELP proxy_tester_continuous_success_rate Success rate percentage (excluding periodic rotation verification)',
+    '# TYPE proxy_tester_continuous_success_rate gauge',
+    `proxy_tester_continuous_success_rate ${continuousSuccessRate}`,
+    '',
+    '# HELP proxy_tester_success_rate_by_source Success rate percentage by source type',
+    '# TYPE proxy_tester_success_rate_by_source gauge',
+    `proxy_tester_success_rate_by_source{source="continuous"} ${successRateBySource.continuous}`,
+    `proxy_tester_success_rate_by_source{source="periodic_rotation"} ${successRateBySource.periodicRotation}`,
+    `proxy_tester_success_rate_by_source{source="manual"} ${successRateBySource.manual}`,
     '',
     '# HELP proxy_tester_response_time_avg_ms Average response time in milliseconds',
     '# TYPE proxy_tester_response_time_avg_ms gauge',
@@ -242,5 +326,11 @@ export function resetMetrics(): void {
   metrics.continuousRequests = 0;
   metrics.periodicRotationRequests = 0;
   metrics.manualRequests = 0;
+  metrics.continuousSuccessful = 0;
+  metrics.continuousFailed = 0;
+  metrics.periodicRotationSuccessful = 0;
+  metrics.periodicRotationFailed = 0;
+  metrics.manualSuccessful = 0;
+  metrics.manualFailed = 0;
 }
 

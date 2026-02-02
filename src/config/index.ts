@@ -27,6 +27,7 @@ interface Config {
     timeoutMs: number;
   };
   testing: {
+    testInactiveProxies: boolean;
     targetUrl: string;
     intervalMs: number;
     requestTimeoutMs: number;
@@ -79,6 +80,11 @@ interface Config {
   };
   logging: {
     level: string;
+  };
+  rotationTracking: {
+    verificationWaitTimeMs: number;
+    maxVerificationAttempts: number;
+    verificationTimeoutMs: number;
   };
 }
 
@@ -275,6 +281,7 @@ function validateConfig(): Config {
       intervalMs: testIntervalMs,
       requestTimeoutMs,
       rotationThreshold,
+      testInactiveProxies: process.env.TEST_INACTIVE_PROXIES === 'true',
     },
     refresh: {
       intervalMs: proxyRefreshIntervalMs,
@@ -323,6 +330,11 @@ function validateConfig(): Config {
     },
     logging: {
       level: process.env.LOG_LEVEL || 'info',
+    },
+    rotationTracking: {
+      verificationWaitTimeMs: parseInt(process.env.ROTATION_VERIFICATION_WAIT_TIME_MS || '15000', 10),
+      maxVerificationAttempts: parseInt(process.env.ROTATION_MAX_VERIFICATION_ATTEMPTS || '5', 10),
+      verificationTimeoutMs: parseInt(process.env.ROTATION_VERIFICATION_TIMEOUT_MS || '90000', 10), // 90 seconds default (15s * 5 + buffer)
     },
   };
 }

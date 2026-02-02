@@ -15,7 +15,8 @@
 import { getAllDevices, updateDevices } from '../helpers/devices';
 import { testProxyWithStats } from '../helpers/test-proxy';
 import { logger } from '../lib/logger';
-import { prismaWithRetry as prisma, prisma as prismaRaw, checkDatabaseHealth } from '../lib/db';
+import { extractAppVersion } from '../helpers/extra-parser';
+import { prismaWithRetry as prisma, prisma as prismaRaw } from '../lib/db';
 import { batchWriter } from '../lib/batch-writer';
 import { startStabilityCalculation } from './stability-calculator';
 import {
@@ -24,6 +25,7 @@ import {
   startRecoveryChecking,
 } from './auto-deactivation';
 import { startInactiveProxyRotation } from './ip-rotation';
+import { rotateIp } from '../api/commands';
 import { config } from '../config';
 import { recordRequest, setActiveProxies } from '../lib/metrics';
 import type { Device, ProxyMetrics, RequestStatus, RotationStatus, RequestSource } from '../types';
@@ -39,12 +41,17 @@ import type { Device, ProxyMetrics, RequestStatus, RotationStatus, RequestSource
  */
 let deviceIntervals = new Map<string, ReturnType<typeof setTimeout>>();
 let deviceTestingFlags = new Map<string, boolean>(); // Track if device is currently being tested
+let deviceConsecutiveFailures = new Map<string, number>(); // Track consecutive failures per device
 let lastDevicesFetch: Date | null = null;
 let isRunning = false;
 let stabilityInterval: NodeJS.Timeout | null = null;
 let refreshInterval: NodeJS.Timeout | null = null;
 let recoveryInterval: NodeJS.Timeout | null = null;
 let ipRotationInterval: NodeJS.Timeout | null = null;
+const lastOutboundIpByDevice = new Map<string, string>();
+
+// Removed getHistoricalRotationStats - now using proxy table fields directly
+// This eliminates expensive aggregate queries that were causing connection pool exhaustion
 
 /**
  * Maps ProxyMetrics error types to database RequestStatus values
@@ -131,19 +138,9 @@ export async function saveProxyTestToDatabase(
   metrics: ProxyMetrics,
   source: RequestSource = 'continuous'
 ): Promise<void> {
-  // Check database connection before proceeding
-  const dbHealth = await checkDatabaseHealth();
-  if (!dbHealth.connected) {
-    logger.error(
-      {
-        deviceId: device.device_id,
-        workflow: 'continuous',
-        error: dbHealth.error || 'Database not connected',
-      },
-      'Database not connected, skipping save operation (continuous workflow)'
-    );
-    return;
-  }
+  // Removed health check here - it was causing connection pool exhaustion
+  // Health checks are cached and called less frequently elsewhere
+  // Database operations will fail gracefully if connection is unavailable
 
   try {
     // Expected IP is the device's IP address
@@ -191,6 +188,8 @@ export async function saveProxyTestToDatabase(
           downloadNetSpeed: device.download_net_speed || null,
           uploadNetSpeed: device.upload_net_speed || null,
           lastIpRotation: device.last_ip_rotation || null,
+          extra: device.extra || null,
+          version: extractAppVersion(device.extra),
           lastIp: metrics.outboundIp || null,
           sameIpCount: hasCurrentIp ? 1 : 0,
           rotationStatus: 'Rotated',
@@ -226,71 +225,116 @@ export async function saveProxyTestToDatabase(
           downloadNetSpeed: device.download_net_speed || null,
           uploadNetSpeed: device.upload_net_speed || null,
           lastIpRotation: device.last_ip_rotation || null,
+          extra: device.extra || null,
+          version: extractAppVersion(device.extra),
         },
       });
     }
 
     // Check if IP changed from previous request (rotation detection)
-    // Store the previous IP before we update it
-    const previousIp = proxy?.lastIp || null;
+    // Use proxy.lastIp instead of querying proxy_requests (much faster)
+    const rotationThreshold = config.testing.rotationThreshold;
+    const previousIp = proxy.lastIp;
     const hasPreviousIp = previousIp !== null && previousIp !== undefined;
     
+    // Get rotation stats from proxy table (already fetched, no additional query needed)
+    const rotationCount = proxy.rotationCount ?? 0;
+    const lastRotationAt = proxy.lastRotationAt;
+    
     // IP changed if we have both IPs and they're different
+    const shouldCompareForRotation = metrics.success && hasCurrentIp;
     const ipChangedFromPrevious = 
-      hasPreviousIp && 
-      hasCurrentIp &&
+      shouldCompareForRotation &&
+      hasPreviousIp &&
       previousIp !== metrics.outboundIp;
     
-    // Get rotation threshold from config
-    const rotationThreshold = config.testing.rotationThreshold;
-    
     // Track consecutive requests with same IP
+    // Calculate sameIpCount from proxy.sameIpCount (already tracked in proxy table)
     let sameIpCount: number;
     let rotationStatus: RotationStatus;
-    let lastRotationAt: Date | null = null;
-    let rotationCount: number = proxy.rotationCount || 0;
+    let finalRotationCount: number = rotationCount;
+    let finalLastRotationAt: Date | null = lastRotationAt;
     
-    if (!hasCurrentIp) {
+    if (!shouldCompareForRotation) {
       // No IP returned - can't determine rotation
-      sameIpCount = proxy.sameIpCount || 0;
-      rotationStatus = (proxy.rotationStatus as RotationStatus) || 'Unknown';
-      lastRotationAt = proxy.lastRotationAt || null;
-      // rotationCount stays the same
+      sameIpCount = proxy.sameIpCount ?? 0;
+
+      if (sameIpCount >= rotationThreshold) {
+        rotationStatus = 'NoRotation';
+      } else if (finalLastRotationAt) {
+        rotationStatus = 'Rotated';
+      } else {
+        rotationStatus = 'Unknown';
+      }
     } else if (!hasPreviousIp) {
       // First request with IP - start counting
       // Can't determine rotation status yet (need previous IP to compare)
       sameIpCount = 1;
       rotationStatus = 'Unknown'; // First IP, can't determine rotation yet
-      lastRotationAt = null; // No rotation yet
-      // rotationCount stays 0 (first IP, not a rotation)
+      finalLastRotationAt = null; // No rotation yet
+      finalRotationCount = 0; // First IP, not a rotation
     } else if (ipChangedFromPrevious) {
       // IP changed - actual rotation detected!
       sameIpCount = 1; // Start counting from 1 (this is the first request with new IP)
       rotationStatus = 'Rotated'; // Mark as Rotated when actual rotation is detected
-      lastRotationAt = new Date(); // Record rotation timestamp
-      rotationCount = (proxy.rotationCount || 0) + 1; // Increment rotation count
+      finalLastRotationAt = new Date(); // Record rotation timestamp
+      finalRotationCount = rotationCount + 1; // Increment rotation count
+
+      // Check if this IP change is part of a rotation cycle and update the rotation record
+      try {
+        const pendingRotation = await prismaRaw.ipRotation.findFirst({
+          where: {
+            proxyId: proxy.deviceId,
+            ipAfter: null, // Not yet verified
+            success: false, // Still pending
+            commandSentAt: {
+              gte: new Date(Date.now() - 5 * 60 * 1000), // Within last 5 minutes
+            },
+          },
+          orderBy: {
+            commandSentAt: 'desc',
+          },
+        });
+
+        if (pendingRotation && metrics.outboundIp) {
+          // Update rotation record with new IP
+          await prismaRaw.ipRotation.update({
+            where: { id: pendingRotation.id },
+            data: {
+              ipAfter: metrics.outboundIp,
+              // Verification will be handled by verification service, but we can mark as detected
+            },
+          });
+
+          logger.debug(
+            {
+              rotationId: pendingRotation.id,
+              proxyId: proxy.deviceId,
+              ipAfter: metrics.outboundIp,
+            },
+            'Updated rotation record with IP change detected from test request'
+          );
+        }
+      } catch (error) {
+        // Don't fail the test if rotation record update fails
+        logger.debug(
+          {
+            proxyId: proxy.deviceId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+          'Failed to update rotation record with IP change'
+        );
+      }
     } else {
       // Same IP as previous - no rotation occurred
-      sameIpCount = (proxy.sameIpCount || 0) + 1;
+      sameIpCount = (proxy.sameIpCount ?? 0) + 1;
       
       // Flag as NoRotation if IP hasn't changed after threshold attempts
       // Otherwise keep previous status (could be 'Rotated' from last actual rotation, or 'Unknown')
       if (sameIpCount >= rotationThreshold) {
         rotationStatus = 'NoRotation';
       } else {
-        // Keep previous status - if it was 'Rotated', it means rotation is still healthy
-        // (hasn't exceeded threshold yet since last rotation)
-        const previousStatus = (proxy.rotationStatus as RotationStatus) || 'Unknown';
-        
-        // Fix inconsistency: if status is 'Rotated' but lastRotationAt is null, set to 'Unknown'
-        // This handles old data where rotation was set without timestamp
-        if (previousStatus === 'Rotated' && !proxy.lastRotationAt) {
-          rotationStatus = 'Unknown';
-          lastRotationAt = null;
-        } else {
-          rotationStatus = previousStatus;
-          lastRotationAt = proxy.lastRotationAt || null; // Keep previous rotation timestamp
-        }
+        rotationStatus = finalLastRotationAt ? 'Rotated' : 'Unknown';
       }
       // rotationCount stays the same
     }
@@ -309,11 +353,12 @@ export async function saveProxyTestToDatabase(
         await tx.proxy.update({
           where: { deviceId: proxy.deviceId },
           data: {
-            lastIp: metrics.outboundIp || null,
+            // Only update last IP when we successfully observe one.
+            lastIp: hasCurrentIp ? metrics.outboundIp : proxy.lastIp,
             sameIpCount,
             rotationStatus,
-            lastRotationAt,
-            rotationCount,
+            lastRotationAt: finalLastRotationAt,
+            rotationCount: finalRotationCount,
           },
         });
       },
@@ -345,6 +390,10 @@ export async function saveProxyTestToDatabase(
         uploadSpeedMbps: null,
       },
     });
+
+    if (hasCurrentIp && metrics.success) {
+      lastOutboundIpByDevice.set(device.device_id, metrics.outboundIp!);
+    }
 
     // Log IP mismatch if expected and returned are different
     if (!ipMatchesExpected && expectedIp && metrics.outboundIp) {
@@ -382,8 +431,8 @@ export async function saveProxyTestToDatabase(
           deviceName: device.name,
           previousIp: previousIp,
           newIp: metrics.outboundIp,
-          rotationCount,
-          lastRotationAt: lastRotationAt?.toISOString(),
+          rotationCount: finalRotationCount,
+          lastRotationAt: finalLastRotationAt?.toISOString(),
         },
         '✅ Rotation detected: IP changed, status reset to Rotated'
       );
@@ -397,8 +446,8 @@ export async function saveProxyTestToDatabase(
           deviceName: device.name,
           previousIp: previousIp,
           newIp: metrics.outboundIp,
-          rotationCount,
-          lastRotationAt: lastRotationAt?.toISOString(),
+          rotationCount: finalRotationCount,
+          lastRotationAt: finalLastRotationAt?.toISOString(),
         },
         'IP rotation detected'
       );
@@ -448,26 +497,49 @@ export async function saveProxyTestToDatabase(
  * ```
  */
 async function testAndSaveDevice(device: Device): Promise<void> {
-  // Check database connection before testing
-  const dbHealth = await checkDatabaseHealth();
-  if (!dbHealth.connected) {
-    logger.warn(
-      {
-        deviceId: device.device_id,
-        error: dbHealth.error || 'Database not connected',
-      },
-      'Database not connected, skipping device test'
-    );
-    // Record failed request due to DB issue
-    recordRequest(false, 0);
-    return;
-  }
+  // Removed health check here - it was causing connection pool exhaustion
+  // Health checks are cached and called less frequently elsewhere
+  // Database operations will fail gracefully if connection is unavailable
 
   try {
     const metrics = await testProxyWithStats(device);
     
     // Record metrics
+    // Record metrics
     recordRequest(metrics.success, metrics.responseTimeMs, 'continuous');
+    
+    if (metrics.success) {
+      // Reset consecutive failures on success
+      if (deviceConsecutiveFailures.has(device.device_id)) {
+        deviceConsecutiveFailures.delete(device.device_id);
+      }
+    } else {
+      // Handle failure (logic similar to catch block)
+      const currentFailures = (deviceConsecutiveFailures.get(device.device_id) || 0) + 1;
+      deviceConsecutiveFailures.set(device.device_id, currentFailures);
+      
+      const threshold = config.autoDeactivation.consecutiveFailureThreshold;
+
+      if (currentFailures >= threshold) {
+        logger.warn(
+            {
+              deviceId: device.device_id,
+              deviceName: device.name,
+              currentFailures,
+              threshold,
+            },
+            '❌ Triggering IP rotation due to consecutive failures (metrics failed)'
+        );
+
+        // Reset counter
+        deviceConsecutiveFailures.set(device.device_id, 0);
+
+        // Trigger rotation
+        void rotateIp(device.device_id).catch((err) => {
+            logger.error({ deviceId: device.device_id, error: err }, 'Exception triggering rotation on failure');
+        });
+      }
+    }
     
     await saveProxyTestToDatabase(device, metrics, 'continuous');
   } catch (error) {
@@ -482,7 +554,47 @@ async function testAndSaveDevice(device: Device): Promise<void> {
     );
     // Record failed request
     recordRequest(false, 0);
+
+    // Track consecutive failures and trigger rotation if needed
+    const currentFailures = (deviceConsecutiveFailures.get(device.device_id) || 0) + 1;
+    deviceConsecutiveFailures.set(device.device_id, currentFailures);
+
+    const threshold = config.autoDeactivation.consecutiveFailureThreshold;
+    
+    if (currentFailures >= threshold) {
+      logger.warn(
+        {
+          deviceId: device.device_id,
+          deviceName: device.name,
+          currentFailures,
+          threshold,
+        },
+        '❌ Triggering IP rotation due to consecutive failures'
+      );
+
+      // Reset counter after triggering rotation to avoid spamming commands
+      deviceConsecutiveFailures.set(device.device_id, 0);
+
+      // Trigger rotation in background
+      rotateIp(device.device_id)
+        .then((response) => {
+          if (response.success) {
+            logger.info({ deviceId: device.device_id }, '✅ Rotation triggered successfully on failure');
+          } else {
+            logger.error({ deviceId: device.device_id, error: response.message }, 'Failed to trigger rotation on failure');
+          }
+        })
+        .catch((err) => {
+          logger.error({ deviceId: device.device_id, error: err }, 'Exception triggering rotation on failure');
+        });
+    }
   }
+
+  // Reset failures on success (metrics won't be available here if it went to catch block, but if we are here it might have succeeded?)
+  // Wait, testAndSaveDevice calls testProxyWithStats which returns metrics.
+  // If testProxyWithStats throws, we go to catch.
+  // We need to check success inside try block too.
+
 }
 
 /**
@@ -532,21 +644,31 @@ function startDeviceTesting(device: Device): void {
 
     // Check if proxy is still active before testing
     // Note: If proxy doesn't exist yet, allow first test to create it
+    // Skip active check if we want to test inactive proxies
     try {
-      const proxy = await prisma.proxy.findUnique({
-        where: { deviceId },
-        select: { active: true },
-      });
-
-      // Only stop if proxy exists AND is inactive
-      // If proxy doesn't exist, allow first test to create it
-      if (proxy && !proxy.active) {
+      if (config.testing.testInactiveProxies) {
+        // Skip active check - we want to test inactive proxies
         logger.debug(
-          { deviceId, active: proxy.active },
-          'Proxy is inactive, stopping testing'
+          { deviceId, testInactiveProxies: config.testing.testInactiveProxies },
+          'Skipping active check - testing inactive proxies is enabled'
         );
-        stopDeviceTesting(deviceId);
-        return;
+      } else {
+        // Only check active status if we DON'T want to test inactive proxies
+        const proxy = await prisma.proxy.findUnique({
+          where: { deviceId },
+          select: { active: true },
+        });
+
+        // Only stop if proxy exists AND is inactive
+        // If proxy doesn't exist, allow first test to create it
+        if (proxy && !proxy.active) {
+          logger.debug(
+            { deviceId, active: proxy.active, testInactiveProxies: config.testing.testInactiveProxies },
+            'Proxy is inactive, stopping testing (testInactiveProxies is false)'
+          );
+          stopDeviceTesting(deviceId);
+          return;
+        }
       }
     } catch (error) {
       logger.error(
@@ -582,21 +704,31 @@ function startDeviceTesting(device: Device): void {
 
     // Check if proxy became inactive during test
     // Note: If proxy doesn't exist yet (first test), allow it to be created
+    // Skip active check if we want to test inactive proxies
     try {
-      const proxy = await prisma.proxy.findUnique({
-        where: { deviceId },
-        select: { active: true },
-      });
-
-      // Only stop if proxy exists AND is inactive
-      // If proxy doesn't exist yet, it will be created by the test
-      if (proxy && !proxy.active) {
+      if (config.testing.testInactiveProxies) {
+        // Skip active check - we want to test inactive proxies
         logger.debug(
-          { deviceId, active: proxy.active },
-          'Proxy became inactive during test, stopping'
+          { deviceId, testInactiveProxies: config.testing.testInactiveProxies },
+          'Skipping post-test active check - testing inactive proxies is enabled'
         );
-        stopDeviceTesting(deviceId);
-        return;
+      } else {
+        // Only check active status if we DON'T want to test inactive proxies
+        const proxy = await prisma.proxy.findUnique({
+          where: { deviceId },
+          select: { active: true },
+        });
+
+        // Only stop if proxy exists AND is inactive
+        // If proxy doesn't exist yet, it will be created by the test
+        if (proxy && !proxy.active) {
+          logger.debug(
+            { deviceId, active: proxy.active, testInactiveProxies: config.testing.testInactiveProxies },
+            'Proxy became inactive during test, stopping (testInactiveProxies is false)'
+          );
+          stopDeviceTesting(deviceId);
+          return;
+        }
       }
     } catch (error) {
       // Continue if check fails
@@ -764,11 +896,13 @@ async function refreshDeviceTesters(): Promise<void> {
             street: device.street || null,
             longitude: device.longitude || null,
             latitude: device.latitude || null,
-            relayServerId: device.relay_server_id || null,
-            relayServerIpAddress: device.relay_server_ip_address || null,
-            downloadNetSpeed: device.download_net_speed || null,
-            uploadNetSpeed: device.upload_net_speed || null,
-            lastIpRotation: device.last_ip_rotation || null,
+          relayServerId: device.relay_server_id || null,
+          relayServerIpAddress: device.relay_server_ip_address || null,
+          downloadNetSpeed: device.download_net_speed || null,
+          uploadNetSpeed: device.upload_net_speed || null,
+          lastIpRotation: device.last_ip_rotation || null,
+          extra: device.extra || null,
+          version: extractAppVersion(device.extra),
           },
         });
         
@@ -794,6 +928,7 @@ async function refreshDeviceTesters(): Promise<void> {
   }
 
   // Stop testers for devices that no longer exist, are inactive in portal, or auto-deactivated
+  // If testInactiveProxies is enabled, only stop if device was removed (not if just inactive)
   for (const deviceId of deviceIntervals.keys()) {
     const device = deviceMap.get(deviceId);
     const portalActive = device ? mapProxyStatusToActive(device.proxy_status) : false;
@@ -810,16 +945,30 @@ async function refreshDeviceTesters(): Promise<void> {
       // If check fails, assume active to avoid stopping unnecessarily
     }
     
-    if (!currentDeviceIds.has(deviceId) || !portalActive || !dbActive) {
+    // Stop if:
+    // - Device was removed from portal, OR
+    // - testInactiveProxies is false AND (device is inactive in portal OR DB)
+    const wasRemoved = !currentDeviceIds.has(deviceId);
+    const shouldStopForInactive = !config.testing.testInactiveProxies && (!portalActive || !dbActive);
+    const shouldStop = wasRemoved || shouldStopForInactive;
+    
+    if (shouldStop) {
       stopDeviceTesting(deviceId);
+      const reason = wasRemoved
+        ? 'removed_from_portal'
+        : shouldStopForInactive
+        ? (!portalActive ? 'inactive_in_portal' : 'auto_deactivated')
+        : 'unknown';
+      
       logger.info(
         {
           deviceId,
-          reason: !currentDeviceIds.has(deviceId)
-            ? 'removed'
-            : !portalActive
-            ? 'inactive_in_portal'
-            : 'auto_deactivated',
+          reason,
+          testInactiveProxies: config.testing.testInactiveProxies,
+          portalActive,
+          dbActive,
+          wasRemoved,
+          shouldStopForInactive,
         },
         'Stopped testing device'
       );
@@ -875,6 +1024,8 @@ async function refreshDeviceTesters(): Promise<void> {
             downloadNetSpeed: device.download_net_speed || null,
             uploadNetSpeed: device.upload_net_speed || null,
             lastIpRotation: device.last_ip_rotation || null,
+            extra: device.extra || null,
+            version: extractAppVersion(device.extra),
             lastIp: null,
             sameIpCount: 0,
             rotationStatus: 'Unknown', // New proxy - haven't tested rotation yet
@@ -924,11 +1075,24 @@ async function refreshDeviceTesters(): Promise<void> {
       }
     }
     
-    // Start testing if device is active in both portal and DB, and not already testing
-    if (!deviceIntervals.has(device.device_id) && portalActive && dbActive) {
+    // Start testing if:
+    // - Device is not already being tested
+    // - AND either:
+    //   a) We want to test inactive proxies (testInactiveProxies = true), OR
+    //   b) Device is active in both portal and DB (testInactiveProxies = false)
+    const shouldStartTesting = !deviceIntervals.has(device.device_id) && 
+      (config.testing.testInactiveProxies || (portalActive && dbActive));
+    
+    if (shouldStartTesting) {
       startDeviceTesting(device);
       logger.info(
-        { deviceId: device.device_id, deviceName: device.name },
+        { 
+          deviceId: device.device_id, 
+          deviceName: device.name,
+          testInactiveProxies: config.testing.testInactiveProxies,
+          portalActive,
+          dbActive,
+        },
         'Started testing device'
       );
     }
@@ -994,7 +1158,9 @@ export async function startContinuousTesting(): Promise<void> {
         const device = devices.find((d) => d.device_id === deviceId);
         if (device) {
           const portalActive = mapProxyStatusToActive(device.proxy_status);
-          if (portalActive && !deviceIntervals.has(deviceId)) {
+          // Start testing if testInactiveProxies is enabled OR device is active
+          const shouldStart = config.testing.testInactiveProxies || portalActive;
+          if (shouldStart && !deviceIntervals.has(deviceId)) {
             startDeviceTesting(device);
             logger.info(
               { deviceId, deviceName: device.name },

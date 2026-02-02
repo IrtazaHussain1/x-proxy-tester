@@ -247,7 +247,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  p.name,\n  p.location,\n  AVG(pr.response_time_ms) as avg_response_time,\n  COUNT(*) as request_count,\n  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY p.device_id, p.name, p.location\nORDER BY avg_response_time DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  p.name,\n  p.location,\n  p.version,\n  AVG(pr.response_time_ms) as avg_response_time,\n  COUNT(*) as request_count,\n  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY p.device_id, p.name, p.location, p.version\nORDER BY avg_response_time DESC\nLIMIT 20",
           "refId": "A"
         }
       ],

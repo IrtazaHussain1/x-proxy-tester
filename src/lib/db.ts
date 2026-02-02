@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from './logger';
 import { recordDatabaseError, recordDatabaseQuery } from './metrics';
+import { getOptimizedDatabaseUrl } from './db-pool-config';
 
 /**
  * Retry configuration
@@ -51,6 +52,28 @@ async function retryWithBackoff<T>(
         throw error;
       }
 
+      // Check for connection pool exhaustion
+      const isConnectionPoolError = 
+        error?.message?.includes('connection pool') ||
+        error?.message?.includes('Timed out fetching a new connection');
+      
+      if (isConnectionPoolError && attempt < maxRetries) {
+        // For connection pool errors, use longer delays to allow pool to recover
+        const delay = Math.min(calculateBackoffDelay(attempt) * 2, 60000); // Max 60 seconds
+        logger.warn(
+          {
+            operation,
+            attempt: attempt + 1,
+            maxRetries,
+            delay,
+            error: 'Connection pool exhausted',
+          },
+          'Connection pool exhausted, waiting longer before retry'
+        );
+        await sleep(delay);
+        continue;
+      }
+
       if (attempt < maxRetries) {
         const delay = calculateBackoffDelay(attempt);
         logger.warn(
@@ -83,9 +106,14 @@ async function retryWithBackoff<T>(
 /**
  * Create Prisma client with connection pool configuration
  * Connection pool is configured via DATABASE_URL query parameters:
- * - connection_limit: Maximum number of connections (default: 10)
+ * - connection_limit: Maximum number of connections (default: 50, optimized for high concurrency)
  * - pool_timeout: Connection timeout in seconds (default: 20)
- * Example: mysql://user:pass@host:port/db?connection_limit=20&pool_timeout=30
+ * - connect_timeout: Time to establish connection in seconds (default: 10)
+ * 
+ * The connection pool is automatically optimized via getOptimizedDatabaseUrl()
+ * to handle high-concurrency production workloads (hundreds of concurrent proxy tests).
+ * 
+ * Example: mysql://user:pass@host:port/db?connection_limit=50&pool_timeout=20&connect_timeout=10
  */
 const prisma = new PrismaClient({
   log: [
@@ -94,15 +122,10 @@ const prisma = new PrismaClient({
   ],
   datasources: {
     db: {
-      url: process.env.DATABASE_URL,
+      url: getOptimizedDatabaseUrl(),
     },
   },
-  // Add connection pool configuration for better startup resilience
-  // Connection timeout is handled by retry logic in waitForDatabase
 });
-
-// Configure connection pool (via DATABASE_URL query params or defaults)
-// Example: mysql://user:pass@host:port/db?connection_limit=10&pool_timeout=20
 
 prisma.$on('error', (e: any) => {
   logger.error({ error: e }, 'Prisma error');
@@ -177,29 +200,64 @@ export async function waitForDatabase(
 }
 
 /**
+ * Health check cache to prevent excessive database queries
+ * Cache health check results for 5 seconds to reduce connection pool pressure
+ */
+let healthCheckCache: {
+  result: { connected: boolean; latency?: number; error?: string };
+  timestamp: number;
+} | null = null;
+const HEALTH_CHECK_CACHE_TTL_MS = 5000; // 5 seconds
+
+/**
  * Health check for database
+ * 
+ * Cached for 5 seconds to prevent connection pool exhaustion when called frequently.
+ * During connection pool exhaustion, returns cached result or fails gracefully without retrying.
  */
 export async function checkDatabaseHealth(): Promise<{
   connected: boolean;
   latency?: number;
   error?: string;
 }> {
+  const now = Date.now();
+  
+  // Return cached result if still valid
+  if (healthCheckCache && (now - healthCheckCache.timestamp) < HEALTH_CHECK_CACHE_TTL_MS) {
+    return healthCheckCache.result;
+  }
+
   try {
     const startTime = Date.now();
-    await retryWithBackoff(
-      async () => {
-        await prisma.$queryRaw`SELECT 1`;
-      },
-      'health_check',
-      2 // Fewer retries for health check
-    );
+    // Use direct prisma call (not retry wrapper) for health checks to avoid connection pool exhaustion
+    // If pool is exhausted, fail fast without retrying
+    await prisma.$queryRaw`SELECT 1`;
     const latency = Date.now() - startTime;
-    return { connected: true, latency };
+    const result = { connected: true, latency };
+    
+    // Cache successful result
+    healthCheckCache = { result, timestamp: now };
+    return result;
   } catch (error: any) {
-    return {
+    // Check if it's a connection pool error
+    const isConnectionPoolError = 
+      error?.message?.includes('connection pool') ||
+      error?.message?.includes('Timed out fetching a new connection');
+    
+    // If pool is exhausted, return cached result if available, otherwise return error
+    if (isConnectionPoolError && healthCheckCache) {
+      logger.warn('Connection pool exhausted during health check, using cached result');
+      return healthCheckCache.result;
+    }
+    
+    const result = {
       connected: false,
       error: error?.message || 'Unknown error',
     };
+    
+    // Cache failed result for shorter time (1 second) to allow quick recovery detection
+    healthCheckCache = { result, timestamp: now };
+    return result;
   }
 }
 
@@ -255,6 +313,48 @@ export const prismaWithRetry = {
     findMany: async (args: any) => {
       recordDatabaseQuery();
       return retryWithBackoff(() => prisma.speedTest.findMany(args), 'speedTest.findMany');
+    },
+  },
+  rotationCycle: {
+    ...prisma.rotationCycle,
+    create: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.rotationCycle.create(args), 'rotationCycle.create');
+    },
+    update: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.rotationCycle.update(args), 'rotationCycle.update');
+    },
+    findUnique: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.rotationCycle.findUnique(args), 'rotationCycle.findUnique');
+    },
+    findMany: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.rotationCycle.findMany(args), 'rotationCycle.findMany');
+    },
+  },
+  ipRotation: {
+    ...prisma.ipRotation,
+    create: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.create(args), 'ipRotation.create');
+    },
+    update: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.update(args), 'ipRotation.update');
+    },
+    findUnique: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.findUnique(args), 'ipRotation.findUnique');
+    },
+    findMany: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.findMany(args), 'ipRotation.findMany');
+    },
+    findFirst: async (args: any) => {
+      recordDatabaseQuery();
+      return retryWithBackoff(() => prisma.ipRotation.findFirst(args), 'ipRotation.findFirst');
     },
   },
   $transaction: async (args: any) => {

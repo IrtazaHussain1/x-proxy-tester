@@ -73,7 +73,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND rotation_status = 'Rotated' AND location IN ($location)",
+          "rawSql": "SELECT COUNT(*) as value FROM v_rotation_stats WHERE active = true AND rotation_status = 'Rotated' AND location IN ($location)",
           "refId": "A"
         }
       ],
@@ -135,7 +135,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND rotation_status = 'NoRotation' AND location IN ($location)",
+          "rawSql": "SELECT COUNT(*) as value FROM v_rotation_stats WHERE active = true AND rotation_status = 'NoRotation' AND location IN ($location)",
           "refId": "A"
         }
       ],
@@ -198,7 +198,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT IFNULL(SUM(rotation_count), 0) as value FROM proxies WHERE active = true AND last_rotation_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND location IN ($location)",
+          "rawSql": "SELECT COALESCE(SUM(rotation_count_24h), 0) as value FROM v_proxy_summary WHERE location IN ($location)",
           "refId": "A"
         }
       ],
@@ -291,7 +291,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(last_rotation_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(*) as rotation_count\nFROM proxies\nWHERE active = true\n  AND $__timeFilter(last_rotation_at)\n  AND last_rotation_at IS NOT NULL\n  AND location IN ($location)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(rr.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(*) as rotation_count\nFROM v_recent_rotations rr\nJOIN v_rotation_stats rs ON rr.proxy_id = rs.device_id\nWHERE $__timeFilter(rr.timestamp)\n  AND rs.active = true\n  AND rr.location IN ($location)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
       ],
@@ -355,7 +355,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT rotation_status as metric, COUNT(*) as value FROM proxies WHERE active = true AND location IN ($location) GROUP BY rotation_status",
+          "rawSql": "SELECT rotation_status as metric, COUNT(*) as value FROM v_rotation_stats WHERE active = true AND location IN ($location) GROUP BY rotation_status",
           "refId": "A"
         }
       ],
@@ -411,7 +411,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  name,\n  location,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  rotation_status,\n  last_rotation_at,\n  updated_at\nFROM proxies\nWHERE active = true\n  AND same_ip_count >= 10\n  AND location IN ($location)\nORDER BY same_ip_count DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  name,\n  location,\n  version,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  rotation_status,\n  last_rotation_at,\n  updated_at\nFROM proxies\nWHERE active = true\n  AND same_ip_count >= 10\n  AND location IN ($location)\nORDER BY same_ip_count DESC\nLIMIT 20",
           "refId": "A"
         }
       ],

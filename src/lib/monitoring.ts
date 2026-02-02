@@ -8,7 +8,7 @@
  */
 
 import { logger } from './logger';
-import { getMetrics, getSuccessRate, getAverageResponseTime } from './metrics';
+import { getMetrics, getSuccessRate, getContinuousSuccessRate, getAverageResponseTime } from './metrics';
 import { getHealthStatus } from '../api/health';
 
 /**
@@ -66,6 +66,7 @@ export async function checkAlerts(): Promise<void> {
   const health = await getHealthStatus();
   const metrics = getMetrics();
   const successRate = getSuccessRate();
+  const continuousSuccessRate = getContinuousSuccessRate();
   const avgResponseTime = getAverageResponseTime();
 
   // Critical: Database disconnected
@@ -81,30 +82,32 @@ export async function checkAlerts(): Promise<void> {
     });
   }
 
-  // Critical: High error rate
-  if (metrics.totalRequests > 100 && successRate < 50) {
+  // Critical: High error rate (using continuous success rate to exclude periodic rotation)
+  if (metrics.totalRequests > 100 && continuousSuccessRate < 50) {
     await sendAlert({
       severity: 'critical',
       title: 'High Error Rate',
-      message: `Success rate is ${successRate.toFixed(2)}% (below 50% threshold)`,
+      message: `Continuous success rate is ${continuousSuccessRate.toFixed(2)}% (below 50% threshold)`,
       timestamp: new Date(),
       metadata: {
-        successRate,
+        continuousSuccessRate,
+        overallSuccessRate: successRate,
         totalRequests: metrics.totalRequests,
         failedRequests: metrics.failedRequests,
       },
     });
   }
 
-  // Warning: Low success rate
-  if (metrics.totalRequests > 100 && successRate < 90) {
+  // Warning: Low success rate (using continuous success rate to exclude periodic rotation)
+  if (metrics.totalRequests > 100 && continuousSuccessRate < 90) {
     await sendAlert({
       severity: 'warning',
       title: 'Low Success Rate',
-      message: `Success rate is ${successRate.toFixed(2)}% (below 90% threshold)`,
+      message: `Continuous success rate is ${continuousSuccessRate.toFixed(2)}% (below 90% threshold)`,
       timestamp: new Date(),
       metadata: {
-        successRate,
+        continuousSuccessRate,
+        overallSuccessRate: successRate,
         totalRequests: metrics.totalRequests,
       },
     });

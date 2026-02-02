@@ -16,7 +16,7 @@ import { getAllDevices } from '../helpers/devices';
 import { testProxyWithStats } from '../helpers/test-proxy';
 import { saveProxyTestToDatabase } from './continuous-proxy-tester';
 import { rotateIp, rotateUniqueIp } from '../api/commands';
-import { mapProxyStatusToActive } from './continuous-proxy-tester';
+
 import { recordRequest } from '../lib/metrics';
 import type { Device } from '../types';
 
@@ -312,9 +312,15 @@ async function executeRotationCycle(): Promise<void> {
     const allDevices = await getAllDevices();
 
     // Filter to only active devices (both portal and DB active status)
+    // As per new requirement, we now include ALL devices (active and inactive)
+    const activeDevices = allDevices; 
+    // Keeping variable name 'activeDevices' to minimize diff, but it now holds all devices
+    
+    /* 
     const activeDevices = allDevices.filter((device) =>
       mapProxyStatusToActive(device.proxy_status)
     );
+    */
 
     if (activeDevices.length === 0) {
       logger.warn(

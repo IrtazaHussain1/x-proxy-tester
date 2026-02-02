@@ -33,6 +33,8 @@ model Proxy {
   downloadNetSpeed  Float?   @map("download_net_speed")
   uploadNetSpeed    Float?   @map("upload_net_speed")
   lastIpRotation    String?  @map("last_ip_rotation")
+  extra             String?  @map("extra") @db.Text // Base64 encoded JSON from API
+  version           String?  @map("version") @db.VarChar(50) // Extracted from extra.version
   lastIp            String?  @map("last_ip")
   sameIpCount       Int      @default(0) @map("same_ip_count")
   stabilityStatus   String   @default("Unknown") @map("stability_status")
@@ -45,6 +47,7 @@ model Proxy {
 
   speedTests      SpeedTest[]
   requests        ProxyRequest[]
+  ipRotations     IpRotation[]
 
   @@index([active])
   @@index([stabilityStatus])
@@ -55,6 +58,64 @@ model Proxy {
   @@index([state])
   @@index([city])
   @@map("proxies")
+}
+
+model RotationCycle {
+  id              String        @id @default(uuid())
+  cycleType       String        @map("cycle_type") @db.VarChar(50)
+  cycleTimestamp  DateTime      @map("cycle_timestamp")
+  totalProxies    Int           @default(0) @map("total_proxies")
+  successfulCount Int           @default(0) @map("successful_count")
+  failedCount     Int           @default(0) @map("failed_count")
+  pendingCount    Int           @default(0) @map("pending_count")
+  status          String        @db.VarChar(50)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  rotations       IpRotation[]
+
+  @@index([cycleTimestamp])
+  @@index([status])
+  @@index([cycleType])
+  @@index([cycleType, cycleTimestamp])
+  @@map("rotation_cycles")
+}
+
+model IpRotation {
+  id                  String        @id @default(uuid())
+  cycleId             String        @map("cycle_id") @db.VarChar(36)
+  proxyId             String        @map("proxy_id") @db.VarChar(255)
+  rotationTimestamp   DateTime      @map("rotation_timestamp")
+  rotationType        String        @map("rotation_type") @db.VarChar(50)
+  commandSentAt       DateTime      @map("command_sent_at")
+  commandResponse     Json?         @map("command_response")
+  ipBefore            String?       @map("ip_before") @db.VarChar(45)
+  ipAfter             String?       @map("ip_after") @db.VarChar(45)
+  statusBefore        String?       @map("status_before") @db.VarChar(50)
+  statusAfter         String?       @map("status_after") @db.VarChar(50)
+  wsStatusBefore      String?       @map("ws_status_before") @db.VarChar(50)
+  wsStatusAfter       String?       @map("ws_status_after") @db.VarChar(50)
+  success             Boolean       @default(false)
+  verificationMethod  String?      @map("verification_method") @db.VarChar(50)
+  verifiedAt          DateTime?     @map("verified_at")
+  waitTimeMs          Int?          @map("wait_time_ms")
+  rotationDurationMs  Int?          @map("rotation_duration_ms")
+  retryCount          Int           @default(0) @map("retry_count")
+  errorMessage        String?       @map("error_message") @db.Text
+  deviceMetadata      Json?         @map("device_metadata")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  cycle               RotationCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  proxy               Proxy         @relation(fields: [proxyId], references: [deviceId], onDelete: Cascade)
+
+  @@index([cycleId])
+  @@index([proxyId])
+  @@index([rotationTimestamp])
+  @@index([success])
+  @@index([cycleId, rotationTimestamp])
+  @@index([proxyId, rotationTimestamp])
+  @@map("ip_rotations")
 }
 
 model ProxyRequest {
@@ -98,11 +159,18 @@ model SpeedTest {
   uploadSpeedMbps   Float?   @map("upload_speed_mbps")
   latencyMs         Int?     @map("latency_ms")
   error             String?
+  // Device status at time of test (captured from device API)
+  deviceActive      Boolean? @map("device_active")
+  wsStatus          String?  @map("ws_status")
+  proxyStatus       String?  @map("proxy_status")
   createdAt         DateTime @default(now()) @map("created_at")
 
   proxy Proxy @relation(fields: [proxyId], references: [deviceId], onDelete: Cascade)
 
   @@index([proxyId, timestamp])
   @@index([timestamp])
+  @@index([deviceActive])
+  @@index([wsStatus])
+  @@index([proxyStatus])
   @@map("speed_tests")
 }

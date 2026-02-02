@@ -142,27 +142,74 @@ const baseLogger = pino(
   streams.length > 0 ? pino.multistream(streams) : undefined
 );
 
+// type LogBindings = Record<string, unknown>;
+
+// function buildLogArgs(
+//   correlationId: string,
+//   objOrMsg?: unknown,
+//   msg?: string
+// ): { obj: LogBindings; msg?: string } {
+//   if (typeof objOrMsg === 'string') {
+//     return { obj: { correlationId }, msg: objOrMsg };
+//   }
+
+//   if (objOrMsg instanceof Error) {
+//     return { obj: { err: objOrMsg, correlationId }, msg };
+//   }
+
+//   if (objOrMsg && typeof objOrMsg === 'object') {
+//     return { obj: { ...(objOrMsg as LogBindings), correlationId }, msg };
+//   }
+
+//   return { obj: { correlationId }, msg };
+// }
+
 /**
  * Enhanced logger with correlation ID
+ * Handles both object-first and message-first calling patterns
  */
 export const logger = {
-  trace: (obj: any, msg?: string) => {
-    baseLogger.trace({ ...obj, correlationId: getCorrelationId() }, msg);
+  trace: (objOrMsg: any, msg?: string) => {
+    if (typeof objOrMsg === 'string') {
+      baseLogger.trace({ correlationId: getCorrelationId() }, objOrMsg);
+    } else {
+      baseLogger.trace({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+    }
   },
-  debug: (obj: any, msg?: string) => {
-    baseLogger.debug({ ...obj, correlationId: getCorrelationId() }, msg);
+  debug: (objOrMsg: any, msg?: string) => {
+    if (typeof objOrMsg === 'string') {
+      baseLogger.debug({ correlationId: getCorrelationId() }, objOrMsg);
+    } else {
+      baseLogger.debug({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+    }
   },
-  info: (obj: any, msg?: string) => {
-    baseLogger.info({ ...obj, correlationId: getCorrelationId() }, msg);
+  info: (objOrMsg: any, msg?: string) => {
+    if (typeof objOrMsg === 'string') {
+      baseLogger.info({ correlationId: getCorrelationId() }, objOrMsg);
+    } else {
+      baseLogger.info({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+    }
   },
-  warn: (obj: any, msg?: string) => {
-    baseLogger.warn({ ...obj, correlationId: getCorrelationId() }, msg);
+  warn: (objOrMsg: any, msg?: string) => {
+    if (typeof objOrMsg === 'string') {
+      baseLogger.warn({ correlationId: getCorrelationId() }, objOrMsg);
+    } else {
+      baseLogger.warn({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+    }
   },
-  error: (obj: any, msg?: string) => {
-    baseLogger.error({ ...obj, correlationId: getCorrelationId() }, msg);
+  error: (objOrMsg: any, msg?: string) => {
+    if (typeof objOrMsg === 'string') {
+      baseLogger.error({ correlationId: getCorrelationId() }, objOrMsg);
+    } else {
+      baseLogger.error({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+    }
   },
-  fatal: (obj: any, msg?: string) => {
-    baseLogger.fatal({ ...obj, correlationId: getCorrelationId() }, msg);
+  fatal: (objOrMsg: any, msg?: string) => {
+    if (typeof objOrMsg === 'string') {
+      baseLogger.fatal({ correlationId: getCorrelationId() }, objOrMsg);
+    } else {
+      baseLogger.fatal({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+    }
   },
   child: (bindings: pino.Bindings) => {
     return baseLogger.child({ ...bindings, correlationId: getCorrelationId() });
@@ -178,23 +225,47 @@ export function createLoggerWithCorrelation(correlationId?: string): typeof logg
   setCorrelationId(id);
 
   return {
-    trace: (obj: any, msg?: string) => {
-      baseLogger.trace({ ...obj, correlationId: id }, msg);
+    trace: (objOrMsg: any, msg?: string) => {
+      if (typeof objOrMsg === 'string') {
+        baseLogger.trace({ correlationId: id }, objOrMsg);
+      } else {
+        baseLogger.trace({ ...objOrMsg, correlationId: id }, msg);
+      }
     },
-    debug: (obj: any, msg?: string) => {
-      baseLogger.debug({ ...obj, correlationId: id }, msg);
+    debug: (objOrMsg: any, msg?: string) => {
+      if (typeof objOrMsg === 'string') {
+        baseLogger.debug({ correlationId: id }, objOrMsg);
+      } else {
+        baseLogger.debug({ ...objOrMsg, correlationId: id }, msg);
+      }
     },
-    info: (obj: any, msg?: string) => {
-      baseLogger.info({ ...obj, correlationId: id }, msg);
+    info: (objOrMsg: any, msg?: string) => {
+      if (typeof objOrMsg === 'string') {
+        baseLogger.info({ correlationId: id }, objOrMsg);
+      } else {
+        baseLogger.info({ ...objOrMsg, correlationId: id }, msg);
+      }
     },
-    warn: (obj: any, msg?: string) => {
-      baseLogger.warn({ ...obj, correlationId: id }, msg);
+    warn: (objOrMsg: any, msg?: string) => {
+      if (typeof objOrMsg === 'string') {
+        baseLogger.warn({ correlationId: id }, objOrMsg);
+      } else {
+        baseLogger.warn({ ...objOrMsg, correlationId: id }, msg);
+      }
     },
-    error: (obj: any, msg?: string) => {
-      baseLogger.error({ ...obj, correlationId: id }, msg);
+    error: (objOrMsg: any, msg?: string) => {
+      if (typeof objOrMsg === 'string') {
+        baseLogger.error({ correlationId: id }, objOrMsg);
+      } else {
+        baseLogger.error({ ...objOrMsg, correlationId: id }, msg);
+      }
     },
-    fatal: (obj: any, msg?: string) => {
-      baseLogger.fatal({ ...obj, correlationId: id }, msg);
+    fatal: (objOrMsg: any, msg?: string) => {
+      if (typeof objOrMsg === 'string') {
+        baseLogger.fatal({ correlationId: id }, objOrMsg);
+      } else {
+        baseLogger.fatal({ ...objOrMsg, correlationId: id }, msg);
+      }
     },
     child: (bindings: pino.Bindings) => {
       return baseLogger.child({ ...bindings, correlationId: id });

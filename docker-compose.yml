@@ -56,7 +56,9 @@ services:
       ROTATION_THRESHOLD: ${ROTATION_THRESHOLD:-10}
       
       # Refresh
-      PROXY_REFRESH_INTERVAL_MS: ${PROXY_REFRESH_INTERVAL_MS:-21600000}
+      # Default: 10 minutes (600000ms) - refresh device list to pick up newly active proxies
+      # Previously 6 hours (21600000ms) which caused low request volume
+      PROXY_REFRESH_INTERVAL_MS: ${PROXY_REFRESH_INTERVAL_MS:-600000}
       
       # Stability
       STABILITY_CHECK_INTERVAL_MS: ${STABILITY_CHECK_INTERVAL_MS:-1200000}

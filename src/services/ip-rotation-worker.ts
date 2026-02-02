@@ -89,7 +89,22 @@ async function rotateIpForInactiveProxy(
 
     // Check if proxy has become active
     try {
-      const device = await getDeviceById(deviceId);
+      // Fetch deviceApiId (integer ID) from Proxy table - API expects integer ID, not string device_id
+      const proxy = await prisma.proxy.findUnique({
+        where: { deviceId },
+        select: { deviceApiId: true },
+      });
+
+      if (!proxy || !proxy.deviceApiId) {
+        logger.warn(
+          { deviceId },
+          'Proxy not found or deviceApiId missing - cannot check status after rotation'
+        );
+        return false;
+      }
+
+      // Use deviceApiId (integer) instead of deviceId (string device_id)
+      const device = await getDeviceById(proxy.deviceApiId);
       const isActive = mapProxyStatusToActive(device.proxy_status);
 
       if (isActive) {

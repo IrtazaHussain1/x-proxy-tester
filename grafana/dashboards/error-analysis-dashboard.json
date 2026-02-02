@@ -623,7 +623,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT p.name, p.device_id, p.location, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count, COUNT(*) as total_requests, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate, GROUP_CONCAT(DISTINCT pr.error_type) as error_types FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location HAVING error_count > 0 ORDER BY error_count DESC LIMIT 20",
+          "rawSql": "SELECT p.name, p.device_id, p.location, p.version, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count, COUNT(*) as total_requests, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate, GROUP_CONCAT(DISTINCT pr.error_type) as error_types FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location, p.version HAVING error_count > 0 ORDER BY error_count DESC LIMIT 20",
           "refId": "A"
         }
       ],
