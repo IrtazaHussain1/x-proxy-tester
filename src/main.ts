@@ -15,7 +15,7 @@ import { config } from './config';
 import { startServer } from './server';
 import { initGrafanaViews } from './lib/init-grafana-views';
 import { initDatabaseSchema } from './lib/init-db';
-// import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
+import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 
@@ -138,7 +138,7 @@ async function main(): Promise<void> {
     await initDatabaseSchema();
 
     // Initialize performance optimizations (indexes, summary tables)
-    // await initPerformanceOptimizations();
+    await initPerformanceOptimizations();
 
     // Initialize Grafana views (after database schema is ready)
     await initGrafanaViews();

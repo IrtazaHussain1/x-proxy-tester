@@ -30,6 +30,59 @@ function setCorrelationId(id: string): void {
 }
 
 /**
+ * Redact high-cardinality request details from logs.
+ * Keeps logs focused on operational and error signals.
+ */
+const REDACTED_LOG_KEYS = new Set([
+  'requestUrl',
+  'targetUrl',
+  'outboundIp',
+  'expectedIp',
+  'returnedIp',
+  'proxyHost',
+  'proxyPort',
+  'errorStack',
+  'stack',
+  'errorCause',
+  'cause',
+  'headers',
+  'body',
+  'responseBody',
+  'commandResponse',
+  'deviceMetadata',
+])
+
+function sanitizeLogObject(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeLogObject(item))
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value
+  }
+
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    if (REDACTED_LOG_KEYS.has(key)) {
+      continue
+    }
+    sanitized[key] = sanitizeLogObject(nestedValue)
+  }
+  return sanitized
+}
+
+function buildLogPayload(objOrMsg: unknown, correlationId: string): Record<string, unknown> {
+  if (!objOrMsg || typeof objOrMsg !== 'object') {
+    return { correlationId }
+  }
+
+  return {
+    ...(sanitizeLogObject(objOrMsg) as Record<string, unknown>),
+    correlationId,
+  }
+}
+
+/**
  * Setup log directory and file paths
  */
 const LOGS_DIR = process.env.LOGS_DIR || './logs';
@@ -173,42 +226,42 @@ export const logger = {
     if (typeof objOrMsg === 'string') {
       baseLogger.trace({ correlationId: getCorrelationId() }, objOrMsg);
     } else {
-      baseLogger.trace({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+      baseLogger.trace(buildLogPayload(objOrMsg, getCorrelationId()), msg);
     }
   },
   debug: (objOrMsg: any, msg?: string) => {
     if (typeof objOrMsg === 'string') {
       baseLogger.debug({ correlationId: getCorrelationId() }, objOrMsg);
     } else {
-      baseLogger.debug({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+      baseLogger.debug(buildLogPayload(objOrMsg, getCorrelationId()), msg);
     }
   },
   info: (objOrMsg: any, msg?: string) => {
     if (typeof objOrMsg === 'string') {
       baseLogger.info({ correlationId: getCorrelationId() }, objOrMsg);
     } else {
-      baseLogger.info({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+      baseLogger.info(buildLogPayload(objOrMsg, getCorrelationId()), msg);
     }
   },
   warn: (objOrMsg: any, msg?: string) => {
     if (typeof objOrMsg === 'string') {
       baseLogger.warn({ correlationId: getCorrelationId() }, objOrMsg);
     } else {
-      baseLogger.warn({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+      baseLogger.warn(buildLogPayload(objOrMsg, getCorrelationId()), msg);
     }
   },
   error: (objOrMsg: any, msg?: string) => {
     if (typeof objOrMsg === 'string') {
       baseLogger.error({ correlationId: getCorrelationId() }, objOrMsg);
     } else {
-      baseLogger.error({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+      baseLogger.error(buildLogPayload(objOrMsg, getCorrelationId()), msg);
     }
   },
   fatal: (objOrMsg: any, msg?: string) => {
     if (typeof objOrMsg === 'string') {
       baseLogger.fatal({ correlationId: getCorrelationId() }, objOrMsg);
     } else {
-      baseLogger.fatal({ ...objOrMsg, correlationId: getCorrelationId() }, msg);
+      baseLogger.fatal(buildLogPayload(objOrMsg, getCorrelationId()), msg);
     }
   },
   child: (bindings: pino.Bindings) => {
@@ -229,42 +282,42 @@ export function createLoggerWithCorrelation(correlationId?: string): typeof logg
       if (typeof objOrMsg === 'string') {
         baseLogger.trace({ correlationId: id }, objOrMsg);
       } else {
-        baseLogger.trace({ ...objOrMsg, correlationId: id }, msg);
+        baseLogger.trace(buildLogPayload(objOrMsg, id), msg);
       }
     },
     debug: (objOrMsg: any, msg?: string) => {
       if (typeof objOrMsg === 'string') {
         baseLogger.debug({ correlationId: id }, objOrMsg);
       } else {
-        baseLogger.debug({ ...objOrMsg, correlationId: id }, msg);
+        baseLogger.debug(buildLogPayload(objOrMsg, id), msg);
       }
     },
     info: (objOrMsg: any, msg?: string) => {
       if (typeof objOrMsg === 'string') {
         baseLogger.info({ correlationId: id }, objOrMsg);
       } else {
-        baseLogger.info({ ...objOrMsg, correlationId: id }, msg);
+        baseLogger.info(buildLogPayload(objOrMsg, id), msg);
       }
     },
     warn: (objOrMsg: any, msg?: string) => {
       if (typeof objOrMsg === 'string') {
         baseLogger.warn({ correlationId: id }, objOrMsg);
       } else {
-        baseLogger.warn({ ...objOrMsg, correlationId: id }, msg);
+        baseLogger.warn(buildLogPayload(objOrMsg, id), msg);
       }
     },
     error: (objOrMsg: any, msg?: string) => {
       if (typeof objOrMsg === 'string') {
         baseLogger.error({ correlationId: id }, objOrMsg);
       } else {
-        baseLogger.error({ ...objOrMsg, correlationId: id }, msg);
+        baseLogger.error(buildLogPayload(objOrMsg, id), msg);
       }
     },
     fatal: (objOrMsg: any, msg?: string) => {
       if (typeof objOrMsg === 'string') {
         baseLogger.fatal({ correlationId: id }, objOrMsg);
       } else {
-        baseLogger.fatal({ ...objOrMsg, correlationId: id }, msg);
+        baseLogger.fatal(buildLogPayload(objOrMsg, id), msg);
       }
     },
     child: (bindings: pino.Bindings) => {

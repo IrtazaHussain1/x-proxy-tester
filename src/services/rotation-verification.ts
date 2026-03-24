@@ -156,7 +156,7 @@ async function makeVerificationProxyRequest(
       success: metrics.success,
     };
   } catch (error) {
-    logger.error(
+    logger.debug(
       {
         proxyId,
         source,

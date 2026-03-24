@@ -25,7 +25,6 @@ async function measureDownloadSpeed(device: Device): Promise<{ speedMbps: number
 
   const start = Date.now();
   try {
-    logger.debug({ deviceId: device.device_id, url: config.speedTest.targetUrl }, 'Starting download speed measurement');
     const response = await request(config.speedTest.targetUrl, {
       dispatcher: agent,
       method: 'GET',
@@ -82,7 +81,6 @@ async function measureUploadSpeed(device: Device): Promise<{ speedMbps: number; 
 
   const start = Date.now();
   try {
-    logger.debug({ deviceId: device.device_id, url: config.speedTest.uploadTargetUrl }, 'Starting upload speed measurement');
     const response = await request(config.speedTest.uploadTargetUrl, {
       dispatcher: agent,
       method: 'POST',
@@ -133,8 +131,6 @@ export async function runSpeedTests(): Promise<void> {
     return;
   }
 
-  logger.info('Checking for idle proxies to run speed tests');
-
   try {
     // Use a single timestamp for all records in this cycle to simplify aggregation
     const cycleTimestamp = new Date();
@@ -142,15 +138,6 @@ export async function runSpeedTests(): Promise<void> {
 
     // Filter out proxies that are already undergoing a speed test
     const idleDevices = devices.filter((d) => !currentlyTestingProxies.has(d.device_id));
-
-    logger.info(
-      { 
-        total: devices.length, 
-        inProgress: currentlyTestingProxies.size,
-        toTest: idleDevices.length 
-      },
-      `Speed test status: ${idleDevices.length} idle proxies to test, ${currentlyTestingProxies.size} currently in progress`
-    );
 
     if (idleDevices.length === 0) {
       return;
@@ -173,22 +160,6 @@ export async function runSpeedTests(): Promise<void> {
             const latencyMs = downloadResult.latencyMs ?? uploadResult.latencyMs ?? null;
             const downloadSpeed = downloadResult.success ? downloadResult.speedMbps : 0;
             const uploadSpeed = uploadResult.success ? uploadResult.speedMbps : 0;
-
-            logger.info(
-              {
-                deviceId: device.device_id,
-                downloadMbps: downloadSpeed.toFixed(2),
-                uploadMbps: uploadSpeed.toFixed(2),
-                latencyMs,
-                downloadSuccess: downloadResult.success,
-                uploadSuccess: uploadResult.success,
-                downloadError: downloadResult.error,
-                uploadError: uploadResult.error,
-              },
-              `Speed test completed for ${device.name}: DL: ${downloadSpeed.toFixed(
-                2
-              )} Mbps, UL: ${uploadSpeed.toFixed(2)} Mbps`
-            );
 
             // Record in speed_tests table (always insert, even on failure)
             // Capture device status at time of test to avoid ambiguity
@@ -231,8 +202,6 @@ export async function runSpeedTests(): Promise<void> {
         })
       );
     }
-
-    logger.info('Speed test check completed');
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : 'Unknown error' },

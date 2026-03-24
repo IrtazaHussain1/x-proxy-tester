@@ -298,7 +298,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, COUNT(*) as request_count FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) GROUP BY time_sec ORDER BY time_sec",
+          "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '1m'), COUNT(*) as request_count FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) GROUP BY 1 ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -382,7 +382,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, AVG(r.response_time_ms) as avg_response_time FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND r.response_time_ms IS NOT NULL GROUP BY time_sec ORDER BY time_sec",
+          "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '1m'), AVG(r.response_time_ms) as avg_response_time FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.response_time_ms IS NOT NULL GROUP BY 1 ORDER BY 1",
           "refId": "A"
         }
       ],

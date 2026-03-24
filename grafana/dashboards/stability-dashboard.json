@@ -359,7 +359,7 @@
       "type": "bargauge"
     }
   ],
-  "refresh": "1m",
+  "refresh": "",
   "schemaVersion": 42,
   "tags": [
     "x-proxy-tester",

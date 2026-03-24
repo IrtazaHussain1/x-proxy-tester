@@ -48,6 +48,14 @@ ON proxy_requests(timestamp DESC, status, proxy_id);
 CREATE INDEX IF NOT EXISTS idx_proxy_requests_timestamp_response_time 
 ON proxy_requests(timestamp DESC, response_time_ms);
 
+-- Index for time-window joins and grouped metrics by proxy
+CREATE INDEX IF NOT EXISTS idx_proxy_requests_timestamp_proxy_response
+ON proxy_requests(timestamp DESC, proxy_id, response_time_ms);
+
+-- Index for speed test aggregate scans by time range and proxy
+CREATE INDEX IF NOT EXISTS idx_speed_tests_timestamp_proxy
+ON speed_tests(timestamp DESC, proxy_id);
+
 -- ============================================
 -- Query Optimization Tips for Grafana
 -- ============================================
