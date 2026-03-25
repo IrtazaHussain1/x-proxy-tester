@@ -58,7 +58,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as value FROM (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND (${proxy_status} = -1 OR active = ${proxy_status})\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) as dup_ips",
+          "rawSql": "SELECT COUNT(*) as value FROM (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) as dup_ips",
           "refId": "A"
         }
       ],
@@ -101,7 +101,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as value\nFROM proxies\nWHERE (${proxy_status} = -1 OR active = ${proxy_status})\nAND last_ip IN (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND (${proxy_status} = -1 OR active = ${proxy_status})\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n)",
+          "rawSql": "SELECT COUNT(*) as value\nFROM proxies\nWHERE ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\nAND last_ip IN (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n)",
           "refId": "A"
         }
       ],
@@ -144,7 +144,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT MAX(phone_count) as value FROM (\n  SELECT last_ip, COUNT(*) as phone_count\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND (${proxy_status} = -1 OR active = ${proxy_status})\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) as counts",
+          "rawSql": "SELECT MAX(phone_count) as value FROM (\n  SELECT last_ip, COUNT(*) as phone_count\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) as counts",
           "refId": "A"
         }
       ],
@@ -187,7 +187,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT city) as value\nFROM proxies\nWHERE city IS NOT NULL\nAND (${proxy_status} = -1 OR active = ${proxy_status})\nAND last_ip IN (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND (${proxy_status} = -1 OR active = ${proxy_status})\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n)",
+          "rawSql": "SELECT COUNT(DISTINCT city) as value\nFROM proxies\nWHERE city IS NOT NULL\nAND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\nAND last_ip IN (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n)",
           "refId": "A"
         }
       ],
@@ -246,7 +246,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT last_ip, COUNT(*) as phone_count\nFROM proxies\nWHERE last_ip IS NOT NULL AND last_ip != ''\nAND (${proxy_status} = -1 OR active = ${proxy_status})\nGROUP BY last_ip\nHAVING COUNT(*) > 1\nORDER BY phone_count DESC\nLIMIT 20",
+          "rawSql": "SELECT last_ip, COUNT(*) as phone_count\nFROM proxies\nWHERE last_ip IS NOT NULL AND last_ip != ''\nAND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\nGROUP BY last_ip\nHAVING COUNT(*) > 1\nORDER BY phone_count DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -305,7 +305,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  CONCAT(IFNULL(city,'Unknown'), ', ', IFNULL(state,'')) as city_label,\n  COUNT(*) as affected_phones,\n  COUNT(DISTINCT last_ip) as duplicate_ips\nFROM proxies\nWHERE (${proxy_status} = -1 OR active = ${proxy_status})\nAND last_ip IN (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND (${proxy_status} = -1 OR active = ${proxy_status})\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n)\nGROUP BY city, state\nORDER BY affected_phones DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  CONCAT(IFNULL(city,'Unknown'), ', ', IFNULL(state,'')) as city_label,\n  COUNT(*) as affected_phones,\n  COUNT(DISTINCT last_ip) as duplicate_ips\nFROM proxies\nWHERE ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\nAND last_ip IN (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n)\nGROUP BY city, state\nORDER BY affected_phones DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -421,7 +421,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  CONCAT(IFNULL(city_label, 'Unknown'), ', ', IFNULL(state_label, '')) as location_label,\n  avg_lat,\n  avg_lon,\n  affected_phones,\n  duplicate_ips\nFROM (\n  SELECT\n    AVG(p.latitude)              as avg_lat,\n    AVG(p.longitude)             as avg_lon,\n    COUNT(*)                     as affected_phones,\n    COUNT(DISTINCT p.last_ip) as duplicate_ips,\n    SUBSTRING_INDEX(GROUP_CONCAT(p.city  ORDER BY p.city  SEPARATOR ','), ',', 1) as city_label,\n    SUBSTRING_INDEX(GROUP_CONCAT(p.state ORDER BY p.state SEPARATOR ','), ',', 1) as state_label\n  FROM proxies p\n  WHERE p.latitude  IS NOT NULL\n    AND p.longitude IS NOT NULL\n    AND (${proxy_status} = -1 OR p.active = ${proxy_status})\n    AND p.last_ip IN (\n      SELECT last_ip\n      FROM proxies\n      WHERE last_ip IS NOT NULL AND last_ip != ''\n      AND (${proxy_status} = -1 OR active = ${proxy_status})\n      GROUP BY last_ip\n      HAVING COUNT(*) > 1\n    )\n  GROUP BY ROUND(p.latitude, 1), ROUND(p.longitude, 1)\n) t\nORDER BY affected_phones DESC",
+          "rawSql": "SELECT\n  CASE\n    WHEN city_label IS NULL AND state_label IS NULL THEN 'No Location (N/A)'\n    ELSE CONCAT(IFNULL(city_label, 'Unknown'), ', ', IFNULL(state_label, ''))\n  END as location_label,\n  avg_lat,\n  avg_lon,\n  affected_phones,\n  duplicate_ips\nFROM (\n  SELECT\n    AVG(COALESCE(p.latitude,  32.5))  as avg_lat,\n    AVG(COALESCE(p.longitude, -119.5)) as avg_lon,\n    COUNT(*)                           as affected_phones,\n    COUNT(DISTINCT p.last_ip)          as duplicate_ips,\n    SUBSTRING_INDEX(GROUP_CONCAT(p.city  ORDER BY p.city  SEPARATOR ','), ',', 1) as city_label,\n    SUBSTRING_INDEX(GROUP_CONCAT(p.state ORDER BY p.state SEPARATOR ','), ',', 1) as state_label\n  FROM proxies p\n  WHERE ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n    AND p.last_ip IN (\n      SELECT last_ip\n      FROM proxies\n      WHERE last_ip IS NOT NULL AND last_ip != ''\n      AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n      GROUP BY last_ip\n      HAVING COUNT(*) > 1\n    )\n  GROUP BY ROUND(COALESCE(p.latitude,  32.5),  1),\n           ROUND(COALESCE(p.longitude, -119.5), 1)\n) t\nORDER BY affected_phones DESC",
           "refId": "A"
         }
       ],
@@ -507,8 +507,15 @@
           {
             "matcher": { "id": "byName", "options": "active_count" },
             "properties": [
-              { "id": "displayName", "value": "Active Phones" },
-              { "id": "custom.width", "value": 130 }
+              { "id": "displayName", "value": "Active" },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "inactive_count" },
+            "properties": [
+              { "id": "displayName", "value": "Inactive" },
+              { "id": "custom.width", "value": 100 }
             ]
           }
         ]
@@ -528,7 +535,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  last_ip,\n  COUNT(*) as phone_count,\n  SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) as active_count,\n  GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') as phones,\n  GROUP_CONCAT(device_id ORDER BY name SEPARATOR ', ') as device_ids,\n  GROUP_CONCAT(DISTINCT IFNULL(city,'?') ORDER BY city SEPARATOR ', ') as cities,\n  GROUP_CONCAT(DISTINCT IFNULL(country,'?') ORDER BY country SEPARATOR ', ') as countries\nFROM proxies\nWHERE last_ip IS NOT NULL AND last_ip != ''\nAND (${proxy_status} = -1 OR active = ${proxy_status})\nGROUP BY last_ip\nHAVING COUNT(*) > 1\nORDER BY phone_count DESC, last_ip",
+          "rawSql": "SELECT\n  last_ip,\n  COUNT(*) as phone_count,\n  SUM(CASE WHEN proxy_status = 'active' THEN 1 ELSE 0 END) as active_count,\n  SUM(CASE WHEN proxy_status = 'inactive' THEN 1 ELSE 0 END) as inactive_count,\n  GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') as phones,\n  GROUP_CONCAT(device_id ORDER BY name SEPARATOR ', ') as device_ids,\n  GROUP_CONCAT(DISTINCT IFNULL(city,'?') ORDER BY city SEPARATOR ', ') as cities,\n  GROUP_CONCAT(DISTINCT IFNULL(country,'?') ORDER BY country SEPARATOR ', ') as countries\nFROM proxies\nWHERE last_ip IS NOT NULL AND last_ip != ''\nAND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\nGROUP BY last_ip\nHAVING COUNT(*) > 1\nORDER BY phone_count DESC, last_ip",
           "refId": "A"
         }
       ],
@@ -617,14 +624,20 @@
             "properties": [{ "id": "custom.width", "value": 110 }]
           },
           {
-            "matcher": { "id": "byName", "options": "active" },
+            "matcher": { "id": "byName", "options": "proxy_status" },
             "properties": [
-              { "id": "displayName", "value": "Active" },
-              { "id": "custom.width", "value": 80 },
+              { "id": "displayName", "value": "Status" },
+              { "id": "custom.width", "value": 100 },
               {
                 "id": "mappings",
                 "value": [
-                  { "options": { "0": { "color": "red", "text": "No" }, "1": { "color": "green", "text": "Yes" } }, "type": "value" }
+                  {
+                    "type": "value",
+                    "options": {
+                      "active":   { "color": "green", "text": "Active"   },
+                      "inactive": { "color": "red",   "text": "Inactive" }
+                    }
+                  }
                 ]
               },
               {
@@ -665,7 +678,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  p.device_id,\n  p.name,\n  p.last_ip,\n  p.model,\n  CONCAT_WS(', ',\n    NULLIF(TRIM(p.city), ''),\n    NULLIF(TRIM(p.state), ''),\n    NULLIF(TRIM(p.country), '')\n  ) AS location,\n  p.active,\n  dup.phones_on_same_ip,\n  dup.sibling_phones,\n  dup.sibling_device_ids\nFROM proxies p\nJOIN (\n  SELECT\n    last_ip,\n    COUNT(*) as phones_on_same_ip,\n    GROUP_CONCAT(name ORDER BY name SEPARATOR ' | ') as sibling_phones,\n    GROUP_CONCAT(device_id ORDER BY name SEPARATOR ' | ') as sibling_device_ids\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND (${proxy_status} = -1 OR active = ${proxy_status})\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) dup ON p.last_ip = dup.last_ip\nWHERE (${proxy_status} = -1 OR p.active = ${proxy_status})\nORDER BY dup.phones_on_same_ip DESC, p.last_ip, p.name",
+          "rawSql": "SELECT\n  p.device_id,\n  p.name,\n  p.last_ip,\n  p.model,\n  CONCAT_WS(', ',\n    NULLIF(TRIM(p.city), ''),\n    NULLIF(TRIM(p.state), ''),\n    NULLIF(TRIM(p.country), '')\n  ) AS location,\n  p.proxy_status,\n  dup.phones_on_same_ip,\n  dup.sibling_phones,\n  dup.sibling_device_ids\nFROM proxies p\nJOIN (\n  SELECT\n    last_ip,\n    COUNT(*) as phones_on_same_ip,\n    GROUP_CONCAT(name ORDER BY name SEPARATOR ' | ') as sibling_phones,\n    GROUP_CONCAT(device_id ORDER BY name SEPARATOR ' | ') as sibling_device_ids\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) dup ON p.last_ip = dup.last_ip\nWHERE ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\nORDER BY dup.phones_on_same_ip DESC, p.last_ip, p.name",
           "refId": "A"
         }
       ],
@@ -680,18 +693,18 @@
   "templating": {
     "list": [
       {
-        "current": { "selected": true, "text": "Active", "value": "1" },
+        "current": { "selected": true, "text": "Active", "value": "active" },
         "hide": 0,
         "includeAll": false,
         "label": "Proxy Status",
         "multi": false,
         "name": "proxy_status",
         "options": [
-          { "selected": false, "text": "All",      "value": "-1" },
-          { "selected": true,  "text": "Active",   "value": "1"  },
-          { "selected": false, "text": "Inactive", "value": "0"  }
+          { "selected": false, "text": "All",      "value": "all"      },
+          { "selected": true,  "text": "Active",   "value": "active"   },
+          { "selected": false, "text": "Inactive", "value": "inactive" }
         ],
-        "query": "All : -1, Active : 1, Inactive : 0",
+        "query": "All : all, Active : active, Inactive : inactive",
         "queryValue": "",
         "skipUrlSync": false,
         "type": "custom"
