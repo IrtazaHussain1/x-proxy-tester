@@ -18,6 +18,7 @@ import { initDatabaseSchema } from './lib/init-db';
 import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
+import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
 
 /**
  * Main application entry point
@@ -65,6 +66,7 @@ async function main(): Promise<void> {
       stopSpeedTestService();
       stopHourlySummaryService();
       stopDailyAggregationService();
+      stopDuplicateIpSnapshotService();
       // Flush any pending batch writes before shutdown
       void batchWriter.forceFlush().then(() => {
         void stopIpRotationTesting().then(() => {
@@ -88,6 +90,7 @@ async function main(): Promise<void> {
         stopSpeedTestService();
         stopHourlySummaryService();
         stopDailyAggregationService();
+        stopDuplicateIpSnapshotService();
         // Flush any pending batch writes before shutdown
         void batchWriter.forceFlush().then(() => {
           void stopIpRotationTesting().then(() => {
@@ -164,6 +167,23 @@ async function main(): Promise<void> {
       logger.info('Periodic IP rotation service is disabled');
     }
 
+    logger.info(
+      {
+        duplicateIpSnapshotEnabled: config.duplicateIpSnapshot.enabled,
+        duplicateIpSnapshotIntervalMs: config.duplicateIpSnapshot.intervalMs,
+        duplicateIpSnapshotRetentionDays: config.duplicateIpSnapshot.retentionDays,
+      },
+      'Duplicate IP snapshot configuration'
+    );
+    if (config.duplicateIpSnapshot.enabled) {
+      startDuplicateIpSnapshotService(
+        config.duplicateIpSnapshot.intervalMs,
+        config.duplicateIpSnapshot.retentionDays
+      );
+    } else {
+      logger.info('Duplicate IP snapshot service is disabled (DUPLICATE_IP_SNAPSHOT_ENABLED=false)');
+    }
+
     // Start IP rotation testing service (runs alongside continuous testing)
     // NOTE: Disabled by default to avoid conflict with standard periodic rotation
     // if (config.ipRotationTesting.enabled) {
@@ -232,6 +252,7 @@ async function main(): Promise<void> {
           stopSpeedTestService();
           stopHourlySummaryService();
           stopDailyAggregationService();
+          stopDuplicateIpSnapshotService();
           // Flush any pending batch writes before shutdown
           void batchWriter.forceFlush().then(() => {
             void stopIpRotationTesting().then(() => {

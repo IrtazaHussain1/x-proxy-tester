@@ -178,3 +178,36 @@ model SpeedTest {
   @@index([proxyStatus])
   @@map("speed_tests")
 }
+
+/// One row per duplicate shared IP for one capture instant (group by captured_at + proxy_status_scope = one snapshot).
+model DuplicateIpSnapshotRow {
+  id               BigInt   @id @default(autoincrement())
+  capturedAt       DateTime @map("captured_at")
+  proxyStatusScope String   @map("proxy_status_scope") @db.VarChar(16)
+  lastIp           String   @map("last_ip") @db.VarChar(45)
+  location         String?  @db.Text
+  allServersOnIp   String?  @map("all_servers_on_ip") @db.Text
+  phonesOnSameIp   Int      @map("phones_on_same_ip")
+  siblingPhones    String?  @map("sibling_phones") @db.Text
+  deviceIds        String?  @map("device_ids") @db.Text
+
+  @@unique([capturedAt, proxyStatusScope, lastIp])
+  @@index([capturedAt, proxyStatusScope])
+  @@index([lastIp, capturedAt])
+  @@map("duplicate_ip_snapshot_rows")
+}
+
+/// Normalized server labels for one capture (same captured_at / scope as sibling rows).
+model DuplicateIpSnapshotServer {
+  id               BigInt   @id @default(autoincrement())
+  capturedAt       DateTime @map("captured_at")
+  proxyStatusScope String   @map("proxy_status_scope") @db.VarChar(16)
+  lastIp           String   @map("last_ip") @db.VarChar(45)
+  serverLabel      String   @map("server_label") @db.VarChar(64)
+
+  @@unique([capturedAt, proxyStatusScope, lastIp, serverLabel])
+  @@index([capturedAt, proxyStatusScope])
+  @@index([lastIp, capturedAt])
+  @@index([serverLabel, capturedAt])
+  @@map("duplicate_ip_snapshot_servers")
+}
