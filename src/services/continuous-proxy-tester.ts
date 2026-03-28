@@ -868,60 +868,62 @@ async function refreshDeviceTesters(): Promise<void> {
       existingProxyActiveById.set(proxy.deviceId, proxy.active);
     }
 
-    const updatePromises = allProxies
-      .filter((proxy) => {
-        const device = deviceMap.get(proxy.deviceId);
-        return !!device; // Only update if device exists in portal
-      })
-      .map(async (proxy) => {
-        const device = deviceMap.get(proxy.deviceId);
-        if (!device) return;
-        
-        const isActive = mapProxyStatusToActive(device.proxy_status);
-        
-        await prisma.proxy.update({
-          where: { deviceId: proxy.deviceId },
-          data: {
-            deviceApiId: device.id || null,
-            name: device.name,
-            model: device.model || null,
-            location: device.state || device.city || null,
-            host: device.relay_server_ip_address,
-            port: device.port,
-            username: device.username,
-            password: device.password || null,
-            active: isActive,
-            ipAddress: device.ip_address || null,
-            wsStatus: device.ws_status || null,
-            proxyStatus: device.proxy_status || null,
-            country: device.country || null,
-            state: device.state || null,
-            city: device.city || null,
-            street: device.street || null,
-            longitude: device.longitude || null,
-            latitude: device.latitude || null,
-          relayServerId: device.relay_server_id || null,
-          relayServerIpAddress: device.relay_server_ip_address || null,
-          downloadNetSpeed: device.download_net_speed || null,
-          uploadNetSpeed: device.upload_net_speed || null,
-          lastIpRotation: device.last_ip_rotation || null,
-          extra: device.extra || null,
-          version: extractAppVersion(device.extra),
-          },
-        });
-        
-        logger.debug(
-          {
-            deviceId: proxy.deviceId,
-            deviceName: device.name,
-            active: isActive,
-            portalStatus: device.proxy_status,
-          },
-          'Synced proxy fields from portal'
-        );
-      });
+    // Batch updates: unbounded Promise.all() here exhausts Prisma's connection pool when many proxies exist.
+    const proxiesToSync = allProxies.filter((proxy) => deviceMap.has(proxy.deviceId));
+    const batchSize = config.database.proxySyncConcurrency;
 
-    await Promise.all(updatePromises);
+    for (let i = 0; i < proxiesToSync.length; i += batchSize) {
+      const chunk = proxiesToSync.slice(i, i + batchSize);
+      await Promise.all(
+        chunk.map(async (proxy) => {
+          const device = deviceMap.get(proxy.deviceId);
+          if (!device) return;
+
+          const isActive = mapProxyStatusToActive(device.proxy_status);
+
+          await prisma.proxy.update({
+            where: { deviceId: proxy.deviceId },
+            data: {
+              deviceApiId: device.id || null,
+              name: device.name,
+              model: device.model || null,
+              location: device.state || device.city || null,
+              host: device.relay_server_ip_address,
+              port: device.port,
+              username: device.username,
+              password: device.password || null,
+              active: isActive,
+              ipAddress: device.ip_address || null,
+              wsStatus: device.ws_status || null,
+              proxyStatus: device.proxy_status || null,
+              country: device.country || null,
+              state: device.state || null,
+              city: device.city || null,
+              street: device.street || null,
+              longitude: device.longitude || null,
+              latitude: device.latitude || null,
+              relayServerId: device.relay_server_id || null,
+              relayServerIpAddress: device.relay_server_ip_address || null,
+              downloadNetSpeed: device.download_net_speed || null,
+              uploadNetSpeed: device.upload_net_speed || null,
+              lastIpRotation: device.last_ip_rotation || null,
+              extra: device.extra || null,
+              version: extractAppVersion(device.extra),
+            },
+          });
+
+          logger.debug(
+            {
+              deviceId: proxy.deviceId,
+              deviceName: device.name,
+              active: isActive,
+              portalStatus: device.proxy_status,
+            },
+            'Synced proxy fields from portal'
+          );
+        })
+      );
+    }
   } catch (error) {
     logger.error(
       {

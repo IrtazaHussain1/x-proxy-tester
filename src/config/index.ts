@@ -19,6 +19,8 @@ import 'dotenv/config';
 interface Config {
   database: {
     url: string;
+    /** Max concurrent prisma.proxy.update calls when syncing portal → DB (prevents pool exhaustion). */
+    proxySyncConcurrency: number;
   };
   xproxy: {
     apiUrl: string;
@@ -288,9 +290,15 @@ function validateConfig(): Config {
     throw new Error('DUPLICATE_IP_SNAPSHOT_RETENTION_DAYS must be at least 1');
   }
 
+  const proxySyncConcurrency = parseInt(process.env.PROXY_SYNC_CONCURRENCY || '20', 10);
+  if (proxySyncConcurrency < 1) {
+    throw new Error('PROXY_SYNC_CONCURRENCY must be at least 1');
+  }
+
   return {
     database: {
       url: process.env.DATABASE_URL!,
+      proxySyncConcurrency,
     },
     xproxy: {
       apiUrl: process.env.XPROXY_API_URL!,

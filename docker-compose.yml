@@ -40,6 +40,8 @@ services:
     environment:
       # Database
       DATABASE_URL: mysql://${MYSQL_USER:-xproxy}:${MYSQL_PASSWORD:-xproxy}@mysql:3306/${MYSQL_DATABASE:-xproxy_tester}
+      # Caps concurrent portal→DB proxy row updates (default 20) to avoid Prisma pool exhaustion on refresh/rebuild
+      PROXY_SYNC_CONCURRENCY: ${PROXY_SYNC_CONCURRENCY:-20}
       
       # XProxy API
       XPROXY_API_URL: ${XPROXY_API_URL:-https://jmui.vercel.app}
