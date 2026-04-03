@@ -142,6 +142,7 @@ model ProxyRequest {
   proxy Proxy @relation(fields: [proxyId], references: [deviceId], onDelete: Cascade)
 
   @@index([proxyId, timestamp])
+  @@index([proxyId, timestamp, source], map: "idx_proxy_requests_proxy_timestamp_source")
   @@index([timestamp, proxyId])
   @@index([timestamp])
   @@index([status])

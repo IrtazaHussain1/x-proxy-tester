@@ -21,7 +21,7 @@ import { aggregateDailySummary } from './daily-aggregation';
  * Raw data: 14 days (2 weeks) - after which it's aggregated and deleted
  * Daily summaries: Kept indefinitely for long-term analytics
  */
-const DEFAULT_RETENTION_DAYS = parseInt(process.env.DATA_RETENTION_DAYS || '14', 10);
+const DEFAULT_RETENTION_DAYS = parseInt(process.env.DATA_RETENTION_DAYS || '30', 10);
 const ARCHIVAL_BATCH_SIZE = parseInt(process.env.ARCHIVAL_BATCH_SIZE || '1000', 10);
 
 /**
@@ -154,9 +154,49 @@ export async function archiveOldRequests(retentionDays: number = DEFAULT_RETENTI
     }
   }
 
+  // Step 3: Delete old speed_tests (no aggregation needed — speed data is captured
+  // in proxy_requests_daily_summary via avg/min/max speed columns)
+  logger.info('Step 3: Deleting speed_tests older than retention period');
+
+  let speedTestsArchived = 0;
+  let hasMoreSpeedTests = true;
+
+  while (hasMoreSpeedTests) {
+    try {
+      const idsToDelete = await prisma.speedTest.findMany({
+        where: { timestamp: { lt: cutoffDate } },
+        select: { id: true },
+        take: ARCHIVAL_BATCH_SIZE,
+      });
+
+      if (idsToDelete.length === 0) {
+        hasMoreSpeedTests = false;
+        break;
+      }
+
+      const result = await prisma.speedTest.deleteMany({
+        where: { id: { in: idsToDelete.map((r) => r.id) } },
+      });
+
+      speedTestsArchived += result.count;
+      hasMoreSpeedTests = idsToDelete.length === ARCHIVAL_BATCH_SIZE;
+
+      if (hasMoreSpeedTests) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : 'Unknown error', speedTestsArchived },
+        'Error during speed_tests archival batch'
+      );
+      throw error;
+    }
+  }
+
   logger.info(
     {
       totalArchived,
+      speedTestsArchived,
       retentionDays,
       cutoffDate: cutoffDate.toISOString(),
       daysAggregated: daysToAggregate.length,
@@ -164,7 +204,7 @@ export async function archiveOldRequests(retentionDays: number = DEFAULT_RETENTI
     'Data archival completed (raw data deleted, daily summaries kept)'
   );
 
-  return totalArchived;
+  return totalArchived + speedTestsArchived;
 }
 
 /**
