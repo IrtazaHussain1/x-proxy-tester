@@ -33,10 +33,10 @@ async function runMigration(migrationPath: string, migrationName: string): Promi
 
     logger.info({ statementCount: statements.length, migrationName }, 'Running migration');
 
-    // Handle procedures separately (they need DELIMITER handling)
+    // Handle procedures separately (DELIMITER // ... END // in legacy SQL files).
+    // aggregate_daily_summary is created by Prisma migration 20260404120000 — do not reinstall from 202501 file.
     const procMatches = [
       migrationSql.match(/CREATE\s+PROCEDURE\s+populate_hourly_summary[\s\S]*?END\s*\/\//),
-      migrationSql.match(/CREATE\s+PROCEDURE\s+aggregate_daily_summary[\s\S]*?END\s*\/\//),
     ].filter(Boolean);
 
     for (const procMatch of procMatches) {

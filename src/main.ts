@@ -8,7 +8,8 @@ import { startContinuousTesting, stopContinuousTesting } from './services/contin
 import { startSpeedTestService, stopSpeedTestService } from './services/speed-test-service';
 import { stopIpRotationTesting } from './services/ip-rotation-testing';
 import { stopHourlySummaryService } from './services/hourly-summary';
-import { stopDailyAggregationService } from './services/daily-aggregation';
+import { startDailyAggregationService, stopDailyAggregationService, aggregateRecentDays } from './services/daily-aggregation';
+import { startPeriodicArchival } from './services/archival';
 import { batchWriter } from './lib/batch-writer';
 import { logger } from './lib/logger';
 import { config } from './config';
@@ -200,26 +201,29 @@ async function main(): Promise<void> {
     //   logger.info('IP rotation testing service is disabled');
     // }
 
-    // TEMP: disable aggregation/archival to avoid errors when summary tables are missing
-    // startHourlySummaryService();
-    // logger.info('Hourly summary service started');
+    // Start daily aggregation service (aggregates previous day's data at 1 AM)
+    startDailyAggregationService();
+    logger.info('Daily aggregation service started');
 
-    // startDailyAggregationService();
-    // logger.info('Daily aggregation service started');
+    // Backfill last 30 days of daily summaries on startup (no-op if already aggregated)
+    void aggregateRecentDays(30).catch((err) => {
+      logger.error({ error: err instanceof Error ? err.message : 'Unknown error' }, 'Startup backfill of daily summaries failed');
+    });
 
-    // const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
-    // const archivalIntervalMs = parseInt(process.env.ARCHIVAL_INTERVAL_MS || String(12 * 60 * 60 * 1000), 10);
-    // const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || '14', 10);
-    // if (archivalEnabled) {
-    //   startPeriodicArchival(archivalIntervalMs, retentionDays);
-    //   logger.info(
-    //     {
-    //       retentionDays,
-    //       intervalHours: archivalIntervalMs / (60 * 60 * 1000),
-    //     },
-    //     'Periodic data archival enabled'
-    //   );
-    // }
+    // Start periodic archival: aggregate then delete raw data older than retention period
+    const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
+    const archivalIntervalMs = parseInt(process.env.ARCHIVAL_INTERVAL_MS || String(12 * 60 * 60 * 1000), 10);
+    const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || '30', 10);
+    if (archivalEnabled) {
+      startPeriodicArchival(archivalIntervalMs, retentionDays);
+      logger.info(
+        {
+          retentionDays,
+          intervalHours: archivalIntervalMs / (60 * 60 * 1000),
+        },
+        'Periodic data archival enabled'
+      );
+    }
 
     // Set up signal handlers
     process.on('SIGINT', () => handleShutdownRequest('SIGINT'));

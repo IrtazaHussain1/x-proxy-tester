@@ -179,6 +179,57 @@ model SpeedTest {
   @@map("speed_tests")
 }
 
+/// Pre-aggregated daily summary of proxy_requests, one row per proxy per day.
+/// Raw proxy_requests are deleted after 30 days; this table is kept forever.
+/// Populated nightly at 1 AM by the daily-aggregation service.
+model ProxyRequestsDailySummary {
+  day                  DateTime @db.Date
+  proxyId              String   @map("proxy_id") @db.VarChar(255)
+  location             String?  @db.VarChar(255)
+  relayServerId        String?  @map("relay_server_id") @db.VarChar(255)
+  relayServerIp        String?  @map("relay_server_ip") @db.VarChar(45)
+
+  totalRequests        Int      @default(0) @map("total_requests")
+  successCount         Int      @default(0) @map("success_count")
+  failureCount         Int      @default(0) @map("failure_count")
+  successRatePct       Decimal? @map("success_rate_pct") @db.Decimal(5, 2)
+
+  avgResponseTimeMs    Decimal? @map("avg_response_time_ms") @db.Decimal(10, 2)
+  minResponseTimeMs    Int?     @map("min_response_time_ms")
+  maxResponseTimeMs    Int?     @map("max_response_time_ms")
+  p50ResponseTimeMs    Int?     @map("p50_response_time_ms")
+  p95ResponseTimeMs    Int?     @map("p95_response_time_ms")
+  p99ResponseTimeMs    Int?     @map("p99_response_time_ms")
+
+  timeoutCount         Int      @default(0) @map("timeout_count")
+  connectionErrorCount Int      @default(0) @map("connection_error_count")
+  httpErrorCount       Int      @default(0) @map("http_error_count")
+  dnsErrorCount        Int      @default(0) @map("dns_error_count")
+
+  rotationCount        Int      @default(0) @map("rotation_count")
+
+  avgDownloadSpeedMbps Decimal? @map("avg_download_speed_mbps") @db.Decimal(10, 2)
+  avgUploadSpeedMbps   Decimal? @map("avg_upload_speed_mbps") @db.Decimal(10, 2)
+  maxDownloadSpeedMbps Decimal? @map("max_download_speed_mbps") @db.Decimal(10, 2)
+  maxUploadSpeedMbps   Decimal? @map("max_upload_speed_mbps") @db.Decimal(10, 2)
+  minDownloadSpeedMbps Decimal? @map("min_download_speed_mbps") @db.Decimal(10, 2)
+  minUploadSpeedMbps   Decimal? @map("min_upload_speed_mbps") @db.Decimal(10, 2)
+
+  uniqueIpsCount       Int      @default(0) @map("unique_ips_count")
+  ipDiversityScore     Decimal? @map("ip_diversity_score") @db.Decimal(5, 2)
+
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@id([day, proxyId])
+  @@index([day])
+  @@index([proxyId, day])
+  @@index([location])
+  @@index([relayServerId])
+  @@index([day, relayServerId])
+  @@map("proxy_requests_daily_summary")
+}
+
 /// One row per duplicate shared IP for one capture instant (group by captured_at + proxy_status_scope = one snapshot).
 model DuplicateIpSnapshotRow {
   id               BigInt   @id @default(autoincrement())

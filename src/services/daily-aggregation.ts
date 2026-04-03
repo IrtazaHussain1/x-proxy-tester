@@ -47,15 +47,17 @@ export async function aggregateDailySummary(day?: Date): Promise<number> {
       if (error?.message?.includes('does not exist') || error?.code === '42000') {
         logger.debug('Stored procedure not found, using direct SQL');
         
-        // Simplified aggregation without percentiles (for MySQL < 8.0)
         await prisma.$executeRawUnsafe(`
           INSERT INTO proxy_requests_daily_summary (
             day,
             proxy_id,
             location,
+            relay_server_id,
+            relay_server_ip,
             total_requests,
             success_count,
             failure_count,
+            success_rate_pct,
             avg_response_time_ms,
             min_response_time_ms,
             max_response_time_ms,
@@ -70,54 +72,91 @@ export async function aggregateDailySummary(day?: Date): Promise<number> {
             max_upload_speed_mbps,
             min_download_speed_mbps,
             min_upload_speed_mbps,
-            unique_ips_count
+            unique_ips_count,
+            ip_diversity_score
           )
-          SELECT 
-            DATE(pr.timestamp) as day,
-            pr.proxy_id,
-            p.location,
-            COUNT(*) as total_requests,
-            COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) as success_count,
-            COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as failure_count,
-            AVG(pr.response_time_ms) as avg_response_time_ms,
-            MIN(pr.response_time_ms) as min_response_time_ms,
-            MAX(pr.response_time_ms) as max_response_time_ms,
-            COUNT(CASE WHEN pr.status = 'TIMEOUT' THEN 1 END) as timeout_count,
-            COUNT(CASE WHEN pr.status = 'CONNECTION_ERROR' THEN 1 END) as connection_error_count,
-            COUNT(CASE WHEN pr.status = 'HTTP_ERROR' THEN 1 END) as http_error_count,
-            COUNT(CASE WHEN pr.status = 'DNS_ERROR' THEN 1 END) as dns_error_count,
-            COUNT(CASE WHEN pr.ip_changed = true THEN 1 END) as rotation_count,
-            AVG(pr.download_speed_mbps) as avg_download_speed_mbps,
-            AVG(pr.upload_speed_mbps) as avg_upload_speed_mbps,
-            MAX(pr.download_speed_mbps) as max_download_speed_mbps,
-            MAX(pr.upload_speed_mbps) as max_upload_speed_mbps,
-            MIN(pr.download_speed_mbps) as min_download_speed_mbps,
-            MIN(pr.upload_speed_mbps) as min_upload_speed_mbps,
-            COUNT(DISTINCT pr.outbound_ip) as unique_ips_count
-          FROM proxy_requests pr
-          LEFT JOIN proxies p ON pr.proxy_id = p.device_id
-          WHERE DATE(pr.timestamp) = ?
-            AND pr.timestamp IS NOT NULL
-          GROUP BY day, pr.proxy_id, p.location
+          SELECT
+            dt.day,
+            dt.proxy_id,
+            dt.location,
+            dt.relay_server_id,
+            dt.relay_server_ip,
+            dt.total_requests,
+            dt.success_count,
+            dt.failure_count,
+            dt.success_rate_pct,
+            dt.avg_response_time_ms,
+            dt.min_response_time_ms,
+            dt.max_response_time_ms,
+            dt.timeout_count,
+            dt.connection_error_count,
+            dt.http_error_count,
+            dt.dns_error_count,
+            dt.rotation_count,
+            dt.avg_download_speed_mbps,
+            dt.avg_upload_speed_mbps,
+            dt.max_download_speed_mbps,
+            dt.max_upload_speed_mbps,
+            dt.min_download_speed_mbps,
+            dt.min_upload_speed_mbps,
+            dt.unique_ips_count,
+            dt.ip_diversity_score
+          FROM (
+            SELECT
+              DATE(pr.timestamp) AS day,
+              pr.proxy_id,
+              p.location,
+              p.relay_server_id,
+              p.relay_server_ip_address AS relay_server_ip,
+              COUNT(*) AS total_requests,
+              COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) AS success_count,
+              COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) AS failure_count,
+              ROUND(COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) / COUNT(*) * 100, 2) AS success_rate_pct,
+              AVG(pr.response_time_ms) AS avg_response_time_ms,
+              MIN(pr.response_time_ms) AS min_response_time_ms,
+              MAX(pr.response_time_ms) AS max_response_time_ms,
+              COUNT(CASE WHEN pr.status = 'TIMEOUT' THEN 1 END) AS timeout_count,
+              COUNT(CASE WHEN pr.status = 'CONNECTION_ERROR' THEN 1 END) AS connection_error_count,
+              COUNT(CASE WHEN pr.status = 'HTTP_ERROR' THEN 1 END) AS http_error_count,
+              COUNT(CASE WHEN pr.status = 'DNS_ERROR' THEN 1 END) AS dns_error_count,
+              COUNT(CASE WHEN pr.ip_changed = TRUE THEN 1 END) AS rotation_count,
+              AVG(pr.download_speed_mbps) AS avg_download_speed_mbps,
+              AVG(pr.upload_speed_mbps) AS avg_upload_speed_mbps,
+              MAX(pr.download_speed_mbps) AS max_download_speed_mbps,
+              MAX(pr.upload_speed_mbps) AS max_upload_speed_mbps,
+              MIN(pr.download_speed_mbps) AS min_download_speed_mbps,
+              MIN(pr.upload_speed_mbps) AS min_upload_speed_mbps,
+              COUNT(DISTINCT pr.outbound_ip) AS unique_ips_count,
+              ROUND(COUNT(DISTINCT pr.outbound_ip) / COUNT(*) * 100, 2) AS ip_diversity_score
+            FROM proxy_requests pr
+            LEFT JOIN proxies p ON pr.proxy_id = p.device_id
+            WHERE DATE(pr.timestamp) = ?
+              AND pr.timestamp IS NOT NULL
+            GROUP BY DATE(pr.timestamp), pr.proxy_id, p.location, p.relay_server_id, p.relay_server_ip_address
+          ) AS dt
           ON DUPLICATE KEY UPDATE
-            total_requests = VALUES(total_requests),
-            success_count = VALUES(success_count),
-            failure_count = VALUES(failure_count),
-            avg_response_time_ms = VALUES(avg_response_time_ms),
-            min_response_time_ms = VALUES(min_response_time_ms),
-            max_response_time_ms = VALUES(max_response_time_ms),
-            timeout_count = VALUES(timeout_count),
-            connection_error_count = VALUES(connection_error_count),
-            http_error_count = VALUES(http_error_count),
-            dns_error_count = VALUES(dns_error_count),
-            rotation_count = VALUES(rotation_count),
-            avg_download_speed_mbps = VALUES(avg_download_speed_mbps),
-            avg_upload_speed_mbps = VALUES(avg_upload_speed_mbps),
-            max_download_speed_mbps = VALUES(max_download_speed_mbps),
-            max_upload_speed_mbps = VALUES(max_upload_speed_mbps),
-            min_download_speed_mbps = VALUES(min_download_speed_mbps),
-            min_upload_speed_mbps = VALUES(min_upload_speed_mbps),
-            unique_ips_count = VALUES(unique_ips_count),
+            relay_server_id = dt.relay_server_id,
+            relay_server_ip = dt.relay_server_ip,
+            total_requests = dt.total_requests,
+            success_count = dt.success_count,
+            failure_count = dt.failure_count,
+            success_rate_pct = dt.success_rate_pct,
+            avg_response_time_ms = dt.avg_response_time_ms,
+            min_response_time_ms = dt.min_response_time_ms,
+            max_response_time_ms = dt.max_response_time_ms,
+            timeout_count = dt.timeout_count,
+            connection_error_count = dt.connection_error_count,
+            http_error_count = dt.http_error_count,
+            dns_error_count = dt.dns_error_count,
+            rotation_count = dt.rotation_count,
+            avg_download_speed_mbps = dt.avg_download_speed_mbps,
+            avg_upload_speed_mbps = dt.avg_upload_speed_mbps,
+            max_download_speed_mbps = dt.max_download_speed_mbps,
+            max_upload_speed_mbps = dt.max_upload_speed_mbps,
+            min_download_speed_mbps = dt.min_download_speed_mbps,
+            min_upload_speed_mbps = dt.min_upload_speed_mbps,
+            unique_ips_count = dt.unique_ips_count,
+            ip_diversity_score = dt.ip_diversity_score,
             updated_at = CURRENT_TIMESTAMP
         `, dayDate);
       } else {
@@ -169,6 +208,40 @@ export async function aggregateRecentDays(days: number = 7): Promise<number> {
 
   logger.info({ days, aggregated }, 'Aggregated recent daily summaries');
   return aggregated;
+}
+
+/**
+ * Rebuilds daily summary rows for each calendar day from start through end (inclusive).
+ * Only days that still have rows in proxy_requests can produce summary data (see retention / cleanup).
+ */
+export async function aggregateDateRangeInclusive(start: Date, end: Date): Promise<number> {
+  const startDay = new Date(start);
+  startDay.setHours(0, 0, 0, 0);
+  const endDay = new Date(end);
+  endDay.setHours(0, 0, 0, 0);
+  if (endDay < startDay) {
+    logger.warn({ start: startDay, end: endDay }, 'aggregateDateRangeInclusive: end before start, skipping');
+    return 0;
+  }
+
+  let proxyRowsTotal = 0;
+  for (let d = new Date(startDay); d <= endDay; d.setDate(d.getDate() + 1)) {
+    const n = await aggregateDailySummary(new Date(d));
+    proxyRowsTotal += n;
+    if (d.getTime() < endDay.getTime()) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+
+  logger.info(
+    {
+      from: startDay.toISOString().split('T')[0],
+      to: endDay.toISOString().split('T')[0],
+      proxyRowsTotal,
+    },
+    'Aggregated daily summaries for date range'
+  );
+  return proxyRowsTotal;
 }
 
 /**
