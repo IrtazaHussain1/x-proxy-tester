@@ -7,7 +7,6 @@ import 'dotenv/config';
 import { startContinuousTesting, stopContinuousTesting } from './services/continuous-proxy-tester';
 import { startSpeedTestService, stopSpeedTestService } from './services/speed-test-service';
 import { stopIpRotationTesting } from './services/ip-rotation-testing';
-import { stopHourlySummaryService } from './services/hourly-summary';
 import { startDailyAggregationService, stopDailyAggregationService, aggregateRecentDays } from './services/daily-aggregation';
 import { startPeriodicArchival } from './services/archival';
 import { batchWriter } from './lib/batch-writer';
@@ -16,10 +15,14 @@ import { config } from './config';
 import { startServer } from './server';
 import { initGrafanaViews } from './lib/init-grafana-views';
 import { initDatabaseSchema } from './lib/init-db';
-import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
+import { startProxyTestWriteWorker, stopProxyTestWriteQueue } from './lib/proxy-test-write-queue';
+import { startProxyMetaWriteWorker, stopProxyMetaWriteQueue } from './lib/proxy-meta-write-queue';
+import { processProxyMetaWriteJob, processProxyTestWriteJob } from './services/continuous-proxy-tester';
+import type { ProxyTestWriteJobData } from './lib/proxy-test-write-queue';
+import type { ProxyMetaWriteJobData } from './lib/proxy-meta-write-queue';
 
 /**
  * Main application entry point
@@ -65,13 +68,17 @@ async function main(): Promise<void> {
       cleanupWorkers();
       stopContinuousTesting();
       stopSpeedTestService();
-      stopHourlySummaryService();
+
       stopDailyAggregationService();
       stopDuplicateIpSnapshotService();
       // Flush any pending batch writes before shutdown
       void batchWriter.forceFlush().then(() => {
-        void stopIpRotationTesting().then(() => {
-          process.exit(0);
+        void stopProxyTestWriteQueue().then(() => {
+          void stopProxyMetaWriteQueue().then(() => {
+            void stopIpRotationTesting().then(() => {
+              process.exit(0);
+            });
+          });
         });
       });
     } else {
@@ -89,13 +96,17 @@ async function main(): Promise<void> {
         cleanupWorkers();
         stopContinuousTesting();
         stopSpeedTestService();
-        stopHourlySummaryService();
+  
         stopDailyAggregationService();
         stopDuplicateIpSnapshotService();
         // Flush any pending batch writes before shutdown
         void batchWriter.forceFlush().then(() => {
-          void stopIpRotationTesting().then(() => {
-            process.exit(0);
+          void stopProxyTestWriteQueue().then(() => {
+            void stopProxyMetaWriteQueue().then(() => {
+              void stopIpRotationTesting().then(() => {
+                process.exit(0);
+              });
+            });
           });
         });
       } else {
@@ -114,6 +125,14 @@ async function main(): Promise<void> {
     }
   }
 
+  async function handleProxyTestWriteJob(data: ProxyTestWriteJobData): Promise<void> {
+    await processProxyTestWriteJob(data.device, data.metrics, data.source);
+  }
+
+  async function handleProxyMetaWriteJob(data: ProxyMetaWriteJobData): Promise<void> {
+    await processProxyMetaWriteJob(data.deviceId, data.data);
+  }
+
   try {
     logger.info(
       {
@@ -126,6 +145,8 @@ async function main(): Promise<void> {
 
     // Start HTTP server for health checks and metrics endpoints
     startServer();
+    startProxyTestWriteWorker(handleProxyTestWriteJob);
+    startProxyMetaWriteWorker(handleProxyMetaWriteJob);
 
     // Wait for database to be ready (important for Docker startup)
     // MySQL container may take time to initialize, so we retry with exponential backoff
@@ -140,9 +161,6 @@ async function main(): Promise<void> {
 
     // Initialize database schema (create tables if they don't exist)
     await initDatabaseSchema();
-
-    // Initialize performance optimizations (indexes, summary tables)
-    await initPerformanceOptimizations();
 
     // Initialize Grafana views (after database schema is ready)
     await initGrafanaViews();
@@ -201,14 +219,27 @@ async function main(): Promise<void> {
     //   logger.info('IP rotation testing service is disabled');
     // }
 
-    // Start daily aggregation service (aggregates previous day's data at 1 AM)
-    startDailyAggregationService();
-    logger.info('Daily aggregation service started');
+    // Start daily aggregation service (aggregates previous day's data at scheduled time)
+    const enableDailyAggregationOnStart = process.env.ENABLE_DAILY_AGGREGATION_ON_START !== 'false';
+    if (enableDailyAggregationOnStart) {
+      startDailyAggregationService();
+      logger.info('Daily aggregation service started');
+    } else {
+      logger.info('Daily aggregation service startup disabled (ENABLE_DAILY_AGGREGATION_ON_START=false)');
+    }
 
-    // Backfill last 30 days of daily summaries on startup (no-op if already aggregated)
-    void aggregateRecentDays(30).catch((err) => {
-      logger.error({ error: err instanceof Error ? err.message : 'Unknown error' }, 'Startup backfill of daily summaries failed');
-    });
+    // Optional startup backfill. Disabled by default to avoid adding heavy read/write load
+    // while continuous testing and rotation services are warming up.
+    const startupBackfillDays = parseInt(process.env.STARTUP_DAILY_BACKFILL_DAYS || '0', 10);
+    if (startupBackfillDays > 0) {
+      setTimeout(() => {
+        void aggregateRecentDays(startupBackfillDays).catch((err) => {
+          logger.error({ error: err instanceof Error ? err.message : 'Unknown error' }, 'Startup backfill of daily summaries failed');
+        });
+      }, 60_000);
+    } else {
+      logger.info('Startup daily backfill disabled (STARTUP_DAILY_BACKFILL_DAYS=0)');
+    }
 
     // Start periodic archival: aggregate then delete raw data older than retention period
     const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
@@ -254,13 +285,17 @@ async function main(): Promise<void> {
           cleanupWorkers();
           stopContinuousTesting();
           stopSpeedTestService();
-          stopHourlySummaryService();
+    
           stopDailyAggregationService();
           stopDuplicateIpSnapshotService();
           // Flush any pending batch writes before shutdown
           void batchWriter.forceFlush().then(() => {
-            void stopIpRotationTesting().then(() => {
-              process.exit(0);
+            void stopProxyTestWriteQueue().then(() => {
+              void stopProxyMetaWriteQueue().then(() => {
+                void stopIpRotationTesting().then(() => {
+                  process.exit(0);
+                });
+              });
             });
           });
         } else {

@@ -1,4 +1,22 @@
 services:
+  redis:
+    image: redis:7.2-bookworm
+    platform: ${REDIS_DOCKER_PLATFORM:-linux/arm64/v8}
+    container_name: x-proxy-tester-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --save 60 1000
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - proxy-network
+
   mysql:
     image: mysql:9.0
     container_name: x-proxy-tester-mysql
@@ -13,7 +31,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts/init-grafana-views.sh:/docker-entrypoint-initdb.d/init-grafana-views.sh:ro
-      - ./mysql-docker-config.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      - ./mysql/primary.cnf:/etc/mysql/conf.d/custom.cnf:ro
     logging:
       driver: "json-file"
       options:
@@ -37,11 +55,18 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       # Database
       DATABASE_URL: mysql://${MYSQL_USER:-xproxy}:${MYSQL_PASSWORD:-xproxy}@mysql:3306/${MYSQL_DATABASE:-xproxy_tester}
       # Caps concurrent portal→DB proxy row updates (default 20) to avoid Prisma pool exhaustion on refresh/rebuild
       PROXY_SYNC_CONCURRENCY: ${PROXY_SYNC_CONCURRENCY:-20}
+      PROXY_TEST_WRITE_WORKER_CONCURRENCY: ${PROXY_TEST_WRITE_WORKER_CONCURRENCY:-5}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       
       # XProxy API
       XPROXY_API_URL: ${XPROXY_API_URL:-https://jmui.vercel.app}
@@ -108,10 +133,9 @@ services:
       # Health Check
       HEALTH_CHECK_PORT: ${HEALTH_CHECK_PORT:-3000}
       
-      # Archival
-      # Reduced retention to 14 days to manage rapid database growth
+      # Archival — raw data is deleted after retention period (daily summaries kept forever)
       ENABLE_ARCHIVAL: ${ENABLE_ARCHIVAL:-true}
-      DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-14}
+      DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-30}
       # Run archival every 12 hours (instead of 24) to keep database size manageable
       ARCHIVAL_INTERVAL_MS: ${ARCHIVAL_INTERVAL_MS:-43200000}
       ARCHIVAL_BATCH_SIZE: ${ARCHIVAL_BATCH_SIZE:-1000}
@@ -150,8 +174,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-      app:
-        condition: service_healthy
+      # app:
+      #   condition: service_healthy
     ports:
       - "3312:3000"
     environment:
@@ -235,6 +259,8 @@ services:
 
 volumes:
   mysql_data:
+    driver: local
+  redis_data:
     driver: local
   grafana_data:
     driver: local

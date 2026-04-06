@@ -12,6 +12,7 @@ import {
   startTestingHandler,
   stopTestingHandler,
 } from './api/testing';
+import { getProblemsHandler } from './api/analytics';
 
 const PORT = parseInt(process.env.HEALTH_CHECK_PORT || '3000', 10);
 
@@ -68,6 +69,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const result = await stopTestingHandler();
       res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result, null, 2));
+    // Problem phones endpoint - returns phones with active issues
+    } else if (url === '/api/analytics/problems' && method === 'GET') {
+      const result = await getProblemsHandler();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result, null, 2));
     // Root endpoint - returns API documentation with available endpoints
     } else if (url === '/' && method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -84,6 +90,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
               status: 'GET /api/testing/status',
               start: 'POST /api/testing/start',
               stop: 'POST /api/testing/stop',
+            },
+            analytics: {
+              problems: 'GET /api/analytics/problems',
             },
           },
         })

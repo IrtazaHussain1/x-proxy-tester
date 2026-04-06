@@ -61,6 +61,7 @@ const backgroundDb = makeClient(8);
 interface Stats {
   inserted:    number;
   errors:      number;
+  retries:     number;   // 1205 lock timeouts retried transparently
   latencies:   number[];   // ms per batch
   startedAt:   number;
 }
@@ -84,6 +85,7 @@ function printStats(label: string): void {
   console.log(`  elapsed   : ${elapsed.toFixed(1)}s`);
   console.log(`  inserted  : ${stats.inserted.toLocaleString()} rows`);
   console.log(`  errors    : ${stats.errors}`);
+  console.log(`  retries   : ${stats.retries} (1205 lock timeouts)`);
   console.log(`  actual RPS: ${rps.toFixed(1)}`);
   console.log(`  batch p50 : ${p50}ms`);
   console.log(`  batch p95 : ${p95}ms`);
@@ -113,47 +115,78 @@ async function resolveProxyIds(): Promise<string[]> {
 // ---------------------------------------------------------------------------
 // Single batch insert
 // ---------------------------------------------------------------------------
-const STATUSES   = ['SUCCESS', 'SUCCESS', 'SUCCESS', 'TIMEOUT', 'CONNECTION_ERROR'];
 const TARGET_URL = 'https://load-test.internal/check';
 
-function makeRow(proxyId: string) {
-  const status   = STATUSES[Math.floor(Math.random() * STATUSES.length)];
-  const success  = status === 'SUCCESS';
-  return {
-    id:                randomUUID(),
-    proxyId,
-    timestamp:         new Date(),
-    targetUrl:         TARGET_URL,
-    status,
-    responseTimeMs:    success ? Math.floor(200 + Math.random() * 800) : null,
-    outboundIp:        success ? `10.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.1` : null,
-    expectedIp:        null,
-    ipChanged:         false,
-    errorType:         success ? null : status,
-    errorMessage:      success ? null : `Simulated ${status}`,
-    source:            'load_test',
-    downloadSpeedMbps: success ? Math.random() * 50 : null,
-    uploadSpeedMbps:   success ? Math.random() * 20 : null,
-  };
-}
-
+// Use raw SQL so the insert works regardless of stale Prisma generated client.
+// Builds a single multi-row INSERT for the whole batch — one round trip.
 async function insertBatch(proxyIds: string[], batchSize: number): Promise<void> {
-  const rows = Array.from({ length: batchSize }, () =>
-    makeRow(proxyIds[Math.floor(Math.random() * proxyIds.length)])
-  );
+  const now     = new Date();
+  const STATUSES_LOCAL = ['SUCCESS', 'SUCCESS', 'SUCCESS', 'TIMEOUT', 'CONNECTION_ERROR'];
 
+  // Build VALUES placeholders and flat params array
+  const placeholders: string[] = [];
+  const params: any[]          = [];
+
+  for (let i = 0; i < batchSize; i++) {
+    const proxyId  = proxyIds[Math.floor(Math.random() * proxyIds.length)];
+    const status   = STATUSES_LOCAL[Math.floor(Math.random() * STATUSES_LOCAL.length)];
+    const success  = status === 'SUCCESS';
+    const respTime = success ? Math.floor(200 + Math.random() * 800) : null;
+    const ip       = success
+      ? `10.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.1`
+      : null;
+    const dl = success ? Math.random() * 50 : null;
+    const ul = success ? Math.random() * 20 : null;
+
+    placeholders.push('(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    params.push(
+      randomUUID(), proxyId, now, TARGET_URL,
+      status, respTime, ip, false,
+      success ? null : status,
+      success ? null : `Simulated ${status}`,
+      'load_test',
+      dl, ul,
+      now, now   // created_at, updated_at
+    );
+  }
+
+  const sql = `
+    INSERT IGNORE INTO proxy_requests
+      (id, proxy_id, timestamp, target_url,
+       status, response_time_ms, outbound_ip, ip_changed,
+       error_type, error_message, source,
+       download_speed_mbps, upload_speed_mbps,
+       created_at, updated_at)
+    VALUES ${placeholders.join(',')}
+  `;
+
+  const MAX_RETRIES = 4;
   const t0 = Date.now();
-  try {
-    const result = await writeDb.proxyRequest.createMany({
-      data:           rows as any,
-      skipDuplicates: true,
-    });
-    const ms = Date.now() - t0;
-    stats.inserted  += result.count;
-    stats.latencies.push(ms);
-  } catch (err: any) {
-    stats.errors++;
-    console.error(`  [ERROR] batch insert failed: ${err?.message?.slice(0, 120)}`);
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await writeDb.$executeRawUnsafe(sql, ...params);
+      const ms = Date.now() - t0;
+      stats.inserted  += batchSize;
+      stats.latencies.push(ms);
+      return;
+    } catch (err: any) {
+      const code    = err?.code ?? err?.meta?.code ?? '';
+      const message = err?.message ?? '';
+      const isLockTimeout = code === '1205' || message.includes('Lock wait timeout');
+
+      if (isLockTimeout && attempt < MAX_RETRIES) {
+        stats.retries++;
+        // Jitter: 500–900 ms, same range as prismaWithRetry in the real app
+        const jitter = 500 + Math.floor(Math.random() * 400);
+        await new Promise((r) => setTimeout(r, jitter));
+        continue;
+      }
+
+      stats.errors++;
+      console.error(`  [ERROR] batch insert failed (attempt ${attempt + 1}): ${message.slice(0, 200)}`);
+      return;
+    }
   }
 }
 
@@ -174,7 +207,8 @@ async function runWorker(proxyIds: string[], durationMs: number, rpsPerWorker: n
 }
 
 // ---------------------------------------------------------------------------
-// Aggregation trigger
+// Aggregation trigger — calls the MySQL stored procedure directly,
+// same as the daily_aggregate_summary EVENT does at 02:30 AM
 // ---------------------------------------------------------------------------
 async function triggerAggregation(): Promise<void> {
   const { aggregateDayInApp } = await import('../src/services/daily-aggregation');
@@ -183,11 +217,19 @@ async function triggerAggregation(): Promise<void> {
     ? new Date(AGG_DAY)
     : new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  console.log(`\n  ▶ Triggering aggregateDayInApp(${day.toISOString().split('T')[0]}) on backgroundDb`);
-  const t0  = Date.now();
-  const n   = await aggregateDayInApp(day);
-  const sec = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`  ✓ Aggregation done: ${n} proxies in ${sec}s`);
+  const dayLabel = (day instanceof Date ? day : new Date(day))
+    .toISOString().split('T')[0];
+
+  console.log(`\n  ▶ Triggering aggregateDayInApp('${dayLabel}') via backgroundDb`);
+  const t0 = Date.now();
+  try {
+    const n   = await aggregateDayInApp(day instanceof Date ? day : new Date(day));
+    const sec = ((Date.now() - t0) / 1000).toFixed(1);
+    console.log(`  ✓ aggregateDayInApp done: ${n} proxies in ${sec}s`);
+  } catch (err: any) {
+    const sec = ((Date.now() - t0) / 1000).toFixed(1);
+    console.error(`  ✗ aggregateDayInApp failed after ${sec}s: ${err?.message?.slice(0, 200)}`);
+  }
 }
 
 // ---------------------------------------------------------------------------

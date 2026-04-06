@@ -1,0 +1,256 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "description": "BETA: Historical data (>today) from proxy_requests_daily_summary. Today's data from proxy_requests (raw). Default range: last 7 days.",
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Response Time Stats — today from raw · history from daily_summary",
+      "type": "row"
+    },
+
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "unit": "ms",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1000 },
+            { "color": "red", "value": 3000 }
+          ]}
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "title": "Avg Response Time",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "format": "table",
+        "rawSql": "SELECT ROUND(SUM(weighted_ms) / NULLIF(SUM(total_requests), 0), 0) as value FROM (\n  SELECT SUM(s.avg_response_time_ms * s.total_requests) as weighted_ms, SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  UNION ALL\n  SELECT SUM(r.response_time_ms) as weighted_ms, COUNT(*) as total_requests\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE DATE(r.timestamp) = CURDATE()\n    AND r.response_time_ms IS NOT NULL\n    AND p.location IN ($location)\n) combined"
+      }]
+    },
+
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "unit": "ms",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1000 },
+            { "color": "red", "value": 3000 }
+          ]}
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "title": "P50 Response Time",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(p50), 0) as value FROM (\n  SELECT AVG(s.p50_response_time_ms) as p50\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  UNION ALL\n  SELECT AVG(r.response_time_ms) as p50\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE DATE(r.timestamp) = CURDATE()\n    AND r.response_time_ms IS NOT NULL\n    AND p.location IN ($location)\n) combined"
+      }]
+    },
+
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "unit": "ms",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 2000 },
+            { "color": "red", "value": 5000 }
+          ]}
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "title": "P95 Response Time",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(p95), 0) as value FROM (\n  SELECT AVG(s.p95_response_time_ms) as p95\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  UNION ALL\n  SELECT\n    (SELECT sub.response_time_ms FROM (\n      SELECT response_time_ms,\n             ROW_NUMBER() OVER (ORDER BY response_time_ms) as rn,\n             COUNT(*) OVER () as total\n      FROM proxy_requests r2\n      JOIN proxies p2 ON r2.proxy_id = p2.device_id\n      WHERE DATE(r2.timestamp) = CURDATE()\n        AND r2.response_time_ms IS NOT NULL\n        AND p2.location IN ($location)\n    ) sub WHERE sub.rn = FLOOR(sub.total * 0.95) + 1 LIMIT 1) as p95\n) combined"
+      }]
+    },
+
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "unit": "ms",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 3000 },
+            { "color": "red", "value": 10000 }
+          ]}
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "title": "P99 Response Time",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(p99), 0) as value FROM (\n  SELECT AVG(s.p99_response_time_ms) as p99\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  UNION ALL\n  SELECT\n    (SELECT sub.response_time_ms FROM (\n      SELECT response_time_ms,\n             ROW_NUMBER() OVER (ORDER BY response_time_ms) as rn,\n             COUNT(*) OVER () as total\n      FROM proxy_requests r2\n      JOIN proxies p2 ON r2.proxy_id = p2.device_id\n      WHERE DATE(r2.timestamp) = CURDATE()\n        AND r2.response_time_ms IS NOT NULL\n        AND p2.location IN ($location)\n    ) sub WHERE sub.rn = FLOOR(sub.total * 0.99) + 1 LIMIT 1) as p99\n) combined"
+      }]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Response Time Trends",
+      "type": "row"
+    },
+
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "ms",
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 }
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
+      "id": 5,
+      "title": "Avg / P50 / P95 Response Time Over Time (daily summary + today hourly)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "format": "time_series",
+          "rawSql": "SELECT time_sec, avg_ms, p50_ms, p95_ms FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) as avg_ms,\n    ROUND(AVG(s.p50_response_time_ms), 0) as p50_ms,\n    ROUND(AVG(s.p95_response_time_ms), 0) as p95_ms\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n    ROUND(AVG(r.response_time_ms), 0) as avg_ms,\n    ROUND(AVG(r.response_time_ms), 0) as p50_ms,\n    NULL as p95_ms\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE DATE(r.timestamp) = CURDATE()\n    AND r.response_time_ms IS NOT NULL\n    AND p.location IN ($location)\n  GROUP BY UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00'))\n) combined\nORDER BY time_sec",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "Error Breakdown",
+      "type": "row"
+    },
+
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short",
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "stacking": { "group": "A", "mode": "normal" } }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 6,
+      "title": "Error Types Over Time (stacked)",
+      "type": "timeseries",
+      "targets": [{
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "format": "time_series",
+        "rawSql": "SELECT time_sec, timeout_count, connection_error_count, http_error_count, dns_error_count FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    SUM(s.timeout_count) as timeout_count,\n    SUM(s.connection_error_count) as connection_error_count,\n    SUM(s.http_error_count) as http_error_count,\n    SUM(s.dns_error_count) as dns_error_count\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n    COUNT(CASE WHEN r.status = 'TIMEOUT' THEN 1 END) as timeout_count,\n    COUNT(CASE WHEN r.status = 'CONNECTION_ERROR' THEN 1 END) as connection_error_count,\n    COUNT(CASE WHEN r.status = 'HTTP_ERROR' THEN 1 END) as http_error_count,\n    COUNT(CASE WHEN r.status = 'DNS_ERROR' THEN 1 END) as dns_error_count\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE DATE(r.timestamp) = CURDATE()\n    AND p.location IN ($location)\n  GROUP BY UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00'))\n) combined\nORDER BY time_sec",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "MBs",
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 7,
+      "title": "Avg Download / Upload Speed Over Time",
+      "type": "timeseries",
+      "targets": [{
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "format": "time_series",
+        "rawSql": "SELECT time_sec, avg_download_mbps, avg_upload_mbps FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    ROUND(AVG(s.avg_download_speed_mbps), 2) as avg_download_mbps,\n    ROUND(AVG(s.avg_upload_speed_mbps), 2) as avg_upload_mbps\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND s.avg_download_speed_mbps IS NOT NULL\n    AND p.location IN ($location)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n    ROUND(AVG(r.download_speed_mbps), 2) as avg_download_mbps,\n    ROUND(AVG(r.upload_speed_mbps), 2) as avg_upload_mbps\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE DATE(r.timestamp) = CURDATE()\n    AND r.download_speed_mbps IS NOT NULL\n    AND p.location IN ($location)\n  GROUP BY UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00'))\n) combined\nORDER BY time_sec",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 103,
+      "title": "Proxy Rankings",
+      "type": "row"
+    },
+
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "success_rate_pct" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "decimals", "value": 1 }] },
+          { "matcher": { "id": "byName", "options": "avg_response_ms" },   "properties": [{ "id": "unit", "value": "ms" }] },
+          { "matcher": { "id": "byName", "options": "p95_response_ms" },   "properties": [{ "id": "unit", "value": "ms" }] },
+          { "matcher": { "id": "byName", "options": "p99_response_ms" },   "properties": [{ "id": "unit", "value": "ms" }] },
+          { "matcher": { "id": "byName", "options": "total_requests" },    "properties": [{ "id": "unit", "value": "short" }] },
+          { "matcher": { "id": "byName", "options": "source" },            "properties": [{ "id": "custom.width", "value": 110 }] }
+        ]
+      },
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 24 },
+      "id": 8,
+      "title": "Top Proxies by Avg Response Time — history from aggregate · today from raw",
+      "type": "table",
+      "options": { "cellHeight": "sm", "showHeader": true },
+      "targets": [{
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "format": "table",
+        "rawSql": "SELECT proxy_name, location, total_requests, success_rate_pct, avg_response_ms, p95_response_ms, p99_response_ms, timeout_count, source FROM (\n  SELECT\n    COALESCE(p.name, s.proxy_id) as proxy_name,\n    s.location,\n    SUM(s.total_requests) as total_requests,\n    ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 1) as success_rate_pct,\n    ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) as avg_response_ms,\n    ROUND(AVG(s.p95_response_time_ms), 0) as p95_response_ms,\n    ROUND(AVG(s.p99_response_time_ms), 0) as p99_response_ms,\n    SUM(s.timeout_count) as timeout_count,\n    'summary' as source\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  GROUP BY s.proxy_id, p.name, s.location\n  UNION ALL\n  SELECT\n    COALESCE(p.name, p.device_id) as proxy_name,\n    p.location,\n    COUNT(*) as total_requests,\n    ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as success_rate_pct,\n    ROUND(AVG(r.response_time_ms), 0) as avg_response_ms,\n    NULL as p95_response_ms,\n    NULL as p99_response_ms,\n    COUNT(CASE WHEN r.status = 'TIMEOUT' THEN 1 END) as timeout_count,\n    'raw (today)' as source\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE DATE(r.timestamp) = CURDATE()\n    AND p.location IN ($location)\n  GROUP BY p.device_id, p.name, p.location\n) combined\nORDER BY avg_response_ms DESC\nLIMIT 50"
+      }]
+    }
+
+  ],
+  "refresh": "5m",
+  "schemaVersion": 38,
+  "tags": ["x-proxy-tester", "beta", "performance", "hot-cold"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "definition": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BETA - Performance",
+  "uid": "beta-performance-hotcold-v1",
+  "version": 1
+}

@@ -12,8 +12,39 @@ import { logger } from '../lib/logger';
 import { rotateIp, rotateUniqueIp } from '../api/commands';
 import { getAllDevices } from '../helpers/devices';
 import { getDeviceById } from '../api/devices';
+import { config } from '../config';
 export type CycleType = 'periodic' | 'inactive_proxy' | 'manual';
 export type CycleStatus = 'in_progress' | 'verifying' | 'completed' | 'failed';
+
+class Semaphore {
+  private permits: number;
+  private waitQueue: Array<() => void> = [];
+
+  constructor(permits: number) {
+    this.permits = permits;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.permits > 0) {
+      this.permits--;
+      return;
+    }
+
+    return new Promise((resolve) => {
+      this.waitQueue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.waitQueue.length > 0) {
+      const next = this.waitQueue.shift();
+      if (next) next();
+      return;
+    }
+
+    this.permits++;
+  }
+}
 
 /**
  * Create a new rotation cycle with shared timestamp
@@ -64,7 +95,7 @@ async function getIpBeforeRotation(proxyId: string): Promise<string | null> {
     });
     return proxy?.lastIp || null;
   } catch (error) {
-    logger.error({ proxyId, error }, 'Failed to get IP before rotation');
+    logger.error({ proxyId, error: error instanceof Error ? error.message : String(error) }, 'Failed to get IP before rotation');
     return null;
   }
 }
@@ -97,7 +128,7 @@ async function getDeviceMetadata(deviceId: string): Promise<Record<string, any> 
       city: device.city || null,
     };
   } catch (error) {
-    logger.error({ deviceId, error }, 'Failed to get device metadata');
+    logger.error({ deviceId, error: error instanceof Error ? error.message : String(error) }, 'Failed to get device metadata');
     return null;
   }
 }
@@ -131,8 +162,11 @@ async function sendRotationCommandForProxy(
       errorMessage = response.message || 'Rotation command failed';
     }
   } catch (error) {
-    errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error({ proxyId, error }, 'Failed to send rotation command');
+    errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(
+      { proxyId, error: errorMessage },
+      'Failed to send rotation command'
+    );
   }
 
   const rotation = await prisma.ipRotation.create({
@@ -189,8 +223,10 @@ export async function startRotationCycle(
   const devices = await getAllDevices();
   const deviceMap = new Map(devices.map((d) => [d.device_id, d]));
 
-  // Send rotation commands in parallel
+  // Send rotation commands with bounded concurrency to avoid Prisma pool exhaustion.
+  const semaphore = new Semaphore(config.database.proxySyncConcurrency);
   const rotationPromises = proxyIds.map(async (proxyId) => {
+    await semaphore.acquire();
     const device = deviceMap.get(proxyId);
     const statusBefore = device?.proxy_status || null;
     const wsStatusBefore = device?.ws_status || null;
@@ -213,6 +249,8 @@ export async function startRotationCycle(
         },
         'Failed to create rotation record'
       );
+    } finally {
+      semaphore.release();
     }
   });
 
