@@ -1,0 +1,46 @@
+[mysqld]
+# ── Identity ──────────────────────────────────────────────────────────────────
+server-id = 1
+
+# ── Buffer Pool ───────────────────────────────────────────────────────────────
+innodb_buffer_pool_size    = 4096M
+innodb_log_file_size       = 256M
+innodb_log_buffer_size     = 64M
+
+# ── Connection Settings ───────────────────────────────────────────────────────
+max_connections            = 300
+max_allowed_packet         = 128M
+
+# ── Query Performance ─────────────────────────────────────────────────────────
+sort_buffer_size           = 2M
+join_buffer_size           = 2M
+read_buffer_size           = 1M
+read_rnd_buffer_size       = 1M
+
+# ── Temporary Tables ──────────────────────────────────────────────────────────
+tmp_table_size             = 128M
+max_heap_table_size        = 128M
+
+# ── Table Cache ───────────────────────────────────────────────────────────────
+table_open_cache           = 2000
+table_definition_cache     = 1400
+
+# ── InnoDB Settings ───────────────────────────────────────────────────────────
+# innodb_flush_log_at_trx_commit=2: flush every second instead of every commit
+# Trades a max 1-second of data loss on crash for significant write throughput
+innodb_flush_log_at_trx_commit = 2
+innodb_flush_method            = O_DIRECT
+innodb_file_per_table          = 1
+# Fail fast on lock contention so the app retry logic kicks in quickly.
+# Default is 50 s — too long for a 5-second test loop with many concurrent writers.
+innodb_lock_wait_timeout       = 10
+
+# ── Slow Query Log ────────────────────────────────────────────────────────────
+slow_query_log      = 1
+slow_query_log_file = /var/log/mysql/slow-query.log
+long_query_time     = 2
+general_log         = 0
+
+# ── Event Scheduler ───────────────────────────────────────────────────────────
+# Required for auto-cleanup MySQL EVENTs (cleanup_old_proxy_requests, cleanup_old_speed_tests)
+event_scheduler     = ON
