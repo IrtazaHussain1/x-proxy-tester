@@ -1,0 +1,340 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Duplicate shared IP trends. **Snapshot details** table first. **IP\u2194server (edge = snapshot time)**: bipartite graph; IP nodes blue, server nodes amber; **edges** multi-colored by snapshot+IP. **IP\u2194server (latest update)**: same styling for latest snapshot only. **Server\u2194IP** node chart: server pairs sharing an IP (latest snapshot). Filters: Proxy scope, **Duplicate IP** (JSON_TABLE), **Server name** (multi-select `IN ($server_name)` like other MySQL variables).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "**dup_scope**: cross-server = IP shared across \u22652 server labels; same-server-only = duplicate phones under one label only.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false,
+            "wrapHeaderText": false,
+            "wrapText": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dup_scope"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "cross-server": {
+                        "color": "orange",
+                        "text": "cross-server"
+                      },
+                      "same-server-only": {
+                        "color": "blue",
+                        "text": "same-server-only"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "servers"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 260
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones_on_this_ip"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 400
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "enablePagination": true,
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "captured_at"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH base AS (\n  SELECT DISTINCT\n    s.captured_at,\n    s.last_ip,\n    s.proxy_status_scope\n  FROM duplicate_ip_snapshot_servers s\n  WHERE s.proxy_status_scope = '${proxy_scope}'\n    AND $__timeFilter(s.captured_at)\n    AND (\n      '${duplicate_ip:raw}' IN ('$__all', '')\n      OR EXISTS (\n        SELECT 1\n        FROM JSON_TABLE(\n          CAST('${duplicate_ip:json}' AS JSON),\n          '$[*]' COLUMNS (ip VARCHAR(64) PATH '$')\n        ) AS dup_ip\n        WHERE dup_ip.ip = s.last_ip\n      )\n    )\n    AND (\n      '${server_name:raw}' IN ('$__all', '')\n      OR EXISTS (\n        SELECT 1\n        FROM duplicate_ip_snapshot_servers sf\n        WHERE sf.captured_at = s.captured_at\n          AND sf.proxy_status_scope = s.proxy_status_scope\n          AND sf.last_ip = s.last_ip\n          AND sf.server_label IN ($server_name)\n      )\n    )\n)\nSELECT\n  b.captured_at,\n  b.last_ip,\n  COUNT(DISTINCT s.server_label) AS server_count,\n  CASE\n    WHEN COUNT(DISTINCT s.server_label) > 1 THEN 'cross-server'\n    ELSE 'same-server-only'\n  END AS dup_scope,\n  GROUP_CONCAT(DISTINCT s.server_label ORDER BY s.server_label SEPARATOR ', ') AS servers,\n  MAX(x.sibling_phones) AS phones_on_this_ip\nFROM base b\nINNER JOIN duplicate_ip_snapshot_servers s\n  ON s.captured_at = b.captured_at\n  AND s.proxy_status_scope = b.proxy_status_scope\n  AND s.last_ip = b.last_ip\nINNER JOIN duplicate_ip_snapshot_rows x\n  ON x.captured_at = b.captured_at\n  AND x.proxy_status_scope = b.proxy_status_scope\n  AND x.last_ip = b.last_ip\nGROUP BY b.captured_at, b.last_ip\nORDER BY b.captured_at DESC, dup_scope DESC, b.last_ip\nLIMIT 800",
+          "refId": "A"
+        }
+      ],
+      "title": "Snapshot details",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "**Latest snapshot** only. **Styling**: all IP nodes **#2563EB**, all server nodes **#C2410C**; **edges** multi-colored by shared IP. Node ids: `ip:` / `srv:`. Placeholder node if empty.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 7,
+      "options": {
+        "edges": {
+          "mainStatUnit": "none",
+          "secondaryStatUnit": "none"
+        },
+        "layoutAlgorithm": "layered",
+        "nodes": {
+          "mainStatUnit": "none",
+          "secondaryStatUnit": "none"
+        },
+        "zoomMode": "cooperative"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  CONCAT(\n    UNIX_TIMESTAMP(s.captured_at),\n    '-',\n    REPLACE(REPLACE(s.last_ip, ':', '_'), '.', '_'),\n    '-',\n    s.server_label\n  ) AS id,\n  CONCAT('ip:', s.last_ip) AS `source`,\n  CONCAT('srv:', s.server_label) AS `target`,\n  s.last_ip AS mainstat,\n  ELT(\n    1 + (ABS(CRC32(s.last_ip)) MOD 12),\n    '#5B8FF9',\n    '#61DDAA',\n    '#65789B',\n    '#F6BD16',\n    '#7262FD',\n    '#78D3F8',\n    '#9661BC',\n    '#F6903D',\n    '#008685',\n    '#F08BB4',\n    '#9E87FF',\n    '#58D5FF'\n  ) AS color,\n  2 AS thickness\nFROM duplicate_ip_snapshot_servers s\nWHERE s.proxy_status_scope = '${proxy_scope}'\n  AND s.captured_at = (\n    SELECT MAX(x.captured_at)\n    FROM duplicate_ip_snapshot_servers x\n    WHERE x.proxy_status_scope = '${proxy_scope}'\n      AND $__timeFilter(x.captured_at)\n      AND (\n        '${server_name:raw}' IN ('$__all', '')\n        OR x.server_label IN ($server_name)\n      )\n  )\n  AND (\n    '${duplicate_ip:raw}' IN ('$__all', '')\n    OR EXISTS (\n      SELECT 1\n      FROM JSON_TABLE(\n        CAST('${duplicate_ip:json}' AS JSON),\n        '$[*]' COLUMNS (ip VARCHAR(64) PATH '$')\n      ) AS dup_ip\n      WHERE dup_ip.ip = s.last_ip\n    )\n  )\n  AND (\n    '${server_name:raw}' IN ('$__all', '')\n    OR s.server_label IN ($server_name)\n  )\nORDER BY s.last_ip, s.server_label\nLIMIT 4000",
+          "refId": "edges"
+        },
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH ip_nodes AS (\n  SELECT DISTINCT\n    CONCAT('ip:', s.last_ip) AS id,\n    s.last_ip AS title,\n    'IP' AS subtitle,\n    '#2563EB' AS color,\n    46 AS nodeRadius\n  FROM duplicate_ip_snapshot_servers s\n  WHERE s.proxy_status_scope = '${proxy_scope}'\n    AND s.captured_at = (\n      SELECT MAX(x.captured_at)\n      FROM duplicate_ip_snapshot_servers x\n      WHERE x.proxy_status_scope = '${proxy_scope}'\n        AND $__timeFilter(x.captured_at)\n        AND (\n          '${server_name:raw}' IN ('$__all', '')\n          OR x.server_label IN ($server_name)\n        )\n    )\n    AND (\n      '${duplicate_ip:raw}' IN ('$__all', '')\n      OR EXISTS (\n        SELECT 1\n        FROM JSON_TABLE(\n          CAST('${duplicate_ip:json}' AS JSON),\n          '$[*]' COLUMNS (ip VARCHAR(64) PATH '$')\n        ) AS dup_ip\n        WHERE dup_ip.ip = s.last_ip\n      )\n    )\n  AND (\n    '${server_name:raw}' IN ('$__all', '')\n    OR s.server_label IN ($server_name)\n  )\n),\nsrv_nodes AS (\n  SELECT DISTINCT\n    CONCAT('srv:', s.server_label) AS id,\n    s.server_label AS title,\n    'server' AS subtitle,\n    '#C2410C' AS color,\n    40 AS nodeRadius\n  FROM duplicate_ip_snapshot_servers s\n  WHERE s.proxy_status_scope = '${proxy_scope}'\n    AND s.captured_at = (\n      SELECT MAX(x.captured_at)\n      FROM duplicate_ip_snapshot_servers x\n      WHERE x.proxy_status_scope = '${proxy_scope}'\n        AND $__timeFilter(x.captured_at)\n        AND (\n          '${server_name:raw}' IN ('$__all', '')\n          OR x.server_label IN ($server_name)\n        )\n    )\n    AND (\n      '${duplicate_ip:raw}' IN ('$__all', '')\n      OR EXISTS (\n        SELECT 1\n        FROM JSON_TABLE(\n          CAST('${duplicate_ip:json}' AS JSON),\n          '$[*]' COLUMNS (ip VARCHAR(64) PATH '$')\n        ) AS dup_ip\n        WHERE dup_ip.ip = s.last_ip\n      )\n    )\n  AND (\n    '${server_name:raw}' IN ('$__all', '')\n    OR s.server_label IN ($server_name)\n  )\n),\nall_nodes AS (\n  SELECT * FROM ip_nodes\n  UNION ALL\n  SELECT * FROM srv_nodes\n)\nSELECT * FROM all_nodes\nUNION ALL\nSELECT\n  '__nodata__' AS id,\n  'No data in range' AS title,\n  '' AS subtitle,\n  '#94a3b8' AS color,\n  36 AS nodeRadius\nFROM DUAL\nWHERE (SELECT COUNT(*) FROM all_nodes) = 0",
+          "refId": "nodes"
+        }
+      ],
+      "title": "IP \u2194 server (latest update)",
+      "transformations": [],
+      "type": "nodeGraph"
+    }
+  ],
+  "preload": false,
+  "refresh": "5m",
+  "schemaVersion": 42,
+  "tags": [
+    "proxies",
+    "duplicates",
+    "history",
+    "snapshots",
+    "trends"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "active",
+          "value": "active"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Proxy scope",
+        "multi": false,
+        "name": "proxy_scope",
+        "options": [
+          {
+            "selected": true,
+            "text": "active",
+            "value": "active"
+          },
+          {
+            "selected": false,
+            "text": "all",
+            "value": "all"
+          }
+        ],
+        "query": "active : active, all : all",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT last_ip FROM duplicate_ip_snapshot_rows WHERE last_ip != '__snapshot_empty__' ORDER BY last_ip",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Duplicate IP",
+        "multi": true,
+        "name": "duplicate_ip",
+        "options": [],
+        "query": "SELECT DISTINCT last_ip FROM duplicate_ip_snapshot_rows WHERE last_ip != '__snapshot_empty__' ORDER BY last_ip",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT server_label AS __text, server_label AS __value FROM duplicate_ip_snapshot_servers WHERE server_label IS NOT NULL AND server_label != '' ORDER BY server_label",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Server name",
+        "multi": true,
+        "name": "server_name",
+        "options": [],
+        "query": "SELECT DISTINCT server_label AS __text, server_label AS __value FROM duplicate_ip_snapshot_servers WHERE server_label IS NOT NULL AND server_label != '' ORDER BY server_label",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query",
+        "allValue": null
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Duplicate IP \u2014 Server count trends",
+  "uid": "duplicate-ip-server-trends",
+  "version": 19
+}

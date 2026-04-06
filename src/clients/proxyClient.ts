@@ -102,20 +102,6 @@ export async function requestThroughProxy(
   }
 ): Promise<ProxyMetrics> {
   const startTime = Date.now();
-  const proxyUrl = buildProxyUrl(device);
-  
-  // Log the compiled proxy URL for debugging (password hidden)
-  const maskedProxyUrl = proxyUrl.replace(/:[^:@]+@/, ':****@');
-  logger.info({
-    device: device.name,
-    deviceId: device.device_id,
-    proxyUrl: maskedProxyUrl,
-    proxyUrlFull: proxyUrl, // Full URL for debugging
-    expectedIp: device.ip_address,
-    proxyHost: device.relay_server_ip_address,
-    proxyPort: device.port,
-    targetUrl: url,
-  }, 'Making proxy request');
   
   const proxyAgent = createProxyAgent(device);
   const timeout = options?.timeout || config.testing.requestTimeoutMs;
@@ -180,23 +166,8 @@ export async function requestThroughProxy(
         });
       } catch (consumeError) {
         // Ignore consume errors - we've tried our best to clean up
-        logger.debug(
-          {
-            deviceId: device.device_id,
-            consumeError: consumeError instanceof Error ? consumeError.message : String(consumeError),
-          },
-          'Failed to consume response body stream'
-        );
       }
       
-      logger.warn(
-        {
-          deviceId: device.device_id,
-          error: bodyError?.message,
-          statusCode,
-        },
-        'Failed to parse response body'
-      );
       body = null;
     }
 
@@ -230,17 +201,6 @@ export async function requestThroughProxy(
       // Calculate exponential backoff: 500ms, 1000ms, 2000ms
       const backoffMs = 500 * Math.pow(2, attempt);
       attempt++;
-      
-      logger.warn(
-        {
-          deviceId: device.device_id,
-          statusCode,
-          attempt,
-          maxRetries,
-          backoffMs,
-        },
-        `Transient HTTP error ${statusCode}, retrying after ${backoffMs}ms`
-      );
       
       // Wait before retry
       await new Promise((resolve) => setTimeout(resolve, backoffMs));
@@ -276,17 +236,6 @@ export async function requestThroughProxy(
         const backoffMs = 500 * Math.pow(2, attempt);
         attempt++;
         
-        logger.warn(
-          {
-            deviceId: device.device_id,
-            errorCode: error?.code,
-            attempt,
-            maxRetries,
-            backoffMs,
-          },
-          `Retryable error ${error?.code}, retrying after ${backoffMs}ms`
-        );
-        
         // Wait before retry
         await new Promise((resolve) => setTimeout(resolve, backoffMs));
         
@@ -305,20 +254,14 @@ export async function requestThroughProxy(
   
   // Enhanced error logging with more details for debugging
   const errorDetails: any = {
-    device: device.name,
     deviceId: device.device_id,
-    proxyUrl: maskedProxyUrl,
-    proxyHost: device.relay_server_ip_address,
-    proxyPort: device.port,
-    targetUrl: url,
     errorCode: error?.code,
     errorMessage: error?.message || String(error),
     errorName: error?.name,
-    errorStack: error?.stack, // Add stack trace for debugging
-    errorCause: error?.cause, // Additional error context
+    retryAttempts: attempt,
   };
   
-  logger.error(errorDetails, 'Proxy request failed');
+  logger.debug(errorDetails, 'Proxy request failed (request-level, recorded in database)');
 
   let errorType: ProxyMetrics['errorType'] = 'OTHER';
   let errorMessage = error?.message || String(error);
@@ -469,15 +412,6 @@ export async function requestThroughProxy(
     const nameInfo = errorName ? `(${errorName}) ` : '';
     errorMessage = `${codeInfo}${nameInfo}${errorMessage}`;
     
-    // Log additional details for unclassified errors
-    logger.warn(
-      {
-        ...errorDetails,
-        unclassifiedError: true,
-        suggestion: 'This error type is not yet classified. Consider adding it to error classification logic.',
-      },
-      'Unclassified error - needs investigation'
-    );
   }
 
     return {

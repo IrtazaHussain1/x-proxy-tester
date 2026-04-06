@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 /**
  * Configuration Management Module
  * 
@@ -17,6 +19,8 @@
 interface Config {
   database: {
     url: string;
+    /** Max concurrent prisma.proxy.update calls when syncing portal → DB (prevents pool exhaustion). */
+    proxySyncConcurrency: number;
   };
   xproxy: {
     apiUrl: string;
@@ -85,6 +89,11 @@ interface Config {
     verificationWaitTimeMs: number;
     maxVerificationAttempts: number;
     verificationTimeoutMs: number;
+  };
+  duplicateIpSnapshot: {
+    enabled: boolean;
+    intervalMs: number;
+    retentionDays: number;
   };
 }
 
@@ -264,9 +273,32 @@ function validateConfig(): Config {
     throw new Error('IP_ROTATION_TESTING_BATCH_SIZE must be at least 1');
   }
 
+  /** Default on (like IP rotation); set DUPLICATE_IP_SNAPSHOT_ENABLED=false to disable. */
+  const duplicateIpSnapshotEnabled = process.env.DUPLICATE_IP_SNAPSHOT_ENABLED !== 'false';
+  const duplicateIpSnapshotIntervalMs = parseInt(
+    process.env.DUPLICATE_IP_SNAPSHOT_INTERVAL_MS || '300000',
+    10
+  );
+  const duplicateIpSnapshotRetentionDays = parseInt(
+    process.env.DUPLICATE_IP_SNAPSHOT_RETENTION_DAYS || '90',
+    10
+  );
+  if (duplicateIpSnapshotIntervalMs < 60_000) {
+    throw new Error('DUPLICATE_IP_SNAPSHOT_INTERVAL_MS must be at least 60000ms (1 minute)');
+  }
+  if (duplicateIpSnapshotRetentionDays < 1) {
+    throw new Error('DUPLICATE_IP_SNAPSHOT_RETENTION_DAYS must be at least 1');
+  }
+
+  const proxySyncConcurrency = parseInt(process.env.PROXY_SYNC_CONCURRENCY || '20', 10);
+  if (proxySyncConcurrency < 1) {
+    throw new Error('PROXY_SYNC_CONCURRENCY must be at least 1');
+  }
+
   return {
     database: {
       url: process.env.DATABASE_URL!,
+      proxySyncConcurrency,
     },
     xproxy: {
       apiUrl: process.env.XPROXY_API_URL!,
@@ -335,6 +367,11 @@ function validateConfig(): Config {
       verificationWaitTimeMs: parseInt(process.env.ROTATION_VERIFICATION_WAIT_TIME_MS || '15000', 10),
       maxVerificationAttempts: parseInt(process.env.ROTATION_MAX_VERIFICATION_ATTEMPTS || '5', 10),
       verificationTimeoutMs: parseInt(process.env.ROTATION_VERIFICATION_TIMEOUT_MS || '90000', 10), // 90 seconds default (15s * 5 + buffer)
+    },
+    duplicateIpSnapshot: {
+      enabled: duplicateIpSnapshotEnabled,
+      intervalMs: duplicateIpSnapshotIntervalMs,
+      retentionDays: duplicateIpSnapshotRetentionDays,
     },
   };
 }

@@ -857,67 +857,73 @@ async function refreshDeviceTesters(): Promise<void> {
   const devices = await getDevicesWithRefresh();
   const currentDeviceIds = new Set(devices.map((d) => d.device_id));
   const deviceMap = new Map(devices.map((d) => [d.device_id, d]));
+  const existingProxyActiveById = new Map<string, boolean>();
 
   // Sync all device fields for all proxies from portal
   try {
     const allProxies = await prisma.proxy.findMany({
-      select: { deviceId: true },
+      select: { deviceId: true, active: true },
     });
+    for (const proxy of allProxies) {
+      existingProxyActiveById.set(proxy.deviceId, proxy.active);
+    }
 
-    const updatePromises = allProxies
-      .filter((proxy) => {
-        const device = deviceMap.get(proxy.deviceId);
-        return !!device; // Only update if device exists in portal
-      })
-      .map(async (proxy) => {
-        const device = deviceMap.get(proxy.deviceId);
-        if (!device) return;
-        
-        const isActive = mapProxyStatusToActive(device.proxy_status);
-        
-        await prisma.proxy.update({
-          where: { deviceId: proxy.deviceId },
-          data: {
-            deviceApiId: device.id || null,
-            name: device.name,
-            model: device.model || null,
-            location: device.state || device.city || null,
-            host: device.relay_server_ip_address,
-            port: device.port,
-            username: device.username,
-            password: device.password || null,
-            active: isActive,
-            ipAddress: device.ip_address || null,
-            wsStatus: device.ws_status || null,
-            proxyStatus: device.proxy_status || null,
-            country: device.country || null,
-            state: device.state || null,
-            city: device.city || null,
-            street: device.street || null,
-            longitude: device.longitude || null,
-            latitude: device.latitude || null,
-          relayServerId: device.relay_server_id || null,
-          relayServerIpAddress: device.relay_server_ip_address || null,
-          downloadNetSpeed: device.download_net_speed || null,
-          uploadNetSpeed: device.upload_net_speed || null,
-          lastIpRotation: device.last_ip_rotation || null,
-          extra: device.extra || null,
-          version: extractAppVersion(device.extra),
-          },
-        });
-        
-        logger.debug(
-          {
-            deviceId: proxy.deviceId,
-            deviceName: device.name,
-            active: isActive,
-            portalStatus: device.proxy_status,
-          },
-          'Synced proxy fields from portal'
-        );
-      });
+    // Batch updates: unbounded Promise.all() here exhausts Prisma's connection pool when many proxies exist.
+    const proxiesToSync = allProxies.filter((proxy) => deviceMap.has(proxy.deviceId));
+    const batchSize = config.database.proxySyncConcurrency;
 
-    await Promise.all(updatePromises);
+    for (let i = 0; i < proxiesToSync.length; i += batchSize) {
+      const chunk = proxiesToSync.slice(i, i + batchSize);
+      await Promise.all(
+        chunk.map(async (proxy) => {
+          const device = deviceMap.get(proxy.deviceId);
+          if (!device) return;
+
+          const isActive = mapProxyStatusToActive(device.proxy_status);
+
+          await prisma.proxy.update({
+            where: { deviceId: proxy.deviceId },
+            data: {
+              deviceApiId: device.id || null,
+              name: device.name,
+              model: device.model || null,
+              location: device.state || device.city || null,
+              host: device.relay_server_ip_address,
+              port: device.port,
+              username: device.username,
+              password: device.password || null,
+              active: isActive,
+              ipAddress: device.ip_address || null,
+              wsStatus: device.ws_status || null,
+              proxyStatus: device.proxy_status || null,
+              country: device.country || null,
+              state: device.state || null,
+              city: device.city || null,
+              street: device.street || null,
+              longitude: device.longitude || null,
+              latitude: device.latitude || null,
+              relayServerId: device.relay_server_id || null,
+              relayServerIpAddress: device.relay_server_ip_address || null,
+              downloadNetSpeed: device.download_net_speed || null,
+              uploadNetSpeed: device.upload_net_speed || null,
+              lastIpRotation: device.last_ip_rotation || null,
+              extra: device.extra || null,
+              version: extractAppVersion(device.extra),
+            },
+          });
+
+          logger.debug(
+            {
+              deviceId: proxy.deviceId,
+              deviceName: device.name,
+              active: isActive,
+              portalStatus: device.proxy_status,
+            },
+            'Synced proxy fields from portal'
+          );
+        })
+      );
+    }
   } catch (error) {
     logger.error(
       {
@@ -932,18 +938,7 @@ async function refreshDeviceTesters(): Promise<void> {
   for (const deviceId of deviceIntervals.keys()) {
     const device = deviceMap.get(deviceId);
     const portalActive = device ? mapProxyStatusToActive(device.proxy_status) : false;
-    
-    // Also check database active status (may be auto-deactivated)
-    let dbActive = true;
-    try {
-      const proxy = await prisma.proxy.findUnique({
-        where: { deviceId },
-        select: { active: true },
-      });
-      dbActive = proxy?.active ?? false;
-    } catch (error) {
-      // If check fails, assume active to avoid stopping unnecessarily
-    }
+    const dbActive = existingProxyActiveById.get(deviceId) ?? false;
     
     // Stop if:
     // - Device was removed from portal, OR
@@ -979,23 +974,13 @@ async function refreshDeviceTesters(): Promise<void> {
   // Also create proxy records for devices that don't exist yet
   for (const device of devices) {
     const portalActive = mapProxyStatusToActive(device.proxy_status);
-    
-    // Check if proxy exists in database
-    let proxy = null;
-    let dbActive = true;
-    try {
-      proxy = await prisma.proxy.findUnique({
-        where: { deviceId: device.device_id },
-        select: { active: true },
-      });
-      dbActive = proxy?.active ?? true; // Default to true if proxy doesn't exist yet
-    } catch (error) {
-      // If check fails, assume active
-    }
+    const existingDbActive = existingProxyActiveById.get(device.device_id);
+    let proxyExists = existingDbActive !== undefined;
+    let dbActive = existingDbActive ?? true;
     
     // Create proxy record if it doesn't exist (for both active and inactive proxies)
     // This ensures all proxies from portal are stored in database for complete inventory
-    if (!proxy) {
+    if (!proxyExists) {
       try {
         await prisma.proxy.create({
           data: {
@@ -1042,6 +1027,8 @@ async function refreshDeviceTesters(): Promise<void> {
           'Created proxy record for device'
         );
         dbActive = portalActive; // Set based on actual portal status
+        existingProxyActiveById.set(device.device_id, dbActive);
+        proxyExists = true;
       } catch (error: any) {
         // Handle duplicate key errors gracefully (might happen in race conditions)
         if (error?.code === 'P2002' || error?.message?.includes('Unique constraint')) {
@@ -1056,6 +1043,8 @@ async function refreshDeviceTesters(): Promise<void> {
               select: { active: true },
             });
             dbActive = existingProxy?.active ?? portalActive;
+            existingProxyActiveById.set(device.device_id, dbActive);
+            proxyExists = true;
           } catch {
             // If fetch fails, assume active
             dbActive = portalActive;

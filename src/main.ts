@@ -15,9 +15,10 @@ import { config } from './config';
 import { startServer } from './server';
 import { initGrafanaViews } from './lib/init-grafana-views';
 import { initDatabaseSchema } from './lib/init-db';
-// import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
+import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
+import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
 
 /**
  * Main application entry point
@@ -65,6 +66,7 @@ async function main(): Promise<void> {
       stopSpeedTestService();
       stopHourlySummaryService();
       stopDailyAggregationService();
+      stopDuplicateIpSnapshotService();
       // Flush any pending batch writes before shutdown
       void batchWriter.forceFlush().then(() => {
         void stopIpRotationTesting().then(() => {
@@ -88,6 +90,7 @@ async function main(): Promise<void> {
         stopSpeedTestService();
         stopHourlySummaryService();
         stopDailyAggregationService();
+        stopDuplicateIpSnapshotService();
         // Flush any pending batch writes before shutdown
         void batchWriter.forceFlush().then(() => {
           void stopIpRotationTesting().then(() => {
@@ -138,7 +141,7 @@ async function main(): Promise<void> {
     await initDatabaseSchema();
 
     // Initialize performance optimizations (indexes, summary tables)
-    // await initPerformanceOptimizations();
+    await initPerformanceOptimizations();
 
     // Initialize Grafana views (after database schema is ready)
     await initGrafanaViews();
@@ -162,6 +165,23 @@ async function main(): Promise<void> {
       );
     } else {
       logger.info('Periodic IP rotation service is disabled');
+    }
+
+    logger.info(
+      {
+        duplicateIpSnapshotEnabled: config.duplicateIpSnapshot.enabled,
+        duplicateIpSnapshotIntervalMs: config.duplicateIpSnapshot.intervalMs,
+        duplicateIpSnapshotRetentionDays: config.duplicateIpSnapshot.retentionDays,
+      },
+      'Duplicate IP snapshot configuration'
+    );
+    if (config.duplicateIpSnapshot.enabled) {
+      startDuplicateIpSnapshotService(
+        config.duplicateIpSnapshot.intervalMs,
+        config.duplicateIpSnapshot.retentionDays
+      );
+    } else {
+      logger.info('Duplicate IP snapshot service is disabled (DUPLICATE_IP_SNAPSHOT_ENABLED=false)');
     }
 
     // Start IP rotation testing service (runs alongside continuous testing)
@@ -232,6 +252,7 @@ async function main(): Promise<void> {
           stopSpeedTestService();
           stopHourlySummaryService();
           stopDailyAggregationService();
+          stopDuplicateIpSnapshotService();
           // Flush any pending batch writes before shutdown
           void batchWriter.forceFlush().then(() => {
             void stopIpRotationTesting().then(() => {

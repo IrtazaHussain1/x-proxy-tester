@@ -7,7 +7,7 @@
  * @module helpers/test-proxy
  */
 
-import { requestThroughProxy, buildProxyUrl } from '../clients/proxyClient';
+import { requestThroughProxy } from '../clients/proxyClient';
 import { logger } from '../lib/logger';
 import { config } from '../config';
 import type { Device, ProxyMetrics } from '../types';
@@ -23,7 +23,6 @@ import type { Device, ProxyMetrics } from '../types';
  * - Error details (if failed)
  * 
  * @param device - Device object with proxy credentials
- * @param expectedIp - Expected outbound IP (defaults to device.ip_address)
  * @returns Promise resolving to ProxyMetrics with test results
  * 
  * @example
@@ -35,51 +34,21 @@ import type { Device, ProxyMetrics } from '../types';
  * ```
  */
 export async function testProxyWithStats(
-  device: Device,
-  expectedIp?: string
+  device: Device
 ): Promise<ProxyMetrics> {
   const testUrl = config.testing.targetUrl;
   const timeout = config.testing.requestTimeoutMs;
-  const expected = expectedIp || device.ip_address;
 
   const startTime = Date.now();
 
   try {
     const metrics = await requestThroughProxy(device, testUrl, { timeout });
     
-    const ipMatch = String(metrics.outboundIp).trim() === String(expected).trim();
-    const ipStatus = ipMatch ? 'MATCH' : 'MISMATCH';
-    const proxyUrl = buildProxyUrl(device);
-    const maskedProxyUrl = proxyUrl.replace(/:[^:@]+@/, ':****@');
-
-    // Log proxy details on first line
-    logger.info(
-      {
-        device: device.name,
-        deviceId: device.device_id,
-        proxy: `${device.relay_server_ip_address}:${device.port}`,
-        proxyUrl: maskedProxyUrl,
-      },
-      `Proxy: ${device.name} (${device.device_id}) | ${device.relay_server_ip_address}:${device.port}`
-    );
-
-    // Log success stats
-    if (metrics.success) {
-      const statusIcon = ipMatch ? '✅' : '⚠️';
-      logger.info(
-        {
-          status: ipStatus,
-          responseTime: `${metrics.responseTimeMs}ms`,
-          httpStatus: metrics.httpStatus,
-          expectedIp: expected,
-          returnedIp: metrics.outboundIp,
-        },
-        `${statusIcon} Status: ${ipStatus} | IP: ${metrics.outboundIp} (expected: ${expected}) | ${metrics.responseTimeMs}ms | HTTP ${metrics.httpStatus}`
-      );
-    } else {
+    if (!metrics.success) {
       // Log failure stats
-      logger.error(
+      logger.debug(
         {
+          deviceId: device.device_id,
           errorType: metrics.errorType,
           errorMessage: metrics.errorMessage,
           responseTime: `${metrics.responseTimeMs}ms`,
@@ -92,8 +61,6 @@ export async function testProxyWithStats(
     return metrics;
   } catch (error) {
     const duration = Date.now() - startTime;
-    const proxyUrl = buildProxyUrl(device);
-    const maskedProxyUrl = proxyUrl.replace(/:[^:@]+@/, ':****@');
     
     // Extract comprehensive error information
     const errorObj = error instanceof Error ? error : new Error(String(error));
@@ -101,20 +68,10 @@ export async function testProxyWithStats(
     const errorName = errorObj.name;
     const errorMessage = errorObj.message || 'Unknown error';
 
-    // Log proxy details on first line
-    logger.info(
+    // Log sanitized error details
+    logger.debug(
       {
-        device: device.name,
         deviceId: device.device_id,
-        proxy: `${device.relay_server_ip_address}:${device.port}`,
-        proxyUrl: maskedProxyUrl,
-      },
-      `Proxy: ${device.name} (${device.device_id}) | ${device.relay_server_ip_address}:${device.port}`
-    );
-
-    // Log error on second line
-    logger.error(
-      {
         errorCode,
         errorName,
         errorMessage,
@@ -167,8 +124,6 @@ export async function testProxyWithStats(
 export async function testMultipleProxies(
   devices: Device[]
 ): Promise<Array<ProxyMetrics & { deviceId: string; deviceName: string }>> {
-  logger.info({ count: devices.length }, 'Starting batch proxy tests');
-
   const results = await Promise.allSettled(
     devices.map(async (device) => {
       const metrics = await testProxyWithStats(device);
@@ -211,7 +166,7 @@ export async function testMultipleProxies(
         classifiedMessage = `[${errorCode}] ${errorMessage}`;
       }
       
-      logger.error(
+      logger.debug(
         {
           deviceId: device.device_id,
           deviceName: device.name,
@@ -237,23 +192,6 @@ export async function testMultipleProxies(
       };
     }
   });
-
-  // Log summary stats
-  const successful = metrics.filter((m) => m.success).length;
-  const failed = metrics.length - successful;
-  const avgResponseTime =
-    metrics.reduce((sum, m) => sum + m.responseTimeMs, 0) / metrics.length;
-
-  logger.info(
-    {
-      total: metrics.length,
-      successful,
-      failed,
-      successRate: ((successful / metrics.length) * 100).toFixed(2) + '%',
-      avgResponseTimeMs: Math.round(avgResponseTime),
-    },
-    'Batch proxy tests completed'
-  );
 
   return metrics;
 }

@@ -647,7 +647,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n    p.name as proxy_name,\n    p.country,\n    p.state,\n    p.city,\n    p.proxy_status,\n    p.version,\n    ipr.*\nFROM \n    xproxy_tester.ip_rotations as ipr \nJOIN \n    rotation_cycles as rc ON rc.id = ipr.cycle_id \nLEFT JOIN\n    proxies as p ON p.device_id = ipr.proxy_id\nWHERE \n    rc.cycle_type = 'periodic' \n    AND $__timeFilter(ipr.rotation_timestamp)\nORDER BY\n    ipr.rotation_timestamp DESC",
+          "rawSql": "SELECT \n    p.name as proxy_name,\n    p.country,\n    p.state,\n    p.city,\n    p.proxy_status,\n    p.version,\n    ipr.id,\n    ipr.cycle_id,\n    ipr.proxy_id,\n    ipr.rotation_type,\n    ipr.command_sent_at,\n    ipr.rotation_timestamp,\n    ipr.command_response,\n    ipr.ip_before,\n    ipr.ip_after,\n    ipr.status_before,\n    ipr.status_after,\n    ipr.ws_status_before,\n    ipr.ws_status_after,\n    ipr.success,\n    ipr.verification_method,\n    ipr.verified_at,\n    ipr.wait_time_ms,\n    ipr.rotation_duration_ms,\n    ipr.retry_count,\n    ipr.error_message,\n    ipr.created_at,\n    ipr.updated_at\nFROM \n    xproxy_tester.ip_rotations as ipr \nJOIN \n    rotation_cycles as rc ON rc.id = ipr.cycle_id \nLEFT JOIN\n    proxies as p ON p.device_id = ipr.proxy_id\nWHERE \n    rc.cycle_type = 'periodic' \n    AND $__timeFilter(ipr.rotation_timestamp)\nORDER BY\n    ipr.rotation_timestamp DESC",
           "refId": "A",
           "sql": {
             "columns": [

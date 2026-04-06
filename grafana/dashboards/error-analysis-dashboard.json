@@ -81,7 +81,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location)",
+          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS'",
           "refId": "A"
         }
       ],
@@ -151,7 +151,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location)",
+          "rawSql": "SELECT COALESCE(SUM(r.status != 'SUCCESS') * 100.0 / NULLIF(COUNT(*), 0), 0) as value FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp)",
           "refId": "A"
         }
       ],
@@ -240,7 +240,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COALESCE(r.error_type, 'UNKNOWN') as metric, COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' AND p.location IN ($location) GROUP BY metric",
+          "rawSql": "SELECT COALESCE(r.error_type, 'UNKNOWN') as metric, COUNT(*) as value FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS' GROUP BY metric",
           "refId": "A"
         }
       ],
@@ -308,7 +308,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT r.error_type) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL AND p.location IN ($location)",
+          "rawSql": "SELECT COUNT(DISTINCT r.error_type) as value FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL",
           "refId": "A",
           "sql": {
             "columns": [
@@ -453,7 +453,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT DISTINCT r.error_type as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL AND p.location IN ($location)",
+          "rawSql": "SELECT DISTINCT r.error_type as value FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.error_type IS NOT NULL",
           "refId": "A",
           "sql": {
             "columns": [
@@ -567,7 +567,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) GROUP BY time_sec ORDER BY time_sec",
+          "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '1m'), COALESCE(SUM(r.status != 'SUCCESS') * 100.0 / NULLIF(COUNT(*), 0), 0) as error_rate FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) GROUP BY 1 ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -623,7 +623,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT p.name, p.device_id, p.location, p.version, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count, COUNT(*) as total_requests, COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate, GROUP_CONCAT(DISTINCT pr.error_type) as error_types FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location, p.version HAVING error_count > 0 ORDER BY error_count DESC LIMIT 20",
+          "rawSql": "SELECT p.name, p.device_id, p.location, p.version, SUM(pr.status != 'SUCCESS') as error_count, COUNT(*) as total_requests, COALESCE(SUM(pr.status != 'SUCCESS') * 100.0 / NULLIF(COUNT(*), 0), 0) as error_rate, GROUP_CONCAT(DISTINCT pr.error_type) as error_types FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location, p.version HAVING error_count > 0 ORDER BY error_count DESC LIMIT 20",
           "refId": "A"
         }
       ],

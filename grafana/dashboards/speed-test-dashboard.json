@@ -307,7 +307,7 @@
       "type": "table"
     }
   ],
-  "refresh": "1m",
+  "refresh": "",
   "schemaVersion": 38,
   "tags": [
     "x-proxy-tester",
