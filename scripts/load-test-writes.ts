@@ -66,7 +66,7 @@ interface Stats {
   startedAt:   number;
 }
 
-const stats: Stats = { inserted: 0, errors: 0, latencies: [], startedAt: Date.now() };
+const stats: Stats = { inserted: 0, errors: 0, latencies: [], startedAt: Date.now(), retries: 0 };
 
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
