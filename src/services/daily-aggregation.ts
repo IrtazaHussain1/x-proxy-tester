@@ -264,8 +264,9 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
            avg_download_speed_mbps, avg_upload_speed_mbps,
            max_download_speed_mbps, max_upload_speed_mbps,
            min_download_speed_mbps, min_upload_speed_mbps,
-           unique_ips_count, ip_diversity_score
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+           unique_ips_count, ip_diversity_score,
+           created_at, updated_at
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
          ON DUPLICATE KEY UPDATE
            location              = VALUES(location),
            relay_server_id       = VALUES(relay_server_id),
