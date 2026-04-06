@@ -8,6 +8,7 @@
 import { createHash } from 'crypto';
 import { logger } from '../lib/logger';
 import { prisma } from '../lib/db';
+import { hasDatabaseCapacityForBackgroundJobs } from '../lib/db';
 
 /** Whitelisted Grafana ${proxy_status} values only — never interpolate untrusted input. */
 export type ProxyStatusScope = 'active' | 'all';
@@ -287,6 +288,12 @@ export async function runDuplicateIpSnapshots(options?: {
   runRetentionPrune?: boolean;
   retentionDays?: number;
 }): Promise<void> {
+  const hasCapacity = await hasDatabaseCapacityForBackgroundJobs();
+  if (!hasCapacity) {
+    logger.warn('Skipping duplicate IP snapshot tick due to database pool pressure');
+    return;
+  }
+
   const capturedAt = options?.capturedAt ?? floorToFiveMinuteUtc(new Date());
   const scopes: ProxyStatusScope[] = ['active', 'all'];
 
