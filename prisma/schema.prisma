@@ -143,15 +143,8 @@ model ProxyRequest {
 
   @@index([proxyId, timestamp])
   @@index([proxyId, timestamp, source], map: "idx_proxy_requests_proxy_timestamp_source")
-  @@index([timestamp, proxyId])
   @@index([timestamp])
-  @@index([status])
   @@index([outboundIp])
-  @@index([expectedIp])
-  @@index([ipChanged])
-  @@index([source])
-  @@index([createdAt])
-  @@index([updatedAt])
   @@map("proxy_requests")
 }
 
