@@ -17,11 +17,10 @@ import { testProxyWithStats } from '../helpers/test-proxy';
 import { logger } from '../lib/logger';
 import { extractAppVersion } from '../helpers/extra-parser';
 import { prismaWithRetry as prisma, prisma as prismaRaw } from '../lib/db';
-import { batchWriter } from '../lib/batch-writer';
 import { startStabilityCalculation } from './stability-calculator';
 import {
-  // checkAutoDeactivation,
-  // autoDeactivateProxy,
+  checkAutoDeactivation,
+  autoDeactivateProxy,
   startRecoveryChecking,
 } from './auto-deactivation';
 import { startInactiveProxyRotation } from './ip-rotation';
@@ -30,6 +29,7 @@ import { config } from '../config';
 import { recordRequest, setActiveProxies } from '../lib/metrics';
 import { enqueueProxyTestWriteJob } from '../lib/proxy-test-write-queue';
 import { enqueueOrCoalesceProxyMetaWriteJob } from '../lib/proxy-meta-write-queue';
+import { encrypt } from '../lib/encryption';
 import type { Device, ProxyMetrics, RequestStatus, RotationStatus, RequestSource } from '../types';
 
 /**
@@ -170,7 +170,15 @@ export async function saveProxyTestToDatabase(
   metrics: ProxyMetrics,
   source: RequestSource = 'continuous'
 ): Promise<void> {
-  await enqueueProxyTestWriteJob({ device, metrics, source });
+  try {
+    await enqueueProxyTestWriteJob({ device, metrics, source });
+  } catch (enqueueErr) {
+    logger.warn(
+      { deviceId: device.device_id, error: enqueueErr instanceof Error ? enqueueErr.message : String(enqueueErr) },
+      'Redis unavailable — falling back to direct DB write'
+    );
+    await processProxyTestWriteJob(device, metrics, source);
+  }
 }
 
 /**
@@ -218,7 +226,7 @@ export async function processProxyTestWriteJob(
       host: device.relay_server_ip_address,
       port: device.port,
       username: device.username,
-      password: device.password || null,
+      password: device.password ? await encrypt(device.password) : null,
       active: isActive,
       ipAddress: device.ip_address || null,
       wsStatus: device.ws_status || null,
@@ -384,16 +392,16 @@ export async function processProxyTestWriteJob(
       data: proxyExistedBefore ? { ...portalSyncData, ...rotationData } : rotationData,
     });
     
-    // Save the test request using batch writer (optimized for high volume)
-    // This batches writes to reduce database overhead from ~2.85M individual inserts
-    batchWriter.add({
-      type: 'create',
-      model: 'proxyRequest',
-      data: {
+    // Write the test request directly — awaited so BullMQ only acknowledges the job
+    // after the data is actually in MySQL. The queue's 5-attempt retry covers transient
+    // DB failures. Using batchWriter.add() here caused silent data loss: the job was
+    // acknowledged before the async batch flush, so a crash between enqueue and flush
+    // permanently dropped the record.
+    await prisma.proxyRequest.createMany({
+      data: [{
         proxyId: proxy.deviceId,
         timestamp: eventTimestamp,
         createdAt: eventTimestamp,
-        // Keep updatedAt aligned with event time for first insert.
         updatedAt: eventTimestamp,
         targetUrl: metrics.requestUrl,
         status: mapToRequestStatus(metrics),
@@ -401,13 +409,14 @@ export async function processProxyTestWriteJob(
         responseTimeMs: metrics.responseTimeMs,
         expectedIp: expectedIp || null,
         outboundIp: metrics.outboundIp || null,
-        ipChanged: ipChangedFromPrevious, // Changed from previous request (rotation)
+        ipChanged: ipChangedFromPrevious,
         errorType: metrics.errorType || null,
         errorMessage: metrics.errorMessage || null,
-        source: source, // Track the source workflow
-        downloadSpeedMbps: null, // Speed tests handled separately
+        source: source,
+        downloadSpeedMbps: null,
         uploadSpeedMbps: null,
-      },
+      }],
+      skipDuplicates: true,
     });
 
     if (hasCurrentIp && metrics.success) {
@@ -473,17 +482,16 @@ export async function processProxyTestWriteJob(
     }
 
     // Check for auto-deactivation if request failed
-    // if (!metrics.success && config.autoDeactivation.enabled) {
-    //   const deactivationCheck = await checkAutoDeactivation(device.device_id);
-    //   if (deactivationCheck.shouldDeactivate) {
-    //     // await autoDeactivateProxy(device.device_id, deactivationCheck.reason || 'unknown', {
-    //     //   consecutiveFailures: deactivationCheck.consecutiveFailures,
-    //     //   failureRate: deactivationCheck.failureRate,
-    //     // });
-    //     // // Stop testing this device if it was auto-deactivated
-    //     // stopDeviceTesting(device.device_id);
-    //   }
-    // }
+    if (!metrics.success && config.autoDeactivation.enabled) {
+      const deactivationCheck = await checkAutoDeactivation(device.device_id);
+      if (deactivationCheck.shouldDeactivate) {
+        await autoDeactivateProxy(device.device_id, deactivationCheck.reason ?? 'unknown', {
+          consecutiveFailures: deactivationCheck.consecutiveFailures,
+          failureRate: deactivationCheck.failureRate,
+        });
+        stopDeviceTesting(device.device_id);
+      }
+    }
   } catch (error) {
     logger.error(
       {
@@ -859,29 +867,6 @@ async function getDevicesWithRefresh(): Promise<Device[]> {
     !lastDevicesFetch ||
     now.getTime() - lastDevicesFetch.getTime() >= config.refresh.intervalMs;
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/7c255b7b-6005-41f6-a0e1-46229c325ff7', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Debug-Session-Id': '984d79',
-    },
-    body: JSON.stringify({
-      sessionId: '984d79',
-      runId: 'pre',
-      hypothesisId: 'A',
-      location: 'src/services/continuous-proxy-tester.ts:getDevicesWithRefresh',
-      message: 'devices cache refresh decision',
-      data: {
-        shouldRefresh,
-        ageMs: lastDevicesFetch ? now.getTime() - lastDevicesFetch.getTime() : null,
-        refreshIntervalMs: config.refresh.intervalMs,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
-
   if (shouldRefresh) {
     logger.info('Refreshing devices cache (cache expired or first run)');
     try {
@@ -937,9 +922,10 @@ async function refreshDeviceTesters(): Promise<void> {
 
     for (let i = 0; i < proxiesToSync.length; i += batchSize) {
       const chunk = proxiesToSync.slice(i, i + batchSize);
-      const updateQueries = chunk.flatMap((proxy) => {
+      const updateQueries: any[] = [];
+      for (const proxy of chunk) {
         const device = deviceMap.get(proxy.deviceId);
-        if (!device) return [];
+        if (!device) continue;
 
         const isActive = mapProxyStatusToActive(device.proxy_status);
 
@@ -953,7 +939,7 @@ async function refreshDeviceTesters(): Promise<void> {
           'Queued proxy field sync from portal'
         );
 
-        return prismaRaw.proxy.update({
+        updateQueries.push(prismaRaw.proxy.update({
           where: { deviceId: proxy.deviceId },
           data: {
             deviceApiId: device.id || null,
@@ -963,7 +949,7 @@ async function refreshDeviceTesters(): Promise<void> {
             host: device.relay_server_ip_address,
             port: device.port,
             username: device.username,
-            password: device.password || null,
+            password: device.password ? await encrypt(device.password) : null,
             active: isActive,
             ipAddress: device.ip_address || null,
             wsStatus: device.ws_status || null,
@@ -982,8 +968,8 @@ async function refreshDeviceTesters(): Promise<void> {
             extra: device.extra || null,
             version: extractAppVersion(device.extra),
           },
-        });
-      });
+        }));
+      }
 
       if (updateQueries.length > 0) {
         await prisma.$transaction(updateQueries, { maxWait: 20_000, timeout: 120_000 });
@@ -1058,7 +1044,7 @@ async function refreshDeviceTesters(): Promise<void> {
             port: device.port,
             protocol: 'http',
             username: device.username,
-            password: device.password || null,
+            password: device.password ? await encrypt(device.password) : null,
             active: portalActive, // Set based on portal status (can be false for inactive)
             ipAddress: device.ip_address || null,
             wsStatus: device.ws_status || null,

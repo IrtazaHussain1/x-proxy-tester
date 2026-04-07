@@ -67,23 +67,28 @@ function getOrCreateQueue(): Queue<ProxyMetaWriteJobData> {
 }
 
 /**
- * Enqueues or coalesces a pending per-device metadata update.
- * If a waiting/delayed job already exists for the same device, its payload is replaced with latest data.
+ * Enqueues a per-device metadata update with BullMQ native deduplication.
+ *
+ * BullMQ dedup via a fixed jobId: if a job with this ID is already in waiting/delayed
+ * state, the add() call is a no-op (the latest data is not merged — the queued payload
+ * is kept as-is). The 200ms delay provides a coalescing window so rapid successive
+ * updates for the same device collapse into a single job.
+ *
+ * This replaces the previous getJob/getState/updateData pattern which had a non-atomic
+ * race: the worker could dequeue the job between getState() and updateData(), causing
+ * updateData() to run on an already-active job.
  */
 export async function enqueueOrCoalesceProxyMetaWriteJob(data: ProxyMetaWriteJobData): Promise<void> {
   const q = getOrCreateQueue()
   const jobId = `proxy-meta-${data.deviceId}`
-  const existing = await q.getJob(jobId)
-
-  if (existing) {
-    const state = await existing.getState()
-    if (state === 'waiting' || state === 'delayed') {
-      await existing.updateData(data)
-      return
-    }
-  }
-
-  await q.add('write', data, { jobId })
+  await q.add('write', data, {
+    jobId,
+    delay: 200,
+    removeOnComplete: shouldPurgeCompletedJobs() ? true : 2000,
+    removeOnFail: getFailedJobRetentionCount(),
+    attempts: 5,
+    backoff: { type: 'exponential', delay: 1000 },
+  })
 }
 
 export function startProxyMetaWriteWorker(

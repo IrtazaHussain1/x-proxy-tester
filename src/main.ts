@@ -14,7 +14,7 @@ import { logger } from './lib/logger';
 import { config } from './config';
 import { startServer } from './server';
 import { initGrafanaViews } from './lib/init-grafana-views';
-import { initDatabaseSchema } from './lib/init-db';
+import { initDatabaseSchema, checkPartitionEventHealth } from './lib/init-db';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
@@ -25,12 +25,57 @@ import type { ProxyTestWriteJobData } from './lib/proxy-test-write-queue';
 import type { ProxyMetaWriteJobData } from './lib/proxy-meta-write-queue';
 
 /**
+ * Performs a graceful shutdown in the correct order:
+ * 1. Stop all schedulers/loops (no new work enqueued)
+ * 2. Drain BullMQ workers (they may still be writing to batchWriter)
+ * 3. Flush batchWriter (pick up anything workers added during drain)
+ *
+ * A 30-second hard deadline forces process.exit(1) if any step hangs.
+ */
+async function gracefulShutdown(reason: string): Promise<void> {
+  logger.info({ reason }, 'Graceful shutdown initiated');
+
+  const forceExitTimer = setTimeout(() => {
+    logger.error('Graceful shutdown exceeded 30s deadline, forcing exit');
+    process.exit(1);
+  }, 30_000);
+  forceExitTimer.unref();
+
+  try {
+    // Stop schedulers first — no new jobs enqueued after this point
+    stopPeriodicIpRotation();
+    cleanupWorkers();
+    stopContinuousTesting();
+    stopSpeedTestService();
+    stopDailyAggregationService();
+    stopDuplicateIpSnapshotService();
+
+    // Drain BullMQ workers BEFORE flushing batchWriter.
+    // Workers call batchWriter.add() — they must finish processing
+    // their current jobs before we snapshot and flush the batch.
+    await stopProxyTestWriteQueue();
+    await stopProxyMetaWriteQueue();
+    await stopIpRotationTesting();
+
+    // Now flush anything the workers accumulated during their drain.
+    await batchWriter.forceFlush();
+
+    clearTimeout(forceExitTimer);
+    logger.info({ reason }, 'Graceful shutdown complete');
+    process.exit(0);
+  } catch (err) {
+    logger.error({ err, reason }, 'Error during graceful shutdown');
+    process.exit(1);
+  }
+}
+
+/**
  * Main application entry point
- * 
+ *
  * Starts continuous proxy testing with runtime management:
  * - If RUN_MODE="fixed": Runs for at least MIN_RUN_HOURS, then stops
  * - If RUN_MODE="infinite": Runs indefinitely until manually stopped (SIGINT/SIGTERM)
- * 
+ *
  * In infinite mode, shutdown is allowed immediately.
  * In fixed mode, shutdown is blocked until minimum hours have passed.
  */
@@ -64,23 +109,7 @@ async function main(): Promise<void> {
     if (config.runtime.runMode === 'infinite') {
       // Infinite mode: allow immediate shutdown
       logger.info(`Received ${signal}, shutting down gracefully...`);
-      stopPeriodicIpRotation();
-      cleanupWorkers();
-      stopContinuousTesting();
-      stopSpeedTestService();
-
-      stopDailyAggregationService();
-      stopDuplicateIpSnapshotService();
-      // Flush any pending batch writes before shutdown
-      void batchWriter.forceFlush().then(() => {
-        void stopProxyTestWriteQueue().then(() => {
-          void stopProxyMetaWriteQueue().then(() => {
-            void stopIpRotationTesting().then(() => {
-              process.exit(0);
-            });
-          });
-        });
-      });
+      void gracefulShutdown(`${signal}-infinite`);
     } else {
       // Fixed mode: check if minimum runtime met
       if (hasMetMinimumRuntime()) {
@@ -92,23 +121,7 @@ async function main(): Promise<void> {
           },
           `Received ${signal}, minimum runtime met, shutting down gracefully...`
         );
-        stopPeriodicIpRotation();
-        cleanupWorkers();
-        stopContinuousTesting();
-        stopSpeedTestService();
-  
-        stopDailyAggregationService();
-        stopDuplicateIpSnapshotService();
-        // Flush any pending batch writes before shutdown
-        void batchWriter.forceFlush().then(() => {
-          void stopProxyTestWriteQueue().then(() => {
-            void stopProxyMetaWriteQueue().then(() => {
-              void stopIpRotationTesting().then(() => {
-                process.exit(0);
-              });
-            });
-          });
-        });
+        void gracefulShutdown(`${signal}-fixed`);
       } else {
         const remainingHours = (getRemainingTimeMs() / (60 * 60 * 1000)).toFixed(2);
         logger.warn(
@@ -145,8 +158,6 @@ async function main(): Promise<void> {
 
     // Start HTTP server for health checks and metrics endpoints
     startServer();
-    startProxyTestWriteWorker(handleProxyTestWriteJob);
-    startProxyMetaWriteWorker(handleProxyMetaWriteJob);
 
     // Wait for database to be ready (important for Docker startup)
     // MySQL container may take time to initialize, so we retry with exponential backoff
@@ -164,6 +175,15 @@ async function main(): Promise<void> {
 
     // Initialize Grafana views (after database schema is ready)
     await initGrafanaViews();
+
+    // Verify partition management EVENT health (non-fatal; logs CRITICAL if misconfigured)
+    await checkPartitionEventHealth();
+
+    // Start BullMQ workers only after the schema is guaranteed to exist.
+    // Starting workers earlier causes them to immediately dequeue Redis jobs from a
+    // previous run and attempt DB writes before tables are created.
+    startProxyTestWriteWorker(handleProxyTestWriteJob);
+    startProxyMetaWriteWorker(handleProxyMetaWriteJob);
 
     // Start continuous testing
     await startContinuousTesting();
@@ -230,7 +250,9 @@ async function main(): Promise<void> {
 
     // Optional startup backfill. Disabled by default to avoid adding heavy read/write load
     // while continuous testing and rotation services are warming up.
-    const startupBackfillDays = parseInt(process.env.STARTUP_DAILY_BACKFILL_DAYS || '0', 10);
+    // Default to 2 days so any day skipped by a previous run (e.g. DB pressure at 01:00)
+    // is automatically recovered on the next restart before the partition drops it.
+    const startupBackfillDays = parseInt(process.env.STARTUP_DAILY_BACKFILL_DAYS || '2', 10);
     if (startupBackfillDays > 0) {
       setTimeout(() => {
         void aggregateRecentDays(startupBackfillDays).catch((err) => {
@@ -281,23 +303,7 @@ async function main(): Promise<void> {
             },
             'Minimum runtime met, shutting down...'
           );
-          stopPeriodicIpRotation();
-          cleanupWorkers();
-          stopContinuousTesting();
-          stopSpeedTestService();
-    
-          stopDailyAggregationService();
-          stopDuplicateIpSnapshotService();
-          // Flush any pending batch writes before shutdown
-          void batchWriter.forceFlush().then(() => {
-            void stopProxyTestWriteQueue().then(() => {
-              void stopProxyMetaWriteQueue().then(() => {
-                void stopIpRotationTesting().then(() => {
-                  process.exit(0);
-                });
-              });
-            });
-          });
+          void gracefulShutdown('fixed-runtime-expired');
         } else {
           const remainingHours = (getRemainingTimeMs() / (60 * 60 * 1000)).toFixed(2);
           logger.debug(
