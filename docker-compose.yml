@@ -4,13 +4,15 @@ services:
     platform: ${REDIS_DOCKER_PLATFORM:-linux/arm64/v8}
     container_name: x-proxy-tester-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --save 60 1000
-    ports:
-      - "6379:6379"
+    command: >
+      sh -c "redis-server --appendonly yes --save 60 1000
+      ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}"
+    # REDIS_PASSWORD unset/empty → no auth. Set it in .env for production security.
+    # Port not published externally — app reaches Redis via proxy-network bridge
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $REDIS_PASSWORD} ping"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -130,6 +132,9 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       ENCRYPTION_SALT: ${ENCRYPTION_SALT}
       
+      # Timezone — keep Node.js and MySQL aligned for UTC-based day boundaries
+      TZ: UTC
+
       # Health Check
       HEALTH_CHECK_PORT: ${HEALTH_CHECK_PORT:-3000}
       

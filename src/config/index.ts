@@ -127,6 +127,20 @@ function validateConfig(): Config {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
+  // Security warnings — logged at startup; not hard failures to allow local dev
+  const redisPassword = process.env.REDIS_PASSWORD;
+  if (!redisPassword || redisPassword.trim() === '') {
+    console.warn('WARNING: REDIS_PASSWORD not set. BullMQ job payloads may contain device credentials. Set a strong password in production.');
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    const encKey = process.env.ENCRYPTION_KEY;
+    const defaultKey = 'x-proxy-tester-default-key-change-in-production';
+    if (!encKey || encKey === defaultKey) {
+      throw new Error('ENCRYPTION_KEY must be set to a unique value in production. Run: node -e "require(\'crypto\').randomBytes(32).toString(\'hex\')" to generate one.');
+    }
+  }
+
   const testIntervalMs = parseInt(process.env.TEST_INTERVAL_MS || '5000', 10);
   const requestTimeoutMs = parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10);
   const rotationThreshold = parseInt(process.env.ROTATION_THRESHOLD || '10', 10);

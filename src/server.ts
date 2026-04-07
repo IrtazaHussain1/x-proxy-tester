@@ -15,16 +15,28 @@ import {
 import { getProblemsHandler } from './api/analytics';
 
 const PORT = parseInt(process.env.HEALTH_CHECK_PORT || '3000', 10);
+const API_SECRET_KEY = process.env.API_SECRET_KEY || '';
+
+if (!API_SECRET_KEY) {
+  console.warn('WARNING: API_SECRET_KEY not set. Management endpoints /api/testing/start and /api/testing/stop are unauthenticated.');
+}
+
+function isAuthorized(req: IncomingMessage): boolean {
+  if (!API_SECRET_KEY) return true; // not configured — open (warned at startup)
+  const authHeader = (req.headers['authorization'] as string) || '';
+  return authHeader === `Bearer ${API_SECRET_KEY}`;
+}
 
 // Handle incoming HTTP requests and route to appropriate handlers
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = req.url || '/';
   const method = req.method || 'GET';
 
-  // Set CORS headers to allow cross-origin requests
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Set CORS headers — restrict origin in production via CORS_ALLOWED_ORIGIN env var
+  const allowedOrigin = process.env.CORS_ALLOWED_ORIGIN || '*';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   // Handle CORS preflight requests
   if (method === 'OPTIONS') {
@@ -61,11 +73,21 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       res.end(JSON.stringify(status, null, 2));
     // Start proxy testing via API
     } else if (url === '/api/testing/start' && method === 'POST') {
+      if (!isAuthorized(req)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
+      }
       const result = await startTestingHandler();
       res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result, null, 2));
     // Stop proxy testing via API
     } else if (url === '/api/testing/stop' && method === 'POST') {
+      if (!isAuthorized(req)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
+      }
       const result = await stopTestingHandler();
       res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result, null, 2));
