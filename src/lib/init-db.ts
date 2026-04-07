@@ -10,7 +10,7 @@
 import { execSync } from 'child_process';
 import path from 'path';
 import { logger } from './logger';
-import { prisma } from './db';
+import { prisma, backgroundDb } from './db';
 
 /**
  * Sync database schema using Prisma db push (TypeORM-like sync)
@@ -130,5 +130,56 @@ export async function initDatabaseSchema(): Promise<void> {
     'Failed to sync database schema after all retries'
   );
   // Don't throw - let the app continue and fail gracefully if schema is missing
+}
+
+/**
+ * Verifies the MySQL partition management EVENT is enabled and has run recently.
+ * Logs an error if missing or disabled — the partition EVENT is critical for:
+ *   1. Creating future monthly partitions before inserts overflow into p_future
+ *   2. Dropping old partitions beyond the retention window
+ *
+ * Requires MySQL event_scheduler=ON in the server config (not the default in all builds).
+ */
+export async function checkPartitionEventHealth(): Promise<void> {
+  try {
+    const eventRows = await backgroundDb.$queryRawUnsafe<Array<{
+      STATUS: string;
+      LAST_EXECUTED: Date | null;
+    }>>(
+      `SELECT STATUS, LAST_EXECUTED
+         FROM information_schema.EVENTS
+        WHERE EVENT_SCHEMA = DATABASE()
+          AND EVENT_NAME = 'manage_proxy_requests_partitions'`
+    );
+
+    if (eventRows.length === 0) {
+      logger.error('CRITICAL: manage_proxy_requests_partitions MySQL EVENT does not exist. Run the partitioning migration.');
+      return;
+    }
+
+    if (eventRows[0].STATUS !== 'ENABLED') {
+      logger.error(
+        { status: eventRows[0].STATUS },
+        'CRITICAL: manage_proxy_requests_partitions EVENT is DISABLED. Partition management will not run — old data will accumulate and new partitions will not be created. Ensure event_scheduler=ON in MySQL config.'
+      );
+      return;
+    }
+
+    const lastRun = eventRows[0].LAST_EXECUTED;
+    const daysSinceRun = lastRun
+      ? (Date.now() - lastRun.getTime()) / (1000 * 60 * 60 * 24)
+      : Infinity;
+
+    if (daysSinceRun > 35) {
+      logger.warn(
+        { lastRun, daysSinceRun: daysSinceRun.toFixed(1) },
+        'manage_proxy_requests_partitions has not run in 35+ days. Verify event_scheduler=ON in MySQL.'
+      );
+    } else {
+      logger.info({ lastRun }, 'Partition management EVENT is healthy');
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Could not verify partition EVENT health (non-fatal)');
+  }
 }
 
