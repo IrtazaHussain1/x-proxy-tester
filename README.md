@@ -104,17 +104,50 @@ src/
 
 ## Configuration
 
-Key environment variables (see `env.example` for full list):
+Key environment variables (see `.env.example` for full list):
 
+**Core:**
 - `DATABASE_URL` - MySQL connection string
-- `XPROXY_API_TOKEN` - XProxy Portal API token
-- `TEST_INTERVAL_MS` - Time between tests (default: 5000ms)
+- `XPROXY_LOGIN_EMAIL` / `XPROXY_LOGIN_PASSWORD` - XProxy Portal credentials
+
+**Security (Production Required):**
+- `ENCRYPTION_KEY` - 64-char hex key for credential encryption (generate: `node -e "require('crypto').randomBytes(32).toString('hex')"`)
+- `REDIS_PASSWORD` - Password for Redis auth (highly recommended)
+- `API_SECRET_KEY` - Bearer token for management endpoints `/api/testing/start|stop`
+- `CORS_ALLOWED_ORIGIN` - Restrict CORS origin (default: `*`)
+
+**Testing & Monitoring:**
+- `TEST_INTERVAL_MS` - Time between proxy tests (default: 5000ms)
 - `REQUEST_TIMEOUT_MS` - Request timeout (default: 30000ms)
-- `ROTATION_THRESHOLD` - Max attempts before flagging no rotation (default: 10)
+- `ROTATION_THRESHOLD` - Max test attempts before flagging no rotation (default: 10)
+- `AGGREGATION_SCHEDULE` - UTC cron schedule for daily aggregation (default: `"0 1"` = 1:00 AM UTC)
+- `AGGREGATION_WATCHDOG_MS` - Timeout to release hung aggregation lock (default: 4 hours)
+
+See `.env.example` for complete list with descriptions.
+
+## Monitoring Aggregation Status
+
+The app runs a **daily aggregation job** to summarize the previous day's proxy test results. To verify it's working:
+
+```bash
+# Check recent aggregations
+mysql> SELECT DATE(day) as date, COUNT(*) FROM proxy_requests_daily_summary
+        WHERE day >= DATE_SUB(NOW(), INTERVAL 5 DAY)
+        GROUP BY DATE(day) ORDER BY day DESC;
+
+# Check logs
+docker logs -f x-proxy-tester-app | grep -i "aggregat"
+
+# Expected: "Starting app-side daily aggregation" and "Stability calculation completed"
+```
+
+See **`docs/ARCHITECTURAL_IMPROVEMENTS.md`** for a complete guide to monitoring and the recent system fixes.
 
 ## Documentation
 
+- **Architectural Improvements** (April 2026): `docs/ARCHITECTURAL_IMPROVEMENTS.md` - 18 critical fixes for data loss, security, correctness, and reliability
 - **Grafana Setup**: `grafana/README.md` - Complete guide for Grafana dashboards, data sources, and alerting
+- **Scalability**: `docs/SCALABILITY_AND_IMPROVEMENTS.md` - MySQL partitioning strategy and performance optimization
 
 ## License
 
