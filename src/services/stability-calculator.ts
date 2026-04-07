@@ -13,7 +13,7 @@
  * @module services/stability-calculator
  */
 
-import { prismaWithRetry as prisma } from '../lib/db';
+import { prismaWithRetry as prisma, backgroundDb } from '../lib/db';
 import { logger } from '../lib/logger';
 import { config } from '../config';
 import type { StabilityStatus } from '../types';
@@ -210,42 +210,59 @@ export async function calculateProxyStability(deviceId: string): Promise<Stabili
 }
 
 /**
- * Calculate stability for all active proxies
+ * Calculate stability for all active proxies using a single SQL aggregation.
+ * Replaces the previous N×2 concurrent findMany approach which fired one query
+ * per proxy for 1h and 24h windows simultaneously.
  */
 export async function calculateAllProxiesStability(): Promise<void> {
   try {
-    const proxies = await prisma.proxy.findMany({
-      where: { active: true },
-      select: { deviceId: true },
-    });
-
-    logger.info({ count: proxies.length }, 'Calculating stability for all proxies');
-
-    const results = await Promise.allSettled(
-      proxies.map((proxy) => calculateProxyStability(proxy.deviceId))
+    // One query covers all proxies and both time windows — uses backgroundDb to
+    // avoid competing with write workers on the write pool.
+    const rows = await backgroundDb.$queryRawUnsafe<Array<{
+      proxy_id: string;
+      failures_1h: number;
+      failures_24h: number;
+    }>>(
+      `SELECT proxy_id,
+         SUM(CASE WHEN status != 'SUCCESS' AND timestamp >= NOW() - INTERVAL 1 HOUR  THEN 1 ELSE 0 END) AS failures_1h,
+         SUM(CASE WHEN status != 'SUCCESS' AND timestamp >= NOW() - INTERVAL 24 HOUR THEN 1 ELSE 0 END) AS failures_24h
+       FROM proxy_requests
+       WHERE timestamp >= NOW() - INTERVAL 24 HOUR
+       GROUP BY proxy_id`
     );
 
-    const successful = results.filter((r) => r.status === 'fulfilled').length;
-    const failed = results.length - successful;
-
-    // Count stability statuses
-    const statusCounts: Record<string, number> = {};
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        const status = result.value;
-        statusCounts[status] = (statusCounts[status] || 0) + 1;
-      }
+    if (rows.length === 0) {
+      logger.info('No proxy_requests in last 24h — stability calculation skipped');
+      return;
     }
 
-    logger.info(
-      {
-        total: proxies.length,
-        successful,
-        failed,
-        statusCounts,
-      },
-      'Stability calculation completed'
-    );
+    const statusCounts: Record<string, number> = {};
+
+    for (const row of rows) {
+      const downtime1h  = calculateDowntime(Number(row.failures_1h));
+      const downtime24h = calculateDowntime(Number(row.failures_24h));
+
+      let newStatus: StabilityStatus;
+      if (downtime24h > UNSTABLE_DAILY_THRESHOLD_MS) {
+        newStatus = 'UnstableDaily';
+      } else if (downtime1h > UNSTABLE_HOURLY_THRESHOLD_MS) {
+        newStatus = 'UnstableHourly';
+      } else {
+        newStatus = 'Stable';
+      }
+
+      statusCounts[newStatus] = (statusCounts[newStatus] ?? 0) + 1;
+
+      await backgroundDb.proxy.update({
+        where: { deviceId: row.proxy_id },
+        data: { stabilityStatus: newStatus },
+      }).catch((err: Error) => {
+        // Proxy may have been deleted between the SELECT and UPDATE — ignore.
+        logger.debug({ proxyId: row.proxy_id, err: err.message }, 'Stability update skipped (proxy not found)');
+      });
+    }
+
+    logger.info({ total: rows.length, statusCounts }, 'Stability calculation completed');
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : 'Unknown error' },

@@ -202,12 +202,12 @@ model ProxyRequestsDailySummary {
 
   rotationCount        Int      @default(0) @map("rotation_count")
 
-  avgDownloadSpeedMbps Decimal? @map("avg_download_speed_mbps") @db.Decimal(10, 2)
-  avgUploadSpeedMbps   Decimal? @map("avg_upload_speed_mbps") @db.Decimal(10, 2)
-  maxDownloadSpeedMbps Decimal? @map("max_download_speed_mbps") @db.Decimal(10, 2)
-  maxUploadSpeedMbps   Decimal? @map("max_upload_speed_mbps") @db.Decimal(10, 2)
-  minDownloadSpeedMbps Decimal? @map("min_download_speed_mbps") @db.Decimal(10, 2)
-  minUploadSpeedMbps   Decimal? @map("min_upload_speed_mbps") @db.Decimal(10, 2)
+  avgDownloadSpeedMbps Decimal? @map("avg_download_speed_mbps") @db.Decimal(10, 4)
+  avgUploadSpeedMbps   Decimal? @map("avg_upload_speed_mbps") @db.Decimal(10, 4)
+  maxDownloadSpeedMbps Decimal? @map("max_download_speed_mbps") @db.Decimal(10, 4)
+  maxUploadSpeedMbps   Decimal? @map("max_upload_speed_mbps") @db.Decimal(10, 4)
+  minDownloadSpeedMbps Decimal? @map("min_download_speed_mbps") @db.Decimal(10, 4)
+  minUploadSpeedMbps   Decimal? @map("min_upload_speed_mbps") @db.Decimal(10, 4)
 
   uniqueIpsCount       Int      @default(0) @map("unique_ips_count")
   ipDiversityScore     Decimal? @map("ip_diversity_score") @db.Decimal(5, 2)

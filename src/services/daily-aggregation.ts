@@ -102,6 +102,13 @@ function maxOf(arr: number[]): number | null {
   return arr.length > 0 ? Math.max(...arr) : null;
 }
 
+/** Normalize MySQL decimal / bigint from raw query to number | null. */
+function sqlNumber(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const x = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(x) ? x : null;
+}
+
 // ---------------------------------------------------------------------------
 // App-side streaming aggregation (primary path)
 // ---------------------------------------------------------------------------
@@ -129,7 +136,12 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
 
   const hasCapacity = await hasDatabaseCapacityForBackgroundJobs();
   if (!hasCapacity) {
-    logger.warn('Skipping daily aggregation due to database pool pressure');
+    // Log at error so this surfaces in any alerting pipeline.
+    // A skipped day is permanently lost once its partition is dropped (~30 days later).
+    logger.error(
+      { day: day ? day.toISOString().split('T')[0] : 'yesterday' },
+      'Daily aggregation SKIPPED — DB pool under pressure. This day will not be summarized unless backfilled manually via STARTUP_DAILY_BACKFILL_DAYS or scripts/run-aggregation.ts.'
+    );
     return 0;
   }
 
@@ -151,6 +163,18 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
   );
 
   isAggregating = true;
+  // Watchdog: release the flag if the aggregation hangs (e.g. MySQL packet-level stall).
+  // Without this, a single hung query permanently blocks all future runs.
+  const WATCHDOG_MS = parseInt(process.env.AGGREGATION_WATCHDOG_MS ?? String(4 * 60 * 60 * 1000), 10);
+  const watchdog = setTimeout(() => {
+    logger.error(
+      { day: dayLabel, watchdogMs: WATCHDOG_MS },
+      'Aggregation watchdog triggered — query appears hung, releasing isAggregating lock'
+    );
+    isAggregating = false;
+  }, WATCHDOG_MS);
+  watchdog.unref();
+
   try {
     logger.info({ day: dayLabel }, 'Starting app-side daily aggregation');
 
@@ -188,18 +212,20 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
       const meta = proxyMeta[0] ?? null;
 
       // 3. Stream all rows for this proxy on this day via cursor-based pagination.
-      //    Uses timestamp as the cursor — advances to the last row's timestamp after
-      //    each page. This keeps the query cost O(page_size) regardless of how deep
-      //    into the day we are, unlike OFFSET which forces MySQL to re-scan all
-      //    previous rows on every page.
-      //    The (proxy_id, timestamp) index is used for every page fetch.
+      //    Uses a composite (timestamp, id) cursor so that rows sharing the same
+      //    millisecond timestamp at a page boundary are never skipped.
+      //    Pure timestamp cursor (timestamp > ?) silently drops rows when the last
+      //    row on page N shares its timestamp with the first row on page N+1.
+      //    The (proxy_id, timestamp) index covers the leading timestamp > ? branch;
+      //    the timestamp = ? AND id > ? branch does a bounded range scan.
       const stats = emptyStats();
-      // Start 1ms before dayStart so the first page uses `> cursor` and still
-      // captures rows with timestamp = dayStart exactly.
-      let cursor = new Date(dayStart.getTime() - 1);
+      // Start cursor just before dayStart so the first page captures rows
+      // with timestamp exactly equal to dayStart.
+      let cursor = { timestamp: new Date(dayStart.getTime() - 1), id: '' };
 
       while (true) {
         const rows = await prisma.$queryRawUnsafe<Array<{
+          id: string;
           status: string;
           response_time_ms: number | null;
           ip_changed: number | boolean;
@@ -208,15 +234,15 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
           outbound_ip: string | null;
           timestamp: Date;
         }>>(
-          `SELECT status, response_time_ms, ip_changed,
+          `SELECT id, status, response_time_ms, ip_changed,
                   download_speed_mbps, upload_speed_mbps, outbound_ip, timestamp
              FROM proxy_requests
-            WHERE proxy_id  = ?
-              AND timestamp >  ?
-              AND timestamp <  ?
-            ORDER BY timestamp ASC
+            WHERE proxy_id = ?
+              AND (timestamp > ? OR (timestamp = ? AND id > ?))
+              AND timestamp < ?
+            ORDER BY timestamp ASC, id ASC
             LIMIT ?`,
-          proxyId, cursor, dayEnd, PAGE_SIZE
+          proxyId, cursor.timestamp, cursor.timestamp, cursor.id, dayEnd, PAGE_SIZE
         );
 
         if (rows.length === 0) break;
@@ -232,12 +258,73 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
           });
         }
 
-        // Advance cursor to the last row's timestamp for the next page.
-        cursor = rows[rows.length - 1].timestamp;
+        // Advance composite cursor to the last row of this page.
+        const lastRow = rows[rows.length - 1];
+        cursor = { timestamp: lastRow.timestamp, id: lastRow.id };
         if (rows.length < PAGE_SIZE) break;
       }
 
       if (stats.total === 0) continue;
+
+      // 4a. Speed metrics from speed_tests (authoritative).
+      //     Continuous tests leave proxy_requests.download_speed_mbps / upload_speed_mbps NULL;
+      //     speed-test-service writes to speed_tests only.
+      //     Use conditional aggregates so rows with only download or only upload success still contribute.
+      const speedRows = await prisma.$queryRawUnsafe<Array<{
+        avg_download: unknown;
+        max_download: unknown;
+        min_download: unknown;
+        avg_upload: unknown;
+        max_upload: unknown;
+        min_upload: unknown;
+      }>>(
+        `SELECT
+           AVG(CASE WHEN download_speed_mbps IS NOT NULL AND download_speed_mbps > 0
+                    THEN download_speed_mbps END) AS avg_download,
+           MAX(CASE WHEN download_speed_mbps IS NOT NULL AND download_speed_mbps > 0
+                    THEN download_speed_mbps END) AS max_download,
+           MIN(CASE WHEN download_speed_mbps IS NOT NULL AND download_speed_mbps > 0
+                    THEN download_speed_mbps END) AS min_download,
+           AVG(CASE WHEN upload_speed_mbps IS NOT NULL AND upload_speed_mbps > 0
+                    THEN upload_speed_mbps END) AS avg_upload,
+           MAX(CASE WHEN upload_speed_mbps IS NOT NULL AND upload_speed_mbps > 0
+                    THEN upload_speed_mbps END) AS max_upload,
+           MIN(CASE WHEN upload_speed_mbps IS NOT NULL AND upload_speed_mbps > 0
+                    THEN upload_speed_mbps END) AS min_upload
+         FROM speed_tests
+        WHERE proxy_id = ?
+          AND timestamp >= ?
+          AND timestamp < ?`,
+        proxyId, dayStart, dayEnd
+      );
+      const rawSpd = speedRows[0] ?? null;
+
+      const fromSpeedTests = rawSpd
+        ? {
+            avgDl: sqlNumber(rawSpd.avg_download),
+            maxDl: sqlNumber(rawSpd.max_download),
+            minDl: sqlNumber(rawSpd.min_download),
+            avgUl: sqlNumber(rawSpd.avg_upload),
+            maxUl: sqlNumber(rawSpd.max_upload),
+            minUl: sqlNumber(rawSpd.min_upload),
+          }
+        : null;
+
+      const hasSpeedTestDay =
+        fromSpeedTests &&
+        (fromSpeedTests.avgDl != null ||
+          fromSpeedTests.maxDl != null ||
+          fromSpeedTests.minDl != null ||
+          fromSpeedTests.avgUl != null ||
+          fromSpeedTests.maxUl != null ||
+          fromSpeedTests.minUl != null);
+
+      const avgDl = (hasSpeedTestDay ? fromSpeedTests!.avgDl : avg(stats.downloadSpeeds)) ?? 0;
+      const avgUl = (hasSpeedTestDay ? fromSpeedTests!.avgUl : avg(stats.uploadSpeeds)) ?? 0;
+      const maxDl = (hasSpeedTestDay ? fromSpeedTests!.maxDl : maxOf(stats.downloadSpeeds)) ?? 0;
+      const maxUl = (hasSpeedTestDay ? fromSpeedTests!.maxUl : maxOf(stats.uploadSpeeds)) ?? 0;
+      const minDl = (hasSpeedTestDay ? fromSpeedTests!.minDl : minOf(stats.downloadSpeeds)) ?? 0;
+      const minUl = (hasSpeedTestDay ? fromSpeedTests!.minUl : minOf(stats.uploadSpeeds)) ?? 0;
 
       // 4. Compute derived metrics.
       stats.responseTimes.sort((a, b) => a - b);
@@ -304,9 +391,7 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
         pct(stats.responseTimes, 50), pct(stats.responseTimes, 95), pct(stats.responseTimes, 99),
         stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
         stats.rotation,
-        avg(stats.downloadSpeeds), avg(stats.uploadSpeeds),
-        maxOf(stats.downloadSpeeds), maxOf(stats.uploadSpeeds),
-        minOf(stats.downloadSpeeds), minOf(stats.uploadSpeeds),
+        avgDl, avgUl, maxDl, maxUl, minDl, minUl,
         stats.uniqueIps.size, ipDiversityScore
       );
 
@@ -326,6 +411,7 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
     );
     return 0;
   } finally {
+    clearTimeout(watchdog);
     isAggregating = false;
   }
 }
@@ -475,7 +561,7 @@ export function startDailyAggregationService(): void {
 
   const now = new Date();
   const nextRun = new Date(now);
-  nextRun.setHours(hour, minute, 0, 0);
+  nextRun.setUTCHours(hour, minute, 0, 0);
   if (nextRun <= now) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
