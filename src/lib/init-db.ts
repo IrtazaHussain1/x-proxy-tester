@@ -58,7 +58,7 @@ export async function initDatabaseSchema(): Promise<void> {
       // This will create/update tables and columns to match schema.prisma
       logger.info('Syncing schema to database (db push)...');
       try {
-        execSync(`${prismaBin} db push --skip-generate --accept-data-loss`, {
+        execSync(`${prismaBin} db push --skip-generate`, {
           stdio: 'inherit',
           env: {
             ...process.env,
