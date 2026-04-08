@@ -14,7 +14,7 @@ import { logger } from './lib/logger';
 import { config } from './config';
 import { startServer } from './server';
 import { initGrafanaViews } from './lib/init-grafana-views';
-import { initDatabaseSchema, checkPartitionEventHealth } from './lib/init-db';
+import { initDatabaseSchema, ensurePartitioningSetup } from './lib/init-db';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
@@ -176,8 +176,8 @@ async function main(): Promise<void> {
     // Initialize Grafana views (after database schema is ready)
     await initGrafanaViews();
 
-    // Verify partition management EVENT health (non-fatal; logs CRITICAL if misconfigured)
-    await checkPartitionEventHealth();
+    // Ensure partitioning + monthly partition EVENT are configured on every startup.
+    await ensurePartitioningSetup();
 
     // Start BullMQ workers only after the schema is guaranteed to exist.
     // Starting workers earlier causes them to immediately dequeue Redis jobs from a

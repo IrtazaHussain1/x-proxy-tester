@@ -133,15 +133,106 @@ export async function initDatabaseSchema(): Promise<void> {
 }
 
 /**
- * Verifies the MySQL partition management EVENT is enabled and has run recently.
- * Logs an error if missing or disabled — the partition EVENT is critical for:
- *   1. Creating future monthly partitions before inserts overflow into p_future
- *   2. Dropping old partitions beyond the retention window
- *
- * Requires MySQL event_scheduler=ON in the server config (not the default in all builds).
+ * Builds the ALTER TABLE ... PARTITION BY RANGE COLUMNS SQL for proxy_requests.
+ * Generates monthly partitions from Dec 2024 through current month + 6 months,
+ * plus a p_future catch-all.
  */
-export async function checkPartitionEventHealth(): Promise<void> {
+function buildPartitionAlterSQL(): string {
+  const partitions: string[] = [];
+  const start = new Date(Date.UTC(2024, 11, 1)); // Dec 2024
+  const now = new Date();
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 7, 1));
+
+  let current = start;
+  while (current < end) {
+    const year = current.getUTCFullYear();
+    const month = current.getUTCMonth();
+    const next = new Date(Date.UTC(year, month + 1, 1));
+    const name = `p${year}_${String(month + 1).padStart(2, '0')}`;
+    const bound = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-01 00:00:00`;
+    partitions.push(`    PARTITION ${name} VALUES LESS THAN ('${bound}')`);
+    current = next;
+  }
+  partitions.push('    PARTITION p_future VALUES LESS THAN (MAXVALUE)');
+
+  return [
+    'ALTER TABLE proxy_requests',
+    '  PARTITION BY RANGE COLUMNS (`timestamp`) (',
+    partitions.join(',\n'),
+    ')',
+  ].join('\n');
+}
+
+/**
+ * Ensures proxy_requests is partitioned by month and the monthly management
+ * EVENT exists. Safe to call on every startup — all steps are idempotent.
+ *
+ * On a fresh database (no partitions, no event) this will:
+ *   1. Drop the FK constraint (incompatible with partitioned tables)
+ *   2. Expand the PK to (id, timestamp) — required by MySQL for partition key
+ *   3. Apply RANGE COLUMNS partitioning covering Dec 2024 → now+6 months
+ *   4. Drop legacy batch-DELETE events (superseded by partition DROP)
+ *   5. Create the manage_proxy_requests_partitions monthly event
+ */
+export async function ensurePartitioningSetup(): Promise<void> {
   try {
+    // ── Check if already partitioned ──────────────────────────────────────────
+    const partRows = await backgroundDb.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+      `SELECT COUNT(*) AS cnt
+         FROM information_schema.PARTITIONS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = 'proxy_requests'
+          AND PARTITION_NAME IS NOT NULL`
+    );
+    const isPartitioned = Number(partRows[0]?.cnt ?? 0) > 0;
+
+    if (!isPartitioned) {
+      logger.info('proxy_requests is not partitioned — running partition setup...');
+
+      // Step 1: Drop FK if it exists (partitioned tables cannot have FKs)
+      const fkRows = await backgroundDb.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+        `SELECT COUNT(*) AS cnt
+           FROM information_schema.TABLE_CONSTRAINTS
+          WHERE TABLE_SCHEMA    = DATABASE()
+            AND TABLE_NAME      = 'proxy_requests'
+            AND CONSTRAINT_NAME = 'proxy_requests_proxy_id_fkey'
+            AND CONSTRAINT_TYPE = 'FOREIGN KEY'`
+      );
+      if (Number(fkRows[0]?.cnt ?? 0) > 0) {
+        await backgroundDb.$executeRawUnsafe(
+          'ALTER TABLE proxy_requests DROP FOREIGN KEY proxy_requests_proxy_id_fkey'
+        );
+        logger.info('Dropped FK proxy_requests_proxy_id_fkey');
+      }
+
+      // Step 2: Expand PK to (id, timestamp) if not already
+      const pkRows = await backgroundDb.$queryRawUnsafe<Array<{ COLUMN_NAME: string }>>(
+        `SELECT COLUMN_NAME
+           FROM information_schema.KEY_COLUMN_USAGE
+          WHERE TABLE_SCHEMA    = DATABASE()
+            AND TABLE_NAME      = 'proxy_requests'
+            AND CONSTRAINT_NAME = 'PRIMARY'`
+      );
+      const pkCols = pkRows.map(r => r.COLUMN_NAME);
+      if (!pkCols.includes('timestamp')) {
+        await backgroundDb.$executeRawUnsafe(
+          'ALTER TABLE proxy_requests DROP PRIMARY KEY, ADD PRIMARY KEY (id, `timestamp`)'
+        );
+        logger.info('Expanded proxy_requests PK to (id, timestamp)');
+      }
+
+      // Step 3: Apply RANGE COLUMNS partitioning
+      await backgroundDb.$executeRawUnsafe(buildPartitionAlterSQL());
+      logger.info('Applied RANGE COLUMNS partitioning to proxy_requests');
+    } else {
+      logger.info({ partitionCount: Number(partRows[0]?.cnt) }, 'proxy_requests is already partitioned');
+    }
+
+    // ── Step 4: Drop superseded batch-DELETE events ────────────────────────────
+    await backgroundDb.$executeRawUnsafe('DROP EVENT IF EXISTS cleanup_old_proxy_requests');
+    await backgroundDb.$executeRawUnsafe('DROP EVENT IF EXISTS cleanup_old_speed_tests');
+
+    // ── Step 5: Ensure monthly partition management event exists ───────────────
     const eventRows = await backgroundDb.$queryRawUnsafe<Array<{
       STATUS: string;
       LAST_EXECUTED: Date | null;
@@ -149,37 +240,61 @@ export async function checkPartitionEventHealth(): Promise<void> {
       `SELECT STATUS, LAST_EXECUTED
          FROM information_schema.EVENTS
         WHERE EVENT_SCHEMA = DATABASE()
-          AND EVENT_NAME = 'manage_proxy_requests_partitions'`
+          AND EVENT_NAME   = 'manage_proxy_requests_partitions'`
     );
 
-    if (eventRows.length === 0) {
-      logger.error('CRITICAL: manage_proxy_requests_partitions MySQL EVENT does not exist. Run the partitioning migration.');
-      return;
-    }
+    if (eventRows.length === 0 || eventRows[0].STATUS !== 'ENABLED') {
+      if (eventRows.length > 0) {
+        logger.warn({ status: eventRows[0].STATUS }, 'manage_proxy_requests_partitions is not ENABLED — recreating');
+        await backgroundDb.$executeRawUnsafe('DROP EVENT IF EXISTS manage_proxy_requests_partitions');
+      }
 
-    if (eventRows[0].STATUS !== 'ENABLED') {
-      logger.error(
-        { status: eventRows[0].STATUS },
-        'CRITICAL: manage_proxy_requests_partitions EVENT is DISABLED. Partition management will not run — old data will accumulate and new partitions will not be created. Ensure event_scheduler=ON in MySQL config.'
-      );
-      return;
-    }
+      await backgroundDb.$executeRawUnsafe(`
+        CREATE EVENT manage_proxy_requests_partitions
+          ON SCHEDULE EVERY 1 MONTH
+          STARTS (DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01 02:00:00'))
+          ON COMPLETION PRESERVE
+          DO BEGIN
+            SET @drop_month_start = DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 MONTH), '%Y-%m-01');
+            SET @drop_month_end   = DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 MONTH), '%Y-%m-01');
 
-    const lastRun = eventRows[0].LAST_EXECUTED;
-    const daysSinceRun = lastRun
-      ? (Date.now() - lastRun.getTime()) / (1000 * 60 * 60 * 24)
-      : Infinity;
+            SET @old_part = CONCAT('p', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 MONTH), '%Y_%m'));
+            SET @drop_sql = CONCAT('ALTER TABLE proxy_requests DROP PARTITION IF EXISTS ', @old_part);
+            PREPARE stmt FROM @drop_sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
 
-    if (daysSinceRun > 35) {
-      logger.warn(
-        { lastRun, daysSinceRun: daysSinceRun.toFixed(1) },
-        'manage_proxy_requests_partitions has not run in 35+ days. Verify event_scheduler=ON in MySQL.'
-      );
+            SET @new_part_name  = CONCAT('p', DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 2 MONTH), '%Y_%m'));
+            SET @new_part_bound = DATE_FORMAT(
+              DATE_ADD(LAST_DAY(DATE_ADD(NOW(), INTERVAL 2 MONTH)), INTERVAL 1 DAY),
+              '%Y-%m-%d 00:00:00'
+            );
+            SET @reorg_sql = CONCAT(
+              'ALTER TABLE proxy_requests REORGANIZE PARTITION p_future INTO (',
+                'PARTITION ', @new_part_name, ' VALUES LESS THAN (''', @new_part_bound, '''),',
+                'PARTITION p_future VALUES LESS THAN (MAXVALUE)',
+              ')'
+            );
+            PREPARE stmt FROM @reorg_sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+          END
+      `);
+      logger.info('Created manage_proxy_requests_partitions MySQL event');
     } else {
-      logger.info({ lastRun }, 'Partition management EVENT is healthy');
+      const lastRun = eventRows[0].LAST_EXECUTED;
+      const daysSinceRun = lastRun
+        ? (Date.now() - lastRun.getTime()) / (1000 * 60 * 60 * 24)
+        : Infinity;
+      if (daysSinceRun > 35) {
+        logger.warn({ lastRun, daysSinceRun: daysSinceRun.toFixed(1) },
+          'manage_proxy_requests_partitions has not run in 35+ days. Verify event_scheduler=ON in MySQL.');
+      } else {
+        logger.info({ lastRun }, 'Partition management EVENT is healthy');
+      }
     }
   } catch (err) {
-    logger.warn({ err }, 'Could not verify partition EVENT health (non-fatal)');
+    logger.error({ err }, 'Failed to set up partitioning (non-fatal — app will continue but proxy_requests may be unpartitioned)');
   }
 }
 
