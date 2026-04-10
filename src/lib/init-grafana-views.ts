@@ -17,12 +17,16 @@ import { logger } from './logger';
 async function executeSqlFile(filePath: string, fileName: string): Promise<void> {
   try {
     const sql = readFileSync(filePath, 'utf-8');
+    const sqlWithoutLineComments = sql
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('--'))
+      .join('\n');
 
     // Split by semicolon and execute each statement
-    const statements = sql
+    const statements = sqlWithoutLineComments
       .split(';')
       .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith('--'));
+      .filter((s) => s.length > 0);
 
     logger.info({ statementCount: statements.length, fileName }, `Initializing ${fileName}`);
 

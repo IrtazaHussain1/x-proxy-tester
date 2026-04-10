@@ -179,6 +179,8 @@ model SpeedTest {
 model ProxyRequestsDailySummary {
   day                  DateTime @db.Date
   proxyId              String   @map("proxy_id") @db.VarChar(255)
+  deviceName           String?  @map("device_name") @db.VarChar(255)
+  serverName           String?  @map("server_name") @db.VarChar(32)
   location             String?  @db.VarChar(255)
   relayServerId        String?  @map("relay_server_id") @db.VarChar(255)
   relayServerIp        String?  @map("relay_server_ip") @db.VarChar(45)
@@ -211,6 +213,12 @@ model ProxyRequestsDailySummary {
 
   uniqueIpsCount       Int      @default(0) @map("unique_ips_count")
   ipDiversityScore     Decimal? @map("ip_diversity_score") @db.Decimal(5, 2)
+  ipHistoryJson        Json?    @map("ip_history_json")
+  ipChangeCount        Int      @default(0) @map("ip_change_count")
+  firstIp              String?  @map("first_ip") @db.VarChar(45)
+  lastIp               String?  @map("last_ip") @db.VarChar(45)
+  mostUsedIp           String?  @map("most_used_ip") @db.VarChar(45)
+  mostUsedIpCount      Int      @default(0) @map("most_used_ip_count")
 
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
@@ -219,6 +227,7 @@ model ProxyRequestsDailySummary {
   @@index([day])
   @@index([proxyId, day])
   @@index([location])
+  @@index([serverName])
   @@index([relayServerId])
   @@index([day, relayServerId])
   @@map("proxy_requests_daily_summary")
