@@ -475,38 +475,39 @@ ORDER BY day DESC, location;
 -- ============================================
 -- View 18: Combined Recent + Historical Data
 -- ============================================
--- Combines hourly summaries (last 2 weeks) with daily summaries (older data)
--- For seamless long-term analytics
+-- Last 14 days: hourly buckets from raw proxy_requests. Older: daily_summary.
 CREATE OR REPLACE VIEW v_proxy_requests_combined AS
--- Recent data (last 14 days) from hourly summaries
 SELECT 
-  hour as timestamp,
-  proxy_id,
-  location,
-  total_requests,
-  success_count,
-  failure_count,
-  avg_response_time_ms,
-  min_response_time_ms,
-  max_response_time_ms,
+  DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:00:00') as timestamp,
+  pr.proxy_id,
+  p.location,
+  COUNT(*) as total_requests,
+  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) as success_count,
+  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as failure_count,
+  AVG(pr.response_time_ms) as avg_response_time_ms,
+  MIN(pr.response_time_ms) as min_response_time_ms,
+  MAX(pr.response_time_ms) as max_response_time_ms,
   NULL as p50_response_time_ms,
   NULL as p95_response_time_ms,
   NULL as p99_response_time_ms,
-  timeout_count,
-  connection_error_count,
-  http_error_count,
-  dns_error_count,
-  rotation_count,
-  avg_download_speed_mbps,
-  avg_upload_speed_mbps,
+  COUNT(CASE WHEN pr.status = 'TIMEOUT' THEN 1 END) as timeout_count,
+  COUNT(CASE WHEN pr.status = 'CONNECTION_ERROR' THEN 1 END) as connection_error_count,
+  COUNT(CASE WHEN pr.status = 'HTTP_ERROR' THEN 1 END) as http_error_count,
+  COUNT(CASE WHEN pr.status = 'DNS_ERROR' THEN 1 END) as dns_error_count,
+  COUNT(CASE WHEN pr.ip_changed = true THEN 1 END) as rotation_count,
+  AVG(pr.download_speed_mbps) as avg_download_speed_mbps,
+  AVG(pr.upload_speed_mbps) as avg_upload_speed_mbps,
   NULL as max_download_speed_mbps,
   NULL as max_upload_speed_mbps,
   NULL as min_download_speed_mbps,
   NULL as min_upload_speed_mbps,
   NULL as unique_ips_count,
   'hourly' as aggregation_level
-FROM proxy_requests_hourly_summary
-WHERE hour >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+FROM proxy_requests pr
+LEFT JOIN proxies p ON pr.proxy_id = p.device_id
+WHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+  AND pr.timestamp IS NOT NULL
+GROUP BY DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:00:00'), pr.proxy_id, p.location
 
 UNION ALL
 
@@ -543,72 +544,76 @@ WHERE day < DATE_SUB(NOW(), INTERVAL 14 DAY)
 ORDER BY timestamp DESC, proxy_id;
 
 -- ============================================
--- View 12: Optimized 24h Proxy Requests (Uses Hourly Summary)
+-- View 12: Optimized 24h Proxy Requests
 -- ============================================
--- Optimized view that uses pre-aggregated hourly summary table for much faster queries
--- Falls back to direct query if summary data is not available
+-- Hourly buckets from proxy_requests (last 24h)
 CREATE OR REPLACE VIEW v_proxy_requests_24h_optimized AS
 SELECT 
-  h.hour as timestamp,
-  h.proxy_id,
-  h.location,
-  h.total_requests,
-  h.success_count,
-  h.failure_count,
-  h.avg_response_time_ms,
-  h.min_response_time_ms,
-  h.max_response_time_ms,
-  h.timeout_count,
-  h.connection_error_count,
-  h.http_error_count,
-  h.dns_error_count,
-  h.rotation_count,
-  h.avg_download_speed_mbps,
-  h.avg_upload_speed_mbps
-FROM proxy_requests_hourly_summary h
-WHERE h.hour >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-ORDER BY h.hour DESC, h.proxy_id;
+  DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:00:00') as timestamp,
+  pr.proxy_id,
+  p.location,
+  COUNT(*) as total_requests,
+  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) as success_count,
+  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as failure_count,
+  AVG(pr.response_time_ms) as avg_response_time_ms,
+  MIN(pr.response_time_ms) as min_response_time_ms,
+  MAX(pr.response_time_ms) as max_response_time_ms,
+  COUNT(CASE WHEN pr.status = 'TIMEOUT' THEN 1 END) as timeout_count,
+  COUNT(CASE WHEN pr.status = 'CONNECTION_ERROR' THEN 1 END) as connection_error_count,
+  COUNT(CASE WHEN pr.status = 'HTTP_ERROR' THEN 1 END) as http_error_count,
+  COUNT(CASE WHEN pr.status = 'DNS_ERROR' THEN 1 END) as dns_error_count,
+  COUNT(CASE WHEN pr.ip_changed = true THEN 1 END) as rotation_count,
+  AVG(pr.download_speed_mbps) as avg_download_speed_mbps,
+  AVG(pr.upload_speed_mbps) as avg_upload_speed_mbps
+FROM proxy_requests pr
+LEFT JOIN proxies p ON pr.proxy_id = p.device_id
+WHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+  AND pr.timestamp IS NOT NULL
+GROUP BY DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:00:00'), pr.proxy_id, p.location
+ORDER BY timestamp DESC, pr.proxy_id;
 
 -- ============================================
--- View 13: System-Wide Hourly Stats (Optimized from Summary)
+-- View 13: System-Wide Hourly Stats (Optimized)
 -- ============================================
--- Uses hourly summary table for much better performance
+-- Same shape as v_system_hourly_stats; kept for dashboards that reference _optimized
 CREATE OR REPLACE VIEW v_system_hourly_stats_optimized AS
 SELECT 
-  hour,
-  SUM(total_requests) as total_requests,
+  DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as hour,
+  COUNT(*) as total_requests,
   COUNT(DISTINCT proxy_id) as active_proxies,
-  SUM(success_count) as success_count,
-  SUM(failure_count) as failure_count,
-  SUM(success_count) * 100.0 / NULLIF(SUM(total_requests), 0) as success_rate,
-  AVG(avg_response_time_ms) as avg_response_time,
-  MIN(min_response_time_ms) as min_response_time,
-  MAX(max_response_time_ms) as max_response_time,
-  SUM(rotation_count) as total_rotations,
-  SUM(timeout_count) as timeout_count,
-  SUM(connection_error_count) as connection_error_count,
-  SUM(http_error_count) as http_error_count,
-  SUM(dns_error_count) as dns_error_count
-FROM proxy_requests_hourly_summary
-WHERE hour >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-GROUP BY hour
+  COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) as success_count,
+  COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) as failure_count,
+  COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as success_rate,
+  AVG(response_time_ms) as avg_response_time,
+  MIN(response_time_ms) as min_response_time,
+  MAX(response_time_ms) as max_response_time,
+  COUNT(CASE WHEN ip_changed = true THEN 1 END) as total_rotations,
+  COUNT(CASE WHEN status = 'TIMEOUT' THEN 1 END) as timeout_count,
+  COUNT(CASE WHEN status = 'CONNECTION_ERROR' THEN 1 END) as connection_error_count,
+  COUNT(CASE WHEN status = 'HTTP_ERROR' THEN 1 END) as http_error_count,
+  COUNT(CASE WHEN status = 'DNS_ERROR' THEN 1 END) as dns_error_count
+FROM proxy_requests
+WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+  AND timestamp IS NOT NULL
+GROUP BY DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00')
 ORDER BY hour DESC;
 
 -- ============================================
--- View 14: Location-Based Stats (Optimized from Summary)
+-- View 14: Location-Based Stats (Optimized)
 -- ============================================
--- Uses hourly summary for better performance
 CREATE OR REPLACE VIEW v_location_stats_optimized AS
 SELECT 
-  location,
-  COUNT(DISTINCT proxy_id) as proxy_count,
-  SUM(total_requests) as total_requests,
-  SUM(success_count) * 100.0 / NULLIF(SUM(total_requests), 0) as success_rate,
-  AVG(avg_response_time_ms) as avg_response_time,
-  MIN(min_response_time_ms) as min_response_time,
-  MAX(max_response_time_ms) as max_response_time,
-  SUM(rotation_count) as total_rotations
-FROM proxy_requests_hourly_summary
-WHERE hour >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-GROUP BY location
+  p.location,
+  COUNT(DISTINCT pr.proxy_id) as proxy_count,
+  COUNT(*) as total_requests,
+  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as success_rate,
+  AVG(pr.response_time_ms) as avg_response_time,
+  MIN(pr.response_time_ms) as min_response_time,
+  MAX(pr.response_time_ms) as max_response_time,
+  COUNT(CASE WHEN pr.ip_changed = true THEN 1 END) as total_rotations
+FROM proxy_requests pr
+LEFT JOIN proxies p ON pr.proxy_id = p.device_id
+WHERE pr.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+  AND pr.timestamp IS NOT NULL
+GROUP BY p.location
 ORDER BY success_rate DESC;

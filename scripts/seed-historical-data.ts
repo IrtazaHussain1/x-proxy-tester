@@ -230,11 +230,6 @@ async function resetSeedData(seedTag: string, proxyIds: string[]) {
     ...proxyIds
   );
 
-  await client.$executeRawUnsafe(
-    `DELETE FROM proxy_requests_hourly_summary WHERE proxy_id IN (${proxyIds.map(() => '?').join(',')})`,
-    ...proxyIds
-  );
-
   await client.proxy.deleteMany({
     where: {
       deviceId: { in: proxyIds },

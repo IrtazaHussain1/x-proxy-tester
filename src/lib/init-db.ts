@@ -7,7 +7,8 @@
  * @module lib/init-db
  */
 
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
+import { existsSync } from 'fs';
 import path from 'path';
 import { logger } from './logger';
 import { prisma, backgroundDb } from './db';
@@ -164,6 +165,125 @@ function buildPartitionAlterSQL(): string {
 }
 
 /**
+ * Executes SQL via Prisma CLI (non-prepared protocol path).
+ * Use this for MySQL DDL that is not supported by prepared statements
+ * (e.g. CREATE EVENT with compound BEGIN...END body).
+ */
+function executeSqlViaPrismaCli(sql: string): void {
+  const prismaBin = path.join(process.cwd(), 'node_modules', '.bin', 'prisma');
+  const schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma');
+  if (!existsSync(prismaBin)) {
+    throw new Error(
+      `Prisma CLI not found at ${prismaBin}. Install prisma as a runtime dependency or run this setup in an environment with Prisma CLI.`
+    );
+  }
+
+  const result = spawnSync(
+    prismaBin,
+    ['db', 'execute', '--stdin', '--schema', schemaPath],
+    {
+      input: sql,
+      env: {
+        ...process.env,
+        DATABASE_URL: process.env.DATABASE_URL,
+      },
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }
+  );
+
+  if (result.status !== 0) {
+    const stdout = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+    const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+    throw new Error(
+      `Prisma db execute failed (status=${String(result.status)}). stdout=${stdout || '<empty>'} stderr=${stderr || '<empty>'}`
+    );
+  }
+}
+
+/**
+ * Ensures aggregate summary table has required extended columns.
+ * Also adds `id` as PK only when the table has no primary key.
+ */
+export async function ensureAggregateSummarySchema(): Promise<void> {
+  try {
+    logger.info('Reconciling aggregate summary schema');
+    const hasPrimaryKeyRows = await backgroundDb.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+      `SELECT COUNT(*) AS cnt
+         FROM information_schema.TABLE_CONSTRAINTS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'proxy_requests_daily_summary'
+          AND CONSTRAINT_TYPE = 'PRIMARY KEY'`
+    );
+    const hasPrimaryKey = Number(hasPrimaryKeyRows[0]?.cnt ?? 0) > 0;
+
+    const hasIdRows = await backgroundDb.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+      `SELECT COUNT(*) AS cnt
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'proxy_requests_daily_summary'
+          AND COLUMN_NAME = 'id'`
+    );
+    const hasIdColumn = Number(hasIdRows[0]?.cnt ?? 0) > 0;
+    logger.info({ hasPrimaryKey, hasIdColumn }, 'Aggregate summary PK status');
+
+    if (!hasPrimaryKey) {
+      if (!hasIdColumn) {
+        logger.info('Adding id primary key column to aggregate summary');
+        await backgroundDb.$executeRawUnsafe(
+          `ALTER TABLE proxy_requests_daily_summary
+             ADD COLUMN id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST`
+        );
+      } else {
+        logger.info('Adding primary key on existing id column in aggregate summary');
+        await backgroundDb.$executeRawUnsafe(
+          `ALTER TABLE proxy_requests_daily_summary
+             ADD PRIMARY KEY (id)`
+        );
+      }
+    }
+
+    try {
+      await backgroundDb.$executeRawUnsafe(
+        `ALTER TABLE proxy_requests_daily_summary
+           ADD COLUMN device_name VARCHAR(255) NULL AFTER proxy_id`
+      );
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (!msg.includes('Duplicate column name')) throw error;
+    }
+    logger.info('Ensured device_name column exists on aggregate summary');
+
+    try {
+      await backgroundDb.$executeRawUnsafe(
+        `ALTER TABLE proxy_requests_daily_summary
+           ADD COLUMN server_name VARCHAR(32) NULL AFTER device_name`
+      );
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (!msg.includes('Duplicate column name')) throw error;
+    }
+    logger.info('Ensured server_name column exists on aggregate summary');
+
+    try {
+      await backgroundDb.$executeRawUnsafe(
+        `CREATE INDEX idx_proxy_requests_daily_summary_server_name
+           ON proxy_requests_daily_summary (server_name)`
+      );
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (!msg.includes('Duplicate key name')) throw error;
+    }
+    logger.info('Ensured server_name index exists on aggregate summary');
+
+    logger.info('Aggregate summary schema reconciliation completed');
+  } catch (error: any) {
+    logger.error({ error: error?.message || String(error) }, 'Failed to reconcile aggregate summary schema');
+  }
+}
+
+/**
  * Ensures proxy_requests is partitioned by month and the monthly management
  * EVENT exists. Safe to call on every startup — all steps are idempotent.
  *
@@ -229,8 +349,9 @@ export async function ensurePartitioningSetup(): Promise<void> {
     }
 
     // ── Step 4: Drop superseded batch-DELETE events ────────────────────────────
-    await backgroundDb.$executeRawUnsafe('DROP EVENT IF EXISTS cleanup_old_proxy_requests');
-    await backgroundDb.$executeRawUnsafe('DROP EVENT IF EXISTS cleanup_old_speed_tests');
+    // DROP EVENT is not supported in prepared statement protocol on some MySQL setups.
+    executeSqlViaPrismaCli('DROP EVENT IF EXISTS cleanup_old_proxy_requests;');
+    executeSqlViaPrismaCli('DROP EVENT IF EXISTS cleanup_old_speed_tests;');
 
     // ── Step 5: Ensure monthly partition management event exists ───────────────
     const eventRows = await backgroundDb.$queryRawUnsafe<Array<{
@@ -246,10 +367,10 @@ export async function ensurePartitioningSetup(): Promise<void> {
     if (eventRows.length === 0 || eventRows[0].STATUS !== 'ENABLED') {
       if (eventRows.length > 0) {
         logger.warn({ status: eventRows[0].STATUS }, 'manage_proxy_requests_partitions is not ENABLED — recreating');
-        await backgroundDb.$executeRawUnsafe('DROP EVENT IF EXISTS manage_proxy_requests_partitions');
+        executeSqlViaPrismaCli('DROP EVENT IF EXISTS manage_proxy_requests_partitions;');
       }
 
-      await backgroundDb.$executeRawUnsafe(`
+      executeSqlViaPrismaCli(`
         CREATE EVENT manage_proxy_requests_partitions
           ON SCHEDULE EVERY 1 MONTH
           STARTS (DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01 02:00:00'))

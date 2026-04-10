@@ -8,21 +8,29 @@ import { startContinuousTesting, stopContinuousTesting } from './services/contin
 import { startSpeedTestService, stopSpeedTestService } from './services/speed-test-service';
 import { stopIpRotationTesting } from './services/ip-rotation-testing';
 import { startDailyAggregationService, stopDailyAggregationService, aggregateRecentDays } from './services/daily-aggregation';
-import { startPeriodicArchival } from './services/archival';
+import { startPeriodicArchival, stopPeriodicArchival } from './services/archival';
 import { batchWriter } from './lib/batch-writer';
 import { logger } from './lib/logger';
 import { config } from './config';
 import { startServer } from './server';
 import { initGrafanaViews } from './lib/init-grafana-views';
-import { initDatabaseSchema, ensurePartitioningSetup } from './lib/init-db';
+import { initDatabaseSchema, ensureAggregateSummarySchema, ensurePartitioningSetup } from './lib/init-db';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
 import { startProxyTestWriteWorker, stopProxyTestWriteQueue } from './lib/proxy-test-write-queue';
 import { startProxyMetaWriteWorker, stopProxyMetaWriteQueue } from './lib/proxy-meta-write-queue';
 import { processProxyMetaWriteJob, processProxyTestWriteJob } from './services/continuous-proxy-tester';
+import { registerTimeoutJob, stopAllScheduledJobs } from './services/cron.service';
 import type { ProxyTestWriteJobData } from './lib/proxy-test-write-queue';
 import type { ProxyMetaWriteJobData } from './lib/proxy-meta-write-queue';
+
+type DbSchemaSyncMode = 'push' | 'off';
+
+function getDbSchemaSyncMode(): DbSchemaSyncMode {
+  const raw = (process.env.DB_SCHEMA_SYNC_MODE ?? 'push').trim().toLowerCase();
+  return raw === 'off' ? 'off' : 'push';
+}
 
 /**
  * Performs a graceful shutdown in the correct order:
@@ -48,7 +56,9 @@ async function gracefulShutdown(reason: string): Promise<void> {
     stopContinuousTesting();
     stopSpeedTestService();
     stopDailyAggregationService();
+    stopPeriodicArchival();
     stopDuplicateIpSnapshotService();
+    stopAllScheduledJobs();
 
     // Drain BullMQ workers BEFORE flushing batchWriter.
     // Workers call batchWriter.add() — they must finish processing
@@ -170,8 +180,20 @@ async function main(): Promise<void> {
       logger.info('Database connection established successfully');
     }
 
-    // Initialize database schema (create tables if they don't exist)
-    await initDatabaseSchema();
+    // Initialize database schema (create tables/columns if sync mode allows).
+    const dbSchemaSyncMode = getDbSchemaSyncMode();
+    if (dbSchemaSyncMode === 'push') {
+      await initDatabaseSchema();
+    } else {
+      logger.info(
+        { dbSchemaSyncMode },
+        'Database schema sync is disabled (DB_SCHEMA_SYNC_MODE=off)'
+      );
+    }
+
+    // Reconcile aggregate summary schema extensions regardless of sync mode.
+    // This keeps additive columns available even when db push is skipped or blocked.
+    await ensureAggregateSummarySchema();
 
     // Initialize Grafana views (after database schema is ready)
     await initGrafanaViews();
@@ -254,11 +276,11 @@ async function main(): Promise<void> {
     // is automatically recovered on the next restart before the partition drops it.
     const startupBackfillDays = parseInt(process.env.STARTUP_DAILY_BACKFILL_DAYS || '2', 10);
     if (startupBackfillDays > 0) {
-      setTimeout(() => {
+      registerTimeoutJob('startup-daily-backfill', 60_000, async () => {
         void aggregateRecentDays(startupBackfillDays).catch((err) => {
           logger.error({ error: err instanceof Error ? err.message : 'Unknown error' }, 'Startup backfill of daily summaries failed');
         });
-      }, 60_000);
+      });
     } else {
       logger.info('Startup daily backfill disabled (STARTUP_DAILY_BACKFILL_DAYS=0)');
     }

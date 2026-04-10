@@ -13,8 +13,9 @@ import { logger } from '../lib/logger';
 import { backgroundDb as prisma } from '../lib/db';
 import { checkDatabaseHealth } from '../lib/db';
 import { hasDatabaseCapacityForBackgroundJobs } from '../lib/db';
+import { computeServerLabelFromDeviceName } from '../helpers/server-name';
+import { registerCronJob, stopScheduledJob } from './cron.service';
 
-let aggregationInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
 let isAggregating = false;
 
@@ -41,6 +42,12 @@ interface ProxyStats {
   downloadSpeeds: number[];
   uploadSpeeds: number[];
   uniqueIps: Set<string>;
+  previousOutboundIp: string | null;
+  firstIp: string | null;
+  lastIp: string | null;
+  ipCounts: Map<string, number>;
+  ipAssignments: string[];
+  ipChanges: Array<{ from: string; to: string; at: string }>;
 }
 
 function emptyStats(): ProxyStats {
@@ -56,6 +63,12 @@ function emptyStats(): ProxyStats {
     downloadSpeeds: [],
     uploadSpeeds: [],
     uniqueIps: new Set(),
+    previousOutboundIp: null,
+    firstIp: null,
+    lastIp: null,
+    ipCounts: new Map(),
+    ipAssignments: [],
+    ipChanges: [],
   };
 }
 
@@ -64,10 +77,10 @@ function accumulateRow(
   row: {
     status: string;
     responseTimeMs: number | null;
-    ipChanged: boolean;
     downloadSpeedMbps: number | null;
     uploadSpeedMbps: number | null;
     outboundIp: string | null;
+    timestamp: Date;
   }
 ): void {
   stats.total++;
@@ -82,11 +95,27 @@ function accumulateRow(
   } else if (row.status === 'DNS_ERROR') {
     stats.dnsError++;
   }
-  if (row.ipChanged) stats.rotation++;
   if (row.responseTimeMs !== null) stats.responseTimes.push(row.responseTimeMs);
   if (row.downloadSpeedMbps !== null) stats.downloadSpeeds.push(row.downloadSpeedMbps);
   if (row.uploadSpeedMbps !== null) stats.uploadSpeeds.push(row.uploadSpeedMbps);
-  if (row.outboundIp) stats.uniqueIps.add(row.outboundIp);
+  if (row.outboundIp) {
+    stats.uniqueIps.add(row.outboundIp);
+    stats.firstIp = stats.firstIp ?? row.outboundIp;
+    stats.lastIp = row.outboundIp;
+    stats.ipCounts.set(row.outboundIp, (stats.ipCounts.get(row.outboundIp) ?? 0) + 1);
+
+    if (stats.previousOutboundIp === null || stats.previousOutboundIp !== row.outboundIp) {
+      stats.ipAssignments.push(row.outboundIp);
+    }
+    if (stats.previousOutboundIp !== null && stats.previousOutboundIp !== row.outboundIp) {
+      stats.ipChanges.push({
+        from: stats.previousOutboundIp,
+        to: row.outboundIp,
+        at: row.timestamp.toISOString(),
+      });
+    }
+    stats.previousOutboundIp = row.outboundIp;
+  }
 }
 
 function avg(arr: number[]): number | null {
@@ -102,11 +131,38 @@ function maxOf(arr: number[]): number | null {
   return arr.length > 0 ? Math.max(...arr) : null;
 }
 
+function getMostUsedIp(ipCounts: Map<string, number>): { ip: string | null; count: number } {
+  let mostUsedIp: string | null = null;
+  let mostUsedIpCount = 0;
+
+  for (const [ip, count] of ipCounts.entries()) {
+    if (count > mostUsedIpCount) {
+      mostUsedIp = ip;
+      mostUsedIpCount = count;
+    }
+  }
+
+  return { ip: mostUsedIp, count: mostUsedIpCount };
+}
+
 /** Normalize MySQL decimal / bigint from raw query to number | null. */
 function sqlNumber(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   const x = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(x) ? x : null;
+}
+
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const rows = await prisma.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+    `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+        AND COLUMN_NAME = ?`,
+    tableName,
+    columnName
+  );
+  return Number(rows[0]?.cnt ?? 0) > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,16 +252,21 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
 
     logger.info({ day: dayLabel, proxyCount: proxyRows.length }, 'Aggregating proxies');
 
+    const supportsDeviceName = await hasColumn('proxy_requests_daily_summary', 'device_name');
+    const supportsServerName = await hasColumn('proxy_requests_daily_summary', 'server_name');
+    const supportsExtendedDeviceMeta = supportsDeviceName && supportsServerName;
+
     let upserted = 0;
 
     for (const { proxy_id: proxyId } of proxyRows) {
       // 2. Fetch proxy metadata (location, relay server info).
       const proxyMeta = await prisma.$queryRawUnsafe<Array<{
+        name: string | null;
         location: string | null;
         relay_server_id: number | null;
         relay_server_ip_address: string | null;
       }>>(
-        `SELECT location, relay_server_id, relay_server_ip_address
+        `SELECT name, location, relay_server_id, relay_server_ip_address
            FROM proxies WHERE device_id = ? LIMIT 1`,
         proxyId
       );
@@ -251,10 +312,10 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
           accumulateRow(stats, {
             status: row.status,
             responseTimeMs: row.response_time_ms,
-            ipChanged: row.ip_changed === true || row.ip_changed === 1,
             downloadSpeedMbps: row.download_speed_mbps,
             uploadSpeedMbps: row.upload_speed_mbps,
             outboundIp: row.outbound_ip,
+            timestamp: row.timestamp,
           });
         }
 
@@ -336,12 +397,72 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
         stats.total > 0
           ? parseFloat(((stats.uniqueIps.size / stats.total) * 100).toFixed(2))
           : 0;
+      const mostUsedIp = getMostUsedIp(stats.ipCounts);
+      const rotationCount = stats.ipChanges.length;
+      const deviceName = meta?.name ?? null;
+      const serverName = computeServerLabelFromDeviceName(deviceName);
+      const ipHistoryJson = JSON.stringify({
+        assignedIps: stats.ipAssignments,
+        uniqueIps: Array.from(stats.uniqueIps),
+        counts: Object.fromEntries(stats.ipCounts),
+        changes: stats.ipChanges,
+      });
 
       // 5. Upsert via raw SQL (INSERT ... ON DUPLICATE KEY UPDATE) so this
       //    works regardless of whether the Prisma client has been regenerated.
       const dayStr = dayStart.toISOString().split('T')[0];
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO proxy_requests_daily_summary (
+      const insertSql = supportsExtendedDeviceMeta
+        ? `INSERT INTO proxy_requests_daily_summary (
+           day, proxy_id, device_name, server_name, location, relay_server_id, relay_server_ip,
+           total_requests, success_count, failure_count, success_rate_pct,
+           avg_response_time_ms, min_response_time_ms, max_response_time_ms,
+           p50_response_time_ms, p95_response_time_ms, p99_response_time_ms,
+           timeout_count, connection_error_count, http_error_count, dns_error_count,
+           rotation_count,
+           avg_download_speed_mbps, avg_upload_speed_mbps,
+           max_download_speed_mbps, max_upload_speed_mbps,
+           min_download_speed_mbps, min_upload_speed_mbps,
+           unique_ips_count, ip_diversity_score,
+           ip_history_json, ip_change_count, first_ip, last_ip, most_used_ip, most_used_ip_count,
+           created_at, updated_at
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+         ON DUPLICATE KEY UPDATE
+           device_name           = VALUES(device_name),
+           server_name           = VALUES(server_name),
+           location              = VALUES(location),
+           relay_server_id       = VALUES(relay_server_id),
+           relay_server_ip       = VALUES(relay_server_ip),
+           total_requests        = VALUES(total_requests),
+           success_count         = VALUES(success_count),
+           failure_count         = VALUES(failure_count),
+           success_rate_pct      = VALUES(success_rate_pct),
+           avg_response_time_ms  = VALUES(avg_response_time_ms),
+           min_response_time_ms  = VALUES(min_response_time_ms),
+           max_response_time_ms  = VALUES(max_response_time_ms),
+           p50_response_time_ms  = VALUES(p50_response_time_ms),
+           p95_response_time_ms  = VALUES(p95_response_time_ms),
+           p99_response_time_ms  = VALUES(p99_response_time_ms),
+           timeout_count         = VALUES(timeout_count),
+           connection_error_count= VALUES(connection_error_count),
+           http_error_count      = VALUES(http_error_count),
+           dns_error_count       = VALUES(dns_error_count),
+           rotation_count        = VALUES(rotation_count),
+           avg_download_speed_mbps = VALUES(avg_download_speed_mbps),
+           avg_upload_speed_mbps   = VALUES(avg_upload_speed_mbps),
+           max_download_speed_mbps = VALUES(max_download_speed_mbps),
+           max_upload_speed_mbps   = VALUES(max_upload_speed_mbps),
+           min_download_speed_mbps = VALUES(min_download_speed_mbps),
+           min_upload_speed_mbps   = VALUES(min_upload_speed_mbps),
+           unique_ips_count      = VALUES(unique_ips_count),
+           ip_diversity_score    = VALUES(ip_diversity_score),
+           ip_history_json       = VALUES(ip_history_json),
+           ip_change_count       = VALUES(ip_change_count),
+           first_ip              = VALUES(first_ip),
+           last_ip               = VALUES(last_ip),
+           most_used_ip          = VALUES(most_used_ip),
+           most_used_ip_count    = VALUES(most_used_ip_count),
+           updated_at            = CURRENT_TIMESTAMP`
+        : `INSERT INTO proxy_requests_daily_summary (
            day, proxy_id, location, relay_server_id, relay_server_ip,
            total_requests, success_count, failure_count, success_rate_pct,
            avg_response_time_ms, min_response_time_ms, max_response_time_ms,
@@ -352,8 +473,9 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
            max_download_speed_mbps, max_upload_speed_mbps,
            min_download_speed_mbps, min_upload_speed_mbps,
            unique_ips_count, ip_diversity_score,
+           ip_history_json, ip_change_count, first_ip, last_ip, most_used_ip, most_used_ip_count,
            created_at, updated_at
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
          ON DUPLICATE KEY UPDATE
            location              = VALUES(location),
            relay_server_id       = VALUES(relay_server_id),
@@ -381,19 +503,45 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
            min_upload_speed_mbps   = VALUES(min_upload_speed_mbps),
            unique_ips_count      = VALUES(unique_ips_count),
            ip_diversity_score    = VALUES(ip_diversity_score),
-           updated_at            = CURRENT_TIMESTAMP`,
-        dayStr, proxyId,
-        meta?.location ?? null,
-        meta?.relay_server_id != null ? String(meta.relay_server_id) : null,
-        meta?.relay_server_ip_address ?? null,
-        stats.total, stats.success, failure, successRatePct,
-        avg(stats.responseTimes), minOf(stats.responseTimes), maxOf(stats.responseTimes),
-        pct(stats.responseTimes, 50), pct(stats.responseTimes, 95), pct(stats.responseTimes, 99),
-        stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
-        stats.rotation,
-        avgDl, avgUl, maxDl, maxUl, minDl, minUl,
-        stats.uniqueIps.size, ipDiversityScore
-      );
+           ip_history_json       = VALUES(ip_history_json),
+           ip_change_count       = VALUES(ip_change_count),
+           first_ip              = VALUES(first_ip),
+           last_ip               = VALUES(last_ip),
+           most_used_ip          = VALUES(most_used_ip),
+           most_used_ip_count    = VALUES(most_used_ip_count),
+           updated_at            = CURRENT_TIMESTAMP`;
+
+      const params = supportsExtendedDeviceMeta
+        ? [
+            dayStr, proxyId, deviceName, serverName,
+            meta?.location ?? null,
+            meta?.relay_server_id != null ? String(meta.relay_server_id) : null,
+            meta?.relay_server_ip_address ?? null,
+            stats.total, stats.success, failure, successRatePct,
+            avg(stats.responseTimes), minOf(stats.responseTimes), maxOf(stats.responseTimes),
+            pct(stats.responseTimes, 50), pct(stats.responseTimes, 95), pct(stats.responseTimes, 99),
+            stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
+            rotationCount,
+            avgDl, avgUl, maxDl, maxUl, minDl, minUl,
+            stats.uniqueIps.size, ipDiversityScore,
+            ipHistoryJson, rotationCount, stats.firstIp, stats.lastIp, mostUsedIp.ip, mostUsedIp.count
+          ]
+        : [
+            dayStr, proxyId,
+            meta?.location ?? null,
+            meta?.relay_server_id != null ? String(meta.relay_server_id) : null,
+            meta?.relay_server_ip_address ?? null,
+            stats.total, stats.success, failure, successRatePct,
+            avg(stats.responseTimes), minOf(stats.responseTimes), maxOf(stats.responseTimes),
+            pct(stats.responseTimes, 50), pct(stats.responseTimes, 95), pct(stats.responseTimes, 99),
+            stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
+            rotationCount,
+            avgDl, avgUl, maxDl, maxUl, minDl, minUl,
+            stats.uniqueIps.size, ipDiversityScore,
+            ipHistoryJson, rotationCount, stats.firstIp, stats.lastIp, mostUsedIp.ip, mostUsedIp.count
+          ];
+
+      await prisma.$executeRawUnsafe(insertSql, ...params);
 
       upserted++;
 
@@ -559,40 +707,26 @@ export function startDailyAggregationService(): void {
 
   const { hour, minute } = parseAggregationSchedule();
 
-  const now = new Date();
-  const nextRun = new Date(now);
-  nextRun.setUTCHours(hour, minute, 0, 0);
-  if (nextRun <= now) {
-    nextRun.setDate(nextRun.getDate() + 1);
-  }
-  const msUntilNextRun = nextRun.getTime() - now.getTime();
+  const schedule = `${minute} ${hour} * * *`;
 
   logger.info(
     {
-      nextRun: nextRun.toISOString(),
-      hoursUntilNextRun: (msUntilNextRun / (60 * 60 * 1000)).toFixed(2),
-      schedule: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} daily`,
+      schedule,
+      timezone: process.env.CRON_TZ ?? 'UTC',
     },
     'Scheduled daily aggregation'
   );
 
-  setTimeout(() => {
-    void aggregateDayInApp();
-
-    aggregationInterval = setInterval(() => {
-      void aggregateDayInApp();
-    }, 24 * 60 * 60 * 1000);
-  }, msUntilNextRun);
+  registerCronJob('daily-aggregation', schedule, async () => {
+    await aggregateDayInApp();
+  });
 }
 
 /**
  * Stops the daily aggregation service.
  */
 export function stopDailyAggregationService(): void {
-  if (aggregationInterval) {
-    clearInterval(aggregationInterval);
-    aggregationInterval = null;
-  }
+  stopScheduledJob('daily-aggregation');
   isRunning = false;
   logger.info('Daily aggregation service stopped');
 }

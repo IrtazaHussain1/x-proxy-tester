@@ -19,6 +19,7 @@
 
 import { backgroundDb as prisma } from '../lib/db';
 import { logger } from '../lib/logger';
+import { registerIntervalJob, stopScheduledJob } from './cron.service';
 
 const DEFAULT_RETENTION_DAYS = parseInt(process.env.DATA_RETENTION_DAYS || '30', 10);
 const ARCHIVAL_BATCH_SIZE = parseInt(process.env.ARCHIVAL_BATCH_SIZE || '1000', 10);
@@ -110,20 +111,22 @@ export async function getArchivalStats(): Promise<{
 export function startPeriodicArchival(
   intervalMs: number = 24 * 60 * 60 * 1000,
   retentionDays: number = DEFAULT_RETENTION_DAYS
-): NodeJS.Timeout {
+): void {
   logger.info(
     { intervalMs, retentionDays, intervalHours: intervalMs / (60 * 60 * 1000) },
     'Starting periodic archival (speed_tests only)'
   );
 
-  // Run once at startup then on interval.
-  void archiveOldRequests(retentionDays).catch((err) =>
-    logger.error({ err }, 'Startup archival failed')
+  registerIntervalJob(
+    'periodic-archival',
+    intervalMs,
+    async () => {
+      await archiveOldRequests(retentionDays);
+    },
+    { runImmediately: true }
   );
+}
 
-  return setInterval(() => {
-    void archiveOldRequests(retentionDays).catch((err) =>
-      logger.error({ err }, 'Periodic archival failed')
-    );
-  }, intervalMs);
+export function stopPeriodicArchival(): void {
+  stopScheduledJob('periodic-archival');
 }
