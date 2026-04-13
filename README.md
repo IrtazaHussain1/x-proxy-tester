@@ -145,9 +145,11 @@ See **`docs/ARCHITECTURAL_IMPROVEMENTS.md`** for a complete guide to monitoring 
 
 ## Documentation
 
-- **Architectural Improvements** (April 2026): `docs/ARCHITECTURAL_IMPROVEMENTS.md` - 18 critical fixes for data loss, security, correctness, and reliability
-- **Grafana Setup**: `grafana/README.md` - Complete guide for Grafana dashboards, data sources, and alerting
-- **Scalability**: `docs/SCALABILITY_AND_IMPROVEMENTS.md` - MySQL partitioning strategy and performance optimization
+- **Architecture (canonical)**: `docs/ARCHITECTURE.md`
+- **Operations runbook (canonical)**: `docs/OPERATIONS.md`
+- **Grafana setup**: `grafana/README.md`
+
+Legacy and change-log style documents in `docs/` are retained for historical reference, while new updates should be consolidated into the two canonical docs above.
 
 ## License
 
