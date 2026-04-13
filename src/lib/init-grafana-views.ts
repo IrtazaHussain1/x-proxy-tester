@@ -12,6 +12,17 @@ import { prisma } from './db';
 import { logger } from './logger';
 
 /**
+ * Normalizes MySQL-incompatible CREATE INDEX IF NOT EXISTS syntax.
+ * MySQL does not support IF NOT EXISTS for CREATE INDEX.
+ */
+function normalizeMysqlIndexStatement(statement: string): string {
+  return statement.replace(
+    /CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+/i,
+    'CREATE INDEX '
+  );
+}
+
+/**
  * Execute SQL statements from a file
  */
 async function executeSqlFile(filePath: string, fileName: string): Promise<void> {
@@ -32,8 +43,9 @@ async function executeSqlFile(filePath: string, fileName: string): Promise<void>
 
     for (const statement of statements) {
       if (statement.trim()) {
+        const normalizedStatement = normalizeMysqlIndexStatement(statement);
         try {
-          await prisma.$executeRawUnsafe(statement);
+          await prisma.$executeRawUnsafe(normalizedStatement);
         } catch (error: any) {
           // Ignore errors for views/indexes that already exist or tables that don't exist yet
           if (

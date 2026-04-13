@@ -6,54 +6,54 @@
 
 -- Composite index for timestamp-based queries (most common in Grafana)
 -- This index covers the most frequent query pattern: filtering by timestamp
-CREATE INDEX IF NOT EXISTS idx_proxy_requests_timestamp_status 
+CREATE INDEX idx_proxy_requests_timestamp_status 
 ON proxy_requests(timestamp DESC, status, proxy_id);
 
 -- Index for IP rotation queries (MySQL doesn't support partial indexes, so we index the column)
 -- For queries filtering by ip_changed = true, MySQL will use this index
-CREATE INDEX IF NOT EXISTS idx_proxy_requests_ip_changed_timestamp 
+CREATE INDEX idx_proxy_requests_ip_changed_timestamp 
 ON proxy_requests(ip_changed, timestamp DESC);
 
 -- Index for proxy_id + timestamp (for per-proxy time series)
 -- This is critical for fetching large datasets per proxy
-CREATE INDEX IF NOT EXISTS idx_proxy_requests_proxy_timestamp 
+CREATE INDEX idx_proxy_requests_proxy_timestamp 
 ON proxy_requests(proxy_id, timestamp DESC);
 
 -- Index to support rotation stats (latest outbound IP and success filter)
-CREATE INDEX IF NOT EXISTS idx_proxy_requests_proxy_timestamp_status_ip
+CREATE INDEX idx_proxy_requests_proxy_timestamp_status_ip
 ON proxy_requests(proxy_id, timestamp DESC, status, outbound_ip);
 
 -- Index for error analysis queries
 -- MySQL will use this index even when filtering error_type IS NOT NULL
-CREATE INDEX IF NOT EXISTS idx_proxy_requests_error_type_timestamp 
+CREATE INDEX idx_proxy_requests_error_type_timestamp 
 ON proxy_requests(error_type, timestamp DESC);
 
 -- Index for source-based queries (continuous vs periodic_rotation)
-CREATE INDEX IF NOT EXISTS idx_proxy_requests_source_timestamp 
+CREATE INDEX idx_proxy_requests_source_timestamp 
 ON proxy_requests(source, timestamp DESC);
 
 -- Composite index for active proxy queries
 -- This index helps with filtering active proxies quickly
-CREATE INDEX IF NOT EXISTS idx_proxies_active_stability 
+CREATE INDEX idx_proxies_active_stability 
 ON proxies(active, stability_status, rotation_status);
 
 -- Additional composite index for timestamp + status + proxy_id (most common Grafana query pattern)
 -- This covers WHERE timestamp >= X AND status = Y AND proxy_id = Z
-CREATE INDEX IF NOT EXISTS idx_proxy_requests_timestamp_status_proxy 
+CREATE INDEX idx_proxy_requests_timestamp_status_proxy 
 ON proxy_requests(timestamp DESC, status, proxy_id);
 
 -- Index for response_time_ms queries (for performance dashboards)
 -- Note: MySQL doesn't support partial indexes, so we index the column normally
 -- MySQL will still use this index efficiently when filtering response_time_ms IS NOT NULL
-CREATE INDEX IF NOT EXISTS idx_proxy_requests_timestamp_response_time 
+CREATE INDEX idx_proxy_requests_timestamp_response_time 
 ON proxy_requests(timestamp DESC, response_time_ms);
 
 -- Index for time-window joins and grouped metrics by proxy
-CREATE INDEX IF NOT EXISTS idx_proxy_requests_timestamp_proxy_response
+CREATE INDEX idx_proxy_requests_timestamp_proxy_response
 ON proxy_requests(timestamp DESC, proxy_id, response_time_ms);
 
 -- Index for speed test aggregate scans by time range and proxy
-CREATE INDEX IF NOT EXISTS idx_speed_tests_timestamp_proxy
+CREATE INDEX idx_speed_tests_timestamp_proxy
 ON speed_tests(timestamp DESC, proxy_id);
 
 -- ============================================
