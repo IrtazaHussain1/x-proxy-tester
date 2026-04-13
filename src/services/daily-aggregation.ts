@@ -19,6 +19,14 @@ import { registerCronJob, stopScheduledJob } from './cron.service';
 let isRunning = false;
 let isAggregating = false;
 
+interface AggregateDayInAppOptions {
+  skipIfAlreadyAggregated?: boolean;
+}
+
+interface AggregateRecentDaysOptions {
+  skipAlreadyAggregatedDays?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -184,7 +192,10 @@ const PAGE_SIZE = 5_000;
  *
  * @returns Number of proxy rows upserted.
  */
-export async function aggregateDayInApp(day?: Date): Promise<number> {
+export async function aggregateDayInApp(
+  day?: Date,
+  options: AggregateDayInAppOptions = {}
+): Promise<number> {
   if (isAggregating) {
     logger.warn('aggregateDayInApp already running, skipping');
     return 0;
@@ -248,6 +259,27 @@ export async function aggregateDayInApp(day?: Date): Promise<number> {
     if (proxyRows.length === 0) {
       logger.info({ day: dayLabel }, 'No proxy_requests found for day, skipping aggregation');
       return 0;
+    }
+
+    if (options.skipIfAlreadyAggregated) {
+      const summaryRows = await prisma.$queryRawUnsafe<Array<{ cnt: bigint }>>(
+        `SELECT COUNT(*) AS cnt
+           FROM proxy_requests_daily_summary
+          WHERE day = ?`,
+        dayLabel
+      );
+      const summaryCount = Number(summaryRows[0]?.cnt ?? 0);
+      if (summaryCount >= proxyRows.length) {
+        logger.info(
+          { day: dayLabel, summaryCount, proxyCount: proxyRows.length },
+          'Skipping aggregation for day because summary rows already cover all proxies'
+        );
+        return 0;
+      }
+      logger.info(
+        { day: dayLabel, summaryCount, proxyCount: proxyRows.length },
+        'Summary rows are incomplete for day, continuing aggregation'
+      );
     }
 
     logger.info({ day: dayLabel, proxyCount: proxyRows.length }, 'Aggregating proxies');
@@ -623,13 +655,18 @@ export async function aggregateDailySummary(day?: Date): Promise<number> {
 /**
  * Aggregates data for the last N days using app-side streaming.
  */
-export async function aggregateRecentDays(days: number = 7): Promise<number> {
+export async function aggregateRecentDays(
+  days: number = 7,
+  options: AggregateRecentDaysOptions = {}
+): Promise<number> {
   let aggregated = 0;
   const now = new Date();
 
   for (let i = 1; i <= days; i++) {
     const day = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-    aggregated += await aggregateDayInApp(day);
+    aggregated += await aggregateDayInApp(day, {
+      skipIfAlreadyAggregated: options.skipAlreadyAggregatedDays,
+    });
     if (i < days) {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }

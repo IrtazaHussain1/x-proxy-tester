@@ -277,7 +277,7 @@ async function main(): Promise<void> {
     const startupBackfillDays = parseInt(process.env.STARTUP_DAILY_BACKFILL_DAYS || '2', 10);
     if (startupBackfillDays > 0) {
       registerTimeoutJob('startup-daily-backfill', 60_000, async () => {
-        void aggregateRecentDays(startupBackfillDays).catch((err) => {
+        void aggregateRecentDays(startupBackfillDays, { skipAlreadyAggregatedDays: true }).catch((err) => {
           logger.error({ error: err instanceof Error ? err.message : 'Unknown error' }, 'Startup backfill of daily summaries failed');
         });
       });
