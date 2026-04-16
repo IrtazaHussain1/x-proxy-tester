@@ -14,7 +14,7 @@ import { logger } from './lib/logger';
 import { config } from './config';
 import { startServer } from './server';
 import { initGrafanaViews } from './lib/init-grafana-views';
-import { initDatabaseSchema, ensureAggregateSummarySchema, ensurePartitioningSetup } from './lib/init-db';
+import { initDatabaseSchema, ensurePartitioningSetup } from './lib/init-db';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
@@ -191,11 +191,7 @@ async function main(): Promise<void> {
       );
     }
 
-    // Reconcile aggregate summary schema extensions regardless of sync mode.
-    // This keeps additive columns available even when db push is skipped or blocked.
-    await ensureAggregateSummarySchema();
-
-    // Initialize Grafana views (after database schema is ready)
+    // Initialize Grafana SQL runtime artifacts (indexes)
     await initGrafanaViews();
 
     // Ensure partitioning + monthly partition EVENT are configured on every startup.

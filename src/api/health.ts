@@ -11,6 +11,7 @@ import { checkDatabaseHealth } from '../lib/db';
 import { logger } from '../lib/logger';
 import { getMetrics, getSuccessRate, getContinuousSuccessRate, getSuccessRateBySource, getAverageResponseTime } from '../lib/metrics';
 import { getTestingStatus } from '../services/continuous-proxy-tester';
+import { getLastAggregationRun, type AggregationJobRun } from '../services/daily-aggregation';
 
 export interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';
@@ -44,6 +45,9 @@ export interface HealthStatus {
   testing: {
     isRunning: boolean;
     activeDevices: number;
+  };
+  aggregation: {
+    lastRun: AggregationJobRun | null;
   };
 }
 
@@ -97,6 +101,7 @@ export async function getHealthStatus(): Promise<HealthStatus> {
   const memory = getMemoryUsage();
   const metrics = getMetrics();
   const testing = getTestingStatus();
+  const lastAggregation = getLastAggregationRun();
 
   // Determine overall status
   let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
@@ -107,6 +112,8 @@ export async function getHealthStatus(): Promise<HealthStatus> {
     status = 'degraded';
   } else if (getContinuousSuccessRate() < 50 && metrics.totalRequests > 100) {
     // Use continuous success rate (excluding periodic rotation) for health check
+    status = 'degraded';
+  } else if (lastAggregation?.status === 'failed') {
     status = 'degraded';
   }
 
@@ -129,6 +136,9 @@ export async function getHealthStatus(): Promise<HealthStatus> {
     testing: {
       isRunning: testing.isRunning,
       activeDevices: testing.activeDevices,
+    },
+    aggregation: {
+      lastRun: lastAggregation,
     },
   };
 }

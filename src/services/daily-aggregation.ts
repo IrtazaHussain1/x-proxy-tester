@@ -19,6 +19,33 @@ import { registerCronJob, stopScheduledJob } from './cron.service';
 let isRunning = false;
 let isAggregating = false;
 
+// ---------------------------------------------------------------------------
+// Job status tracking
+// ---------------------------------------------------------------------------
+
+export type AggregationJobStatus = 'success' | 'empty' | 'skipped' | 'failed';
+
+export interface AggregationJobRun {
+  status: AggregationJobStatus;
+  /** Calendar day that was aggregated (YYYY-MM-DD). */
+  day: string;
+  /** Proxy rows upserted. 0 for non-success statuses. */
+  upserted: number;
+  /** Wall-clock duration of the run in milliseconds. */
+  durationMs: number;
+  /** Human-readable reason for skipped/failed status. */
+  reason?: string;
+  startedAt: string;
+  finishedAt: string;
+}
+
+let lastAggregationRun: AggregationJobRun | null = null;
+
+/** Returns the result of the most recent `aggregateDayInApp` call, or null if never run. */
+export function getLastAggregationRun(): AggregationJobRun | null {
+  return lastAggregationRun;
+}
+
 interface AggregateDayInAppOptions {
   skipIfAlreadyAggregated?: boolean;
 }
@@ -201,21 +228,47 @@ export async function aggregateDayInApp(
     return 0;
   }
 
+  const jobStartedAt = Date.now();
+  const startedAtIso = new Date().toISOString();
+
+  // Compute the day label early so all exit paths can record it.
+  const earlyDay = new Date(day ?? Date.now() - 24 * 60 * 60 * 1000);
+  earlyDay.setUTCHours(0, 0, 0, 0);
+  const earlyDayLabel = earlyDay.toISOString().split('T')[0];
+
+  function finish(
+    status: AggregationJobStatus,
+    upserted: number,
+    dayStr: string,
+    reason?: string
+  ): number {
+    lastAggregationRun = {
+      status,
+      day: dayStr,
+      upserted,
+      durationMs: Date.now() - jobStartedAt,
+      reason,
+      startedAt: startedAtIso,
+      finishedAt: new Date().toISOString(),
+    };
+    return upserted;
+  }
+
   const hasCapacity = await hasDatabaseCapacityForBackgroundJobs();
   if (!hasCapacity) {
     // Log at error so this surfaces in any alerting pipeline.
     // A skipped day is permanently lost once its partition is dropped (~30 days later).
     logger.error(
-      { day: day ? day.toISOString().split('T')[0] : 'yesterday' },
+      { day: earlyDayLabel },
       'Daily aggregation SKIPPED — DB pool under pressure. This day will not be summarized unless backfilled manually via STARTUP_DAILY_BACKFILL_DAYS or scripts/run-aggregation.ts.'
     );
-    return 0;
+    return finish('skipped', 0, earlyDayLabel, 'DB pool under pressure');
   }
 
   const dbHealth = await checkDatabaseHealth();
   if (!dbHealth.connected) {
     logger.error('Database not connected, skipping daily aggregation');
-    return 0;
+    return finish('skipped', 0, earlyDayLabel, 'DB not connected');
   }
 
   const targetDay = day ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -258,7 +311,7 @@ export async function aggregateDayInApp(
 
     if (proxyRows.length === 0) {
       logger.info({ day: dayLabel }, 'No proxy_requests found for day, skipping aggregation');
-      return 0;
+      return finish('empty', 0, dayLabel, 'no proxy_requests for day');
     }
 
     if (options.skipIfAlreadyAggregated) {
@@ -274,7 +327,7 @@ export async function aggregateDayInApp(
           { day: dayLabel, summaryCount, proxyCount: proxyRows.length },
           'Skipping aggregation for day because summary rows already cover all proxies'
         );
-        return 0;
+        return finish('skipped', 0, dayLabel, 'already aggregated');
       }
       logger.info(
         { day: dayLabel, summaryCount, proxyCount: proxyRows.length },
@@ -287,6 +340,19 @@ export async function aggregateDayInApp(
     const supportsDeviceName = await hasColumn('proxy_requests_daily_summary', 'device_name');
     const supportsServerName = await hasColumn('proxy_requests_daily_summary', 'server_name');
     const supportsExtendedDeviceMeta = supportsDeviceName && supportsServerName;
+
+    const supportsRotationTypeCounts = await hasColumn(
+      'proxy_requests_daily_summary',
+      'ip_rotation_periodic_success_count'
+    );
+    if (!supportsRotationTypeCounts) {
+      logger.error(
+        { day: dayLabel },
+        'Skipping aggregation — ip_rotation_periodic_success_count column missing. ' +
+        'Run: npx prisma migrate deploy  (migration 20260416093000_add_rotation_type_outcome_counts_to_daily_summary)'
+      );
+      return finish('skipped', 0, dayLabel, 'missing column: ip_rotation_periodic_success_count — run migrate deploy');
+    }
 
     let upserted = 0;
 
@@ -431,6 +497,44 @@ export async function aggregateDayInApp(
           : 0;
       const mostUsedIp = getMostUsedIp(stats.ipCounts);
       const rotationCount = stats.ipChanges.length;
+      const rotationOutcomeRows = await prisma.$queryRawUnsafe<Array<{
+        rotation_group: string;
+        success_count: unknown;
+        failure_count: unknown;
+      }>>(
+        `SELECT
+           CASE
+             WHEN rc.cycle_type = 'periodic' THEN 'periodic'
+             ELSE 'continuous'
+           END AS rotation_group,
+           SUM(CASE WHEN ir.success = true THEN 1 ELSE 0 END) AS success_count,
+           SUM(CASE WHEN ir.success = false THEN 1 ELSE 0 END) AS failure_count
+         FROM ip_rotations ir
+         JOIN rotation_cycles rc ON rc.id = ir.cycle_id
+         WHERE ir.proxy_id = ?
+           AND ir.rotation_timestamp >= ?
+           AND ir.rotation_timestamp < ?
+         GROUP BY
+           CASE
+             WHEN rc.cycle_type = 'periodic' THEN 'periodic'
+             ELSE 'continuous'
+           END`,
+        proxyId, dayStart, dayEnd
+      );
+      const rotationOutcomes = rotationOutcomeRows.reduce(
+        (acc, row) => {
+          const key = row.rotation_group === 'periodic' ? 'periodic' : 'continuous';
+          const successCount = sqlNumber(row.success_count) ?? 0;
+          const failureCount = sqlNumber(row.failure_count) ?? 0;
+          acc[key].success += successCount;
+          acc[key].failure += failureCount;
+          return acc;
+        },
+        {
+          periodic: { success: 0, failure: 0 },
+          continuous: { success: 0, failure: 0 },
+        }
+      );
       const deviceName = meta?.name ?? null;
       const serverName = computeServerLabelFromDeviceName(deviceName);
       const ipHistoryJson = JSON.stringify({
@@ -451,13 +555,15 @@ export async function aggregateDayInApp(
            p50_response_time_ms, p95_response_time_ms, p99_response_time_ms,
            timeout_count, connection_error_count, http_error_count, dns_error_count,
            rotation_count,
+           ip_rotation_periodic_success_count, ip_rotation_periodic_failure_count,
+           ip_rotation_continuous_success_count, ip_rotation_continuous_failure_count,
            avg_download_speed_mbps, avg_upload_speed_mbps,
            max_download_speed_mbps, max_upload_speed_mbps,
            min_download_speed_mbps, min_upload_speed_mbps,
            unique_ips_count, ip_diversity_score,
            ip_history_json, ip_change_count, first_ip, last_ip, most_used_ip, most_used_ip_count,
            created_at, updated_at
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
          ON DUPLICATE KEY UPDATE
            device_name           = VALUES(device_name),
            server_name           = VALUES(server_name),
@@ -479,6 +585,10 @@ export async function aggregateDayInApp(
            http_error_count      = VALUES(http_error_count),
            dns_error_count       = VALUES(dns_error_count),
            rotation_count        = VALUES(rotation_count),
+           ip_rotation_periodic_success_count = VALUES(ip_rotation_periodic_success_count),
+           ip_rotation_periodic_failure_count = VALUES(ip_rotation_periodic_failure_count),
+           ip_rotation_continuous_success_count = VALUES(ip_rotation_continuous_success_count),
+           ip_rotation_continuous_failure_count = VALUES(ip_rotation_continuous_failure_count),
            avg_download_speed_mbps = VALUES(avg_download_speed_mbps),
            avg_upload_speed_mbps   = VALUES(avg_upload_speed_mbps),
            max_download_speed_mbps = VALUES(max_download_speed_mbps),
@@ -501,13 +611,15 @@ export async function aggregateDayInApp(
            p50_response_time_ms, p95_response_time_ms, p99_response_time_ms,
            timeout_count, connection_error_count, http_error_count, dns_error_count,
            rotation_count,
+           ip_rotation_periodic_success_count, ip_rotation_periodic_failure_count,
+           ip_rotation_continuous_success_count, ip_rotation_continuous_failure_count,
            avg_download_speed_mbps, avg_upload_speed_mbps,
            max_download_speed_mbps, max_upload_speed_mbps,
            min_download_speed_mbps, min_upload_speed_mbps,
            unique_ips_count, ip_diversity_score,
            ip_history_json, ip_change_count, first_ip, last_ip, most_used_ip, most_used_ip_count,
            created_at, updated_at
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
          ON DUPLICATE KEY UPDATE
            location              = VALUES(location),
            relay_server_id       = VALUES(relay_server_id),
@@ -527,6 +639,10 @@ export async function aggregateDayInApp(
            http_error_count      = VALUES(http_error_count),
            dns_error_count       = VALUES(dns_error_count),
            rotation_count        = VALUES(rotation_count),
+           ip_rotation_periodic_success_count = VALUES(ip_rotation_periodic_success_count),
+           ip_rotation_periodic_failure_count = VALUES(ip_rotation_periodic_failure_count),
+           ip_rotation_continuous_success_count = VALUES(ip_rotation_continuous_success_count),
+           ip_rotation_continuous_failure_count = VALUES(ip_rotation_continuous_failure_count),
            avg_download_speed_mbps = VALUES(avg_download_speed_mbps),
            avg_upload_speed_mbps   = VALUES(avg_upload_speed_mbps),
            max_download_speed_mbps = VALUES(max_download_speed_mbps),
@@ -554,6 +670,8 @@ export async function aggregateDayInApp(
             pct(stats.responseTimes, 50), pct(stats.responseTimes, 95), pct(stats.responseTimes, 99),
             stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
             rotationCount,
+            rotationOutcomes.periodic.success, rotationOutcomes.periodic.failure,
+            rotationOutcomes.continuous.success, rotationOutcomes.continuous.failure,
             avgDl, avgUl, maxDl, maxUl, minDl, minUl,
             stats.uniqueIps.size, ipDiversityScore,
             ipHistoryJson, rotationCount, stats.firstIp, stats.lastIp, mostUsedIp.ip, mostUsedIp.count
@@ -568,6 +686,8 @@ export async function aggregateDayInApp(
             pct(stats.responseTimes, 50), pct(stats.responseTimes, 95), pct(stats.responseTimes, 99),
             stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
             rotationCount,
+            rotationOutcomes.periodic.success, rotationOutcomes.periodic.failure,
+            rotationOutcomes.continuous.success, rotationOutcomes.continuous.failure,
             avgDl, avgUl, maxDl, maxUl, minDl, minUl,
             stats.uniqueIps.size, ipDiversityScore,
             ipHistoryJson, rotationCount, stats.firstIp, stats.lastIp, mostUsedIp.ip, mostUsedIp.count
@@ -583,13 +703,14 @@ export async function aggregateDayInApp(
     }
 
     logger.info({ day: dayLabel, upserted }, 'App-side daily aggregation completed');
-    return upserted;
+    return finish('success', upserted, dayLabel);
   } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
     logger.error(
-      { error: error instanceof Error ? error.message : String(error), day: dayLabel },
+      { error: errMsg, day: dayLabel },
       'App-side daily aggregation failed'
     );
-    return 0;
+    return finish('failed', 0, dayLabel, errMsg);
   } finally {
     clearTimeout(watchdog);
     isAggregating = false;
@@ -756,6 +877,14 @@ export function startDailyAggregationService(): void {
 
   registerCronJob('daily-aggregation', schedule, async () => {
     await aggregateDayInApp();
+    const run = lastAggregationRun;
+    if (run) {
+      const logFn = run.status === 'success' ? logger.info : run.status === 'empty' ? logger.info : logger.error;
+      logFn(
+        { status: run.status, day: run.day, upserted: run.upserted, durationMs: run.durationMs, reason: run.reason },
+        `Daily aggregation job finished: ${run.status}`
+      );
+    }
   });
 }
 

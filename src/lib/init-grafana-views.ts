@@ -1,7 +1,8 @@
 /**
  * Initialize Grafana Views
  * 
- * Creates SQL views for Grafana dashboards after database schema is ready.
+ * Creates SQL runtime artifacts that are not managed by migrations.
+ * View definitions are managed through Prisma migrations.
  * 
  * @module lib/init-grafana-views
  */
@@ -75,12 +76,9 @@ async function executeSqlFile(filePath: string, fileName: string): Promise<void>
 }
 
 /**
- * Initialize Grafana views from SQL files
+ * Initialize Grafana SQL runtime artifacts from SQL files
  */
 export async function initGrafanaViews(): Promise<void> {
-  // Initialize views
-  await executeSqlFile(join(process.cwd(), 'grafana-views.sql'), 'grafana-views.sql');
-
   // Initialize optimization indexes
   await executeSqlFile(join(process.cwd(), 'grafana-views-optimized.sql'), 'grafana-views-optimized.sql');
 }
