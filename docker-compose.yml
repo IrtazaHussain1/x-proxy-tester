@@ -47,6 +47,10 @@ services:
       start_period: 60s
     networks:
       - proxy-network
+    # Resource allocation for 8 vCPU / 16GB RAM host
+    cpus: "2.0"
+    mem_limit: 6g
+    mem_reservation: 4g
 
   app:
     build:
@@ -178,6 +182,10 @@ services:
       timeout: 10s
       retries: 5
       start_period: 180s
+    # Resource allocation for 8 vCPU / 16GB RAM host
+    cpus: "4.0"
+    mem_limit: 7g
+    mem_reservation: 5g
 
   grafana:
     image: grafana/grafana:latest
@@ -250,18 +258,10 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - proxy-network
-    # Resource limits optimized for 8GB RAM / 4 vCPU server
-    # Note: deploy.resources only works in Docker Swarm mode
-    # For standalone docker-compose, set limits manually:
-    # docker update --memory=4g --memory-reservation=1g --cpus=3.0 x-proxy-tester-grafana
-    deploy:
-      resources:
-        limits:
-          cpus: '3.0'
-          memory: 4G
-        reservations:
-          cpus: '1.0'
-          memory: 1G
+    # Resource allocation for 8 vCPU / 16GB RAM host
+    cpus: "2.0"
+    mem_limit: 2g
+    mem_reservation: 1g
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s
