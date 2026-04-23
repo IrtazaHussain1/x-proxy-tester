@@ -13,61 +13,54 @@ Automated proxy testing system that continuously evaluates all available proxies
 ### Using Docker (Recommended)
 
 1. **Clone and setup:**
-   ```bash
+  ```bash
    git clone <repository-url>
    cd x-proxy-tester
    cp env.example .env
-   ```
-
+  ```
 2. **Configure environment:**
-   Edit `.env` and set:
-   - `XPROXY_API_TOKEN` - Your XProxy Portal API token
-   - `ENCRYPTION_KEY` - Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
-
+  Edit `.env` and set:
+  - `XPROXY_API_TOKEN` - Your XProxy Portal API token
+  - `ENCRYPTION_KEY` - Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 3. **Start services:**
-   ```bash
+  ```bash
    docker-compose up -d
-   ```
-
+  ```
 4. **Access services:**
-   - **Application Health**: http://localhost:3311/health
-   - **Grafana Dashboards**: http://localhost:3312 (admin/admin)
-   - **MySQL**: localhost:3310
+  - **Application Health**: [http://localhost:3311/health](http://localhost:3311/health)
+  - **Grafana Dashboards**: [http://localhost:3312](http://localhost:3312) (admin/admin)
+  - **MySQL**: localhost:3310
 
 ### Local Development
 
 1. **Install dependencies:**
-   ```bash
+  ```bash
    npm install
-   ```
-
+  ```
 2. **Setup database:**
-   ```bash
+  ```bash
    ./scripts/setup-mysql.sh
    # Or manually: mysql -u root -e "CREATE DATABASE xproxy_tester;"
-   ```
-
+  ```
 3. **Configure environment:**
-   ```bash
+  ```bash
    cp env.example .env
    # Edit .env with your configuration
-   ```
-
+  ```
 4. **Initialize database:**
-   ```bash
+  ```bash
    npm run db:generate
    npm run db:push
-   ```
-
+  ```
 5. **Run application:**
-   ```bash
+  ```bash
    # Development mode (with hot reload)
    npm run dev
 
    # Production mode
    npm run build
    npm start
-   ```
+  ```
 
 ## Development
 
@@ -107,16 +100,19 @@ src/
 Key environment variables (see `.env.example` for full list):
 
 **Core:**
+
 - `DATABASE_URL` - MySQL connection string
 - `XPROXY_LOGIN_EMAIL` / `XPROXY_LOGIN_PASSWORD` - XProxy Portal credentials
 
 **Security (Production Required):**
+
 - `ENCRYPTION_KEY` - 64-char hex key for credential encryption (generate: `node -e "require('crypto').randomBytes(32).toString('hex')"`)
 - `REDIS_PASSWORD` - Password for Redis auth (highly recommended)
 - `API_SECRET_KEY` - Bearer token for management endpoints `/api/testing/start|stop`
 - `CORS_ALLOWED_ORIGIN` - Restrict CORS origin (default: `*`)
 
 **Testing & Monitoring:**
+
 - `TEST_INTERVAL_MS` - Time between proxy tests (default: 5000ms)
 - `REQUEST_TIMEOUT_MS` - Request timeout (default: 30000ms)
 - `ROTATION_THRESHOLD` - Max test attempts before flagging no rotation (default: 10)
@@ -141,7 +137,7 @@ docker logs -f x-proxy-tester-app | grep -i "aggregat"
 # Expected: "Starting app-side daily aggregation" and "Stability calculation completed"
 ```
 
-See **`docs/ARCHITECTURAL_IMPROVEMENTS.md`** for a complete guide to monitoring and the recent system fixes.
+See `**docs/ARCHITECTURAL_IMPROVEMENTS.md**` for a complete guide to monitoring and the recent system fixes.
 
 ## Documentation
 

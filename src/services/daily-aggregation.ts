@@ -354,6 +354,19 @@ export async function aggregateDayInApp(
       return finish('skipped', 0, dayLabel, 'missing column: ip_rotation_periodic_success_count — run migrate deploy');
     }
 
+    const supportsInactiveProxyCounts = await hasColumn(
+      'proxy_requests_daily_summary',
+      'ip_rotation_inactive_proxy_success_count'
+    );
+    if (!supportsInactiveProxyCounts) {
+      logger.error(
+        { day: dayLabel },
+        'Skipping aggregation — ip_rotation_inactive_proxy_success_count column missing. ' +
+        'Run: npx prisma migrate deploy  (migration 20260423000000_fix_rotation_continuous_columns)'
+      );
+      return finish('skipped', 0, dayLabel, 'missing column: ip_rotation_inactive_proxy_success_count — run migrate deploy');
+    }
+
     let upserted = 0;
 
     for (const { proxy_id: proxyId } of proxyRows) {
@@ -504,8 +517,9 @@ export async function aggregateDayInApp(
       }>>(
         `SELECT
            CASE
-             WHEN rc.cycle_type = 'periodic' THEN 'periodic'
-             ELSE 'continuous'
+             WHEN rc.cycle_type = 'periodic'      THEN 'periodic'
+             WHEN rc.cycle_type = 'inactive_proxy' THEN 'inactive_proxy'
+             ELSE rc.cycle_type
            END AS rotation_group,
            SUM(CASE WHEN ir.success = true THEN 1 ELSE 0 END) AS success_count,
            SUM(CASE WHEN ir.success = false THEN 1 ELSE 0 END) AS failure_count
@@ -516,25 +530,49 @@ export async function aggregateDayInApp(
            AND ir.rotation_timestamp < ?
          GROUP BY
            CASE
-             WHEN rc.cycle_type = 'periodic' THEN 'periodic'
-             ELSE 'continuous'
+             WHEN rc.cycle_type = 'periodic'      THEN 'periodic'
+             WHEN rc.cycle_type = 'inactive_proxy' THEN 'inactive_proxy'
+             ELSE rc.cycle_type
            END`,
         proxyId, dayStart, dayEnd
       );
       const rotationOutcomes = rotationOutcomeRows.reduce(
         (acc, row) => {
-          const key = row.rotation_group === 'periodic' ? 'periodic' : 'continuous';
           const successCount = sqlNumber(row.success_count) ?? 0;
           const failureCount = sqlNumber(row.failure_count) ?? 0;
-          acc[key].success += successCount;
-          acc[key].failure += failureCount;
+          if (row.rotation_group === 'periodic') {
+            acc.periodic.success += successCount;
+            acc.periodic.failure += failureCount;
+          } else if (row.rotation_group === 'inactive_proxy') {
+            acc.inactiveProxy.success += successCount;
+            acc.inactiveProxy.failure += failureCount;
+          }
           return acc;
         },
         {
-          periodic: { success: 0, failure: 0 },
-          continuous: { success: 0, failure: 0 },
+          periodic:      { success: 0, failure: 0 },
+          inactiveProxy: { success: 0, failure: 0 },
         }
       );
+
+      const continuousRows = await prisma.$queryRawUnsafe<Array<{
+        success_count: unknown;
+        failure_count: unknown;
+      }>>(
+        `SELECT
+           SUM(CASE WHEN ip_changed = true AND status = 'success' THEN 1 ELSE 0 END) AS success_count,
+           SUM(CASE WHEN status != 'success' THEN 1 ELSE 0 END)                       AS failure_count
+         FROM proxy_requests
+         WHERE proxy_id = ?
+           AND timestamp >= ?
+           AND timestamp <  ?
+           AND source = 'continuous'`,
+        proxyId, dayStart, dayEnd
+      );
+      const continuousOutcomes = {
+        success: sqlNumber(continuousRows[0]?.success_count) ?? 0,
+        failure: sqlNumber(continuousRows[0]?.failure_count) ?? 0,
+      };
       const deviceName = meta?.name ?? null;
       const serverName = computeServerLabelFromDeviceName(deviceName);
       const ipHistoryJson = JSON.stringify({
@@ -556,6 +594,7 @@ export async function aggregateDayInApp(
            timeout_count, connection_error_count, http_error_count, dns_error_count,
            rotation_count,
            ip_rotation_periodic_success_count, ip_rotation_periodic_failure_count,
+           ip_rotation_inactive_proxy_success_count, ip_rotation_inactive_proxy_failure_count,
            ip_rotation_continuous_success_count, ip_rotation_continuous_failure_count,
            avg_download_speed_mbps, avg_upload_speed_mbps,
            max_download_speed_mbps, max_upload_speed_mbps,
@@ -563,7 +602,7 @@ export async function aggregateDayInApp(
            unique_ips_count, ip_diversity_score,
            ip_history_json, ip_change_count, first_ip, last_ip, most_used_ip, most_used_ip_count,
            created_at, updated_at
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
          ON DUPLICATE KEY UPDATE
            device_name           = VALUES(device_name),
            server_name           = VALUES(server_name),
@@ -585,10 +624,12 @@ export async function aggregateDayInApp(
            http_error_count      = VALUES(http_error_count),
            dns_error_count       = VALUES(dns_error_count),
            rotation_count        = VALUES(rotation_count),
-           ip_rotation_periodic_success_count = VALUES(ip_rotation_periodic_success_count),
-           ip_rotation_periodic_failure_count = VALUES(ip_rotation_periodic_failure_count),
-           ip_rotation_continuous_success_count = VALUES(ip_rotation_continuous_success_count),
-           ip_rotation_continuous_failure_count = VALUES(ip_rotation_continuous_failure_count),
+           ip_rotation_periodic_success_count       = VALUES(ip_rotation_periodic_success_count),
+           ip_rotation_periodic_failure_count       = VALUES(ip_rotation_periodic_failure_count),
+           ip_rotation_inactive_proxy_success_count = VALUES(ip_rotation_inactive_proxy_success_count),
+           ip_rotation_inactive_proxy_failure_count = VALUES(ip_rotation_inactive_proxy_failure_count),
+           ip_rotation_continuous_success_count     = VALUES(ip_rotation_continuous_success_count),
+           ip_rotation_continuous_failure_count     = VALUES(ip_rotation_continuous_failure_count),
            avg_download_speed_mbps = VALUES(avg_download_speed_mbps),
            avg_upload_speed_mbps   = VALUES(avg_upload_speed_mbps),
            max_download_speed_mbps = VALUES(max_download_speed_mbps),
@@ -612,6 +653,7 @@ export async function aggregateDayInApp(
            timeout_count, connection_error_count, http_error_count, dns_error_count,
            rotation_count,
            ip_rotation_periodic_success_count, ip_rotation_periodic_failure_count,
+           ip_rotation_inactive_proxy_success_count, ip_rotation_inactive_proxy_failure_count,
            ip_rotation_continuous_success_count, ip_rotation_continuous_failure_count,
            avg_download_speed_mbps, avg_upload_speed_mbps,
            max_download_speed_mbps, max_upload_speed_mbps,
@@ -619,7 +661,7 @@ export async function aggregateDayInApp(
            unique_ips_count, ip_diversity_score,
            ip_history_json, ip_change_count, first_ip, last_ip, most_used_ip, most_used_ip_count,
            created_at, updated_at
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
          ON DUPLICATE KEY UPDATE
            location              = VALUES(location),
            relay_server_id       = VALUES(relay_server_id),
@@ -639,10 +681,12 @@ export async function aggregateDayInApp(
            http_error_count      = VALUES(http_error_count),
            dns_error_count       = VALUES(dns_error_count),
            rotation_count        = VALUES(rotation_count),
-           ip_rotation_periodic_success_count = VALUES(ip_rotation_periodic_success_count),
-           ip_rotation_periodic_failure_count = VALUES(ip_rotation_periodic_failure_count),
-           ip_rotation_continuous_success_count = VALUES(ip_rotation_continuous_success_count),
-           ip_rotation_continuous_failure_count = VALUES(ip_rotation_continuous_failure_count),
+           ip_rotation_periodic_success_count       = VALUES(ip_rotation_periodic_success_count),
+           ip_rotation_periodic_failure_count       = VALUES(ip_rotation_periodic_failure_count),
+           ip_rotation_inactive_proxy_success_count = VALUES(ip_rotation_inactive_proxy_success_count),
+           ip_rotation_inactive_proxy_failure_count = VALUES(ip_rotation_inactive_proxy_failure_count),
+           ip_rotation_continuous_success_count     = VALUES(ip_rotation_continuous_success_count),
+           ip_rotation_continuous_failure_count     = VALUES(ip_rotation_continuous_failure_count),
            avg_download_speed_mbps = VALUES(avg_download_speed_mbps),
            avg_upload_speed_mbps   = VALUES(avg_upload_speed_mbps),
            max_download_speed_mbps = VALUES(max_download_speed_mbps),
@@ -671,7 +715,8 @@ export async function aggregateDayInApp(
             stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
             rotationCount,
             rotationOutcomes.periodic.success, rotationOutcomes.periodic.failure,
-            rotationOutcomes.continuous.success, rotationOutcomes.continuous.failure,
+            rotationOutcomes.inactiveProxy.success, rotationOutcomes.inactiveProxy.failure,
+            continuousOutcomes.success, continuousOutcomes.failure,
             avgDl, avgUl, maxDl, maxUl, minDl, minUl,
             stats.uniqueIps.size, ipDiversityScore,
             ipHistoryJson, rotationCount, stats.firstIp, stats.lastIp, mostUsedIp.ip, mostUsedIp.count
@@ -687,7 +732,8 @@ export async function aggregateDayInApp(
             stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
             rotationCount,
             rotationOutcomes.periodic.success, rotationOutcomes.periodic.failure,
-            rotationOutcomes.continuous.success, rotationOutcomes.continuous.failure,
+            rotationOutcomes.inactiveProxy.success, rotationOutcomes.inactiveProxy.failure,
+            continuousOutcomes.success, continuousOutcomes.failure,
             avgDl, avgUl, maxDl, maxUl, minDl, minUl,
             stats.uniqueIps.size, ipDiversityScore,
             ipHistoryJson, rotationCount, stats.firstIp, stats.lastIp, mostUsedIp.ip, mostUsedIp.count

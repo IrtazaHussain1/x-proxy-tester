@@ -205,8 +205,10 @@ model ProxyRequestsDailySummary {
   rotationCount        Int      @default(0) @map("rotation_count")
   ipRotationPeriodicSuccessCount Int      @default(0) @map("ip_rotation_periodic_success_count")
   ipRotationPeriodicFailureCount Int      @default(0) @map("ip_rotation_periodic_failure_count")
-  ipRotationContinuousSuccessCount Int    @default(0) @map("ip_rotation_continuous_success_count")
-  ipRotationContinuousFailureCount Int    @default(0) @map("ip_rotation_continuous_failure_count")
+  ipRotationInactiveProxySuccessCount Int  @default(0) @map("ip_rotation_inactive_proxy_success_count")
+  ipRotationInactiveProxyFailureCount Int  @default(0) @map("ip_rotation_inactive_proxy_failure_count")
+  ipRotationContinuousSuccessCount Int     @default(0) @map("ip_rotation_continuous_success_count")
+  ipRotationContinuousFailureCount Int     @default(0) @map("ip_rotation_continuous_failure_count")
 
   avgDownloadSpeedMbps Decimal? @map("avg_download_speed_mbps") @db.Decimal(10, 4)
   avgUploadSpeedMbps   Decimal? @map("avg_upload_speed_mbps") @db.Decimal(10, 4)

@@ -19,7 +19,13 @@
     "duplicate-ip-snapshot": "tsx scripts/duplicate-ip-snapshot.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:migrate:dev": "dotenv -e .env.dev -- prisma migrate dev",
+    "db:migrate:prod": "dotenv -e .env.prod -- prisma migrate deploy",
+    "db:status:dev": "dotenv -e .env.dev -- prisma migrate status",
+    "db:status:prod": "dotenv -e .env.prod -- prisma migrate status",
+    "db:aggregate:dev": "dotenv -e .env.dev -- tsx scripts/run-aggregation.ts",
+    "db:aggregate:prod": "dotenv -e .env.prod -- tsx scripts/run-aggregation.ts"
   },
   "keywords": [
     "proxy",

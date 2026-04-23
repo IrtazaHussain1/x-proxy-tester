@@ -526,6 +526,38 @@
           {
             "matcher": {
               "id": "byName",
+              "options": "ip_rotation_inactive_proxy_success_count"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.width",
+                "value": 210
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ip_rotation_inactive_proxy_failure_count"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.width",
+                "value": 210
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "ip_rotation_continuous_success_count"
             },
             "properties": [

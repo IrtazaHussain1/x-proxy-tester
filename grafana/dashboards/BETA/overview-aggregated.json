@@ -210,6 +210,8 @@
           { "matcher": { "id": "byName", "options": "unique_ips_count" }, "properties": [{ "id": "unit", "value": "short" }] },
           { "matcher": { "id": "byName", "options": "ip_rotation_periodic_success_count" }, "properties": [{ "id": "unit", "value": "short" }, { "id": "custom.width", "value": 170 }] },
           { "matcher": { "id": "byName", "options": "ip_rotation_periodic_failure_count" }, "properties": [{ "id": "unit", "value": "short" }, { "id": "custom.width", "value": 170 }] },
+          { "matcher": { "id": "byName", "options": "ip_rotation_inactive_proxy_success_count" }, "properties": [{ "id": "unit", "value": "short" }, { "id": "custom.width", "value": 210 }] },
+          { "matcher": { "id": "byName", "options": "ip_rotation_inactive_proxy_failure_count" }, "properties": [{ "id": "unit", "value": "short" }, { "id": "custom.width", "value": 210 }] },
           { "matcher": { "id": "byName", "options": "ip_rotation_continuous_success_count" }, "properties": [{ "id": "unit", "value": "short" }, { "id": "custom.width", "value": 190 }] },
           { "matcher": { "id": "byName", "options": "ip_rotation_continuous_failure_count" }, "properties": [{ "id": "unit", "value": "short" }, { "id": "custom.width", "value": 190 }] },
           { "matcher": { "id": "byName", "options": "ip_history" }, "properties": [{ "id": "custom.width", "value": 460 }] },
