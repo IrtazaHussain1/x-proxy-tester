@@ -110,6 +110,35 @@ function dailyDataLifecycle():
   - stop queue workers second
   - flush pending writes last
 
+## Testing Process
+
+Each active proxy is tested continuously every 5 seconds (configurable via `TEST_INTERVAL_MS`). Each test:
+
+1. Makes HTTP request through proxy to `https://api.ipify.org?format=json` (configurable via `TEST_TARGET_URL`)
+2. Measures response time (timeout: 30s, configurable via `REQUEST_TIMEOUT_MS`)
+3. Extracts outbound IP from response
+4. Compares with expected IP (`device.ip_address`) to detect rotation
+5. Stores result in `proxy_requests` table
+
+### Test Success Criteria
+
+Test is **SUCCESS** when:
+- HTTP request completes without error
+- Valid response received (status 200-299)
+- Response body valid JSON with IP information
+- Request completes within timeout
+
+**Note:** Success does not require returned IP to match expected IP. IP mismatches are logged but count as successful requests.
+
+### Test Failure Types
+
+- **TIMEOUT**: Request exceeds timeout duration
+- **CONNECTION_ERROR**: Unable to establish connection through proxy
+- **HTTP_ERROR**: HTTP error response (status >= 400)
+- **DNS_ERROR**: DNS resolution failed
+
+All results stored with timestamp, response time, outbound IP, and error details.
+
 ## Configuration Domains
 
 - Runtime and testing loop: `RUN_MODE`, `MIN_RUN_HOURS`, `TEST_INTERVAL_MS`, `REQUEST_TIMEOUT_MS`

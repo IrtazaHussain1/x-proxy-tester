@@ -137,15 +137,20 @@ docker logs -f x-proxy-tester-app | grep -i "aggregat"
 # Expected: "Starting app-side daily aggregation" and "Stability calculation completed"
 ```
 
-See `**docs/ARCHITECTURAL_IMPROVEMENTS.md**` for a complete guide to monitoring and the recent system fixes.
+See `docs/ARCHITECTURAL_IMPROVEMENTS.md` for details on recent system fixes.
 
 ## Documentation
 
-- **Architecture (canonical)**: `docs/ARCHITECTURE.md`
-- **Operations runbook (canonical)**: `docs/OPERATIONS.md`
-- **Grafana setup**: `grafana/README.md`
+**Canonical documents:**
+- `docs/ARCHITECTURE.md` — system design, data model, runtime flow
+- `docs/OPERATIONS.md` — startup, shutdown, deployment, migrations, incident handling
+- `grafana/README.md` — Grafana dashboards and SQL views
 
-Legacy and change-log style documents in `docs/` are retained for historical reference, while new updates should be consolidated into the two canonical docs above.
+**Feature-specific references:**
+- `docs/IP_ROTATION_AND_DEVICE_FIELDS_DOCUMENTATION.md` — IP rotation implementation details, schema changes, device field tracking
+
+**Historical references:**
+- `docs/ARCHITECTURAL_IMPROVEMENTS.md` — changelog of system improvements
 
 ## License
 
