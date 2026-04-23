@@ -49,8 +49,8 @@ services:
       - proxy-network
     # Resource allocation for 8 vCPU / 16GB RAM host
     cpus: "2.0"
-    mem_limit: 6g
-    mem_reservation: 4g
+    mem_limit: 8g
+    mem_reservation: 6g
 
   app:
     build:
@@ -66,9 +66,9 @@ services:
     environment:
       # Database
       DATABASE_URL: mysql://${MYSQL_USER:-xproxy}:${MYSQL_PASSWORD:-xproxy}@mysql:3306/${MYSQL_DATABASE:-xproxy_tester}
-      # Caps concurrent portal→DB proxy row updates (default 20) to avoid Prisma pool exhaustion on refresh/rebuild
-      PROXY_SYNC_CONCURRENCY: ${PROXY_SYNC_CONCURRENCY:-20}
-      PROXY_TEST_WRITE_WORKER_CONCURRENCY: ${PROXY_TEST_WRITE_WORKER_CONCURRENCY:-5}
+      # Caps concurrent portal→DB proxy row updates to avoid DB saturation on smaller hosts.
+      PROXY_SYNC_CONCURRENCY: ${PROXY_SYNC_CONCURRENCY:-12}
+      PROXY_TEST_WRITE_WORKER_CONCURRENCY: ${PROXY_TEST_WRITE_WORKER_CONCURRENCY:-4}
       REDIS_HOST: redis
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
@@ -119,7 +119,7 @@ services:
       IP_ROTATION_TESTING_ENABLED: ${IP_ROTATION_TESTING_ENABLED:-true}
       IP_ROTATION_TESTING_INTERVAL_MS: ${IP_ROTATION_TESTING_INTERVAL_MS:-900000}
       IP_ROTATION_TESTING_WAIT_AFTER_ROTATION_MS: ${IP_ROTATION_TESTING_WAIT_AFTER_ROTATION_MS:-10000}
-      IP_ROTATION_TESTING_CONCURRENCY: ${IP_ROTATION_TESTING_CONCURRENCY:-10}
+      IP_ROTATION_TESTING_CONCURRENCY: ${IP_ROTATION_TESTING_CONCURRENCY:-6}
       IP_ROTATION_TESTING_BATCH_SIZE: ${IP_ROTATION_TESTING_BATCH_SIZE:-50}
       
       # Runtime
@@ -158,7 +158,7 @@ services:
       
       # Speed Test
       SPEED_TEST_INTERVAL_MS: ${SPEED_TEST_INTERVAL_MS:-300000}
-      SPEED_TEST_MAX_CONCURRENT: ${SPEED_TEST_MAX_CONCURRENT:-25}
+      SPEED_TEST_MAX_CONCURRENT: ${SPEED_TEST_MAX_CONCURRENT:-12}
       
       # Alert Monitoring
       ENABLE_ALERT_MONITORING: ${ENABLE_ALERT_MONITORING:-true}
@@ -184,8 +184,8 @@ services:
       start_period: 180s
     # Resource allocation for 8 vCPU / 16GB RAM host
     cpus: "4.0"
-    mem_limit: 7g
-    mem_reservation: 5g
+    mem_limit: 5g
+    mem_reservation: 4g
 
   grafana:
     image: grafana/grafana:latest

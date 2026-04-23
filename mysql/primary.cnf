@@ -3,8 +3,9 @@
 server-id = 1
 
 # ── Buffer Pool ───────────────────────────────────────────────────────────────
-innodb_buffer_pool_size    = 4096M
-innodb_log_file_size       = 256M
+innodb_buffer_pool_size    = 6144M
+innodb_buffer_pool_instances = 4
+innodb_log_file_size       = 1024M
 innodb_log_buffer_size     = 64M
 
 # ── Connection Settings ───────────────────────────────────────────────────────
@@ -31,6 +32,8 @@ table_definition_cache     = 1400
 innodb_flush_log_at_trx_commit = 2
 innodb_flush_method            = O_DIRECT
 innodb_file_per_table          = 1
+innodb_io_capacity             = 1000
+innodb_io_capacity_max         = 2000
 # Fail fast on lock contention so the app retry logic kicks in quickly.
 # Default is 50 s — too long for a 5-second test loop with many concurrent writers.
 innodb_lock_wait_timeout       = 10
