@@ -560,7 +560,7 @@ export async function aggregateDayInApp(
         failure_count: unknown;
       }>>(
         `SELECT
-           SUM(CASE WHEN ip_changed = true AND status = 'success' THEN 1 ELSE 0 END) AS success_count,
+           SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END)                       AS success_count,
            SUM(CASE WHEN status != 'success' THEN 1 ELSE 0 END)                       AS failure_count
          FROM proxy_requests
          WHERE proxy_id = ?
