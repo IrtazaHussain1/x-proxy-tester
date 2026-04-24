@@ -501,6 +501,7 @@ export async function processProxyTestWriteJob(
       },
       `Failed to save proxy test to database (${source} workflow)`
     );
+    throw error;
   } finally {
     databaseWriteSemaphore.release();
   }
