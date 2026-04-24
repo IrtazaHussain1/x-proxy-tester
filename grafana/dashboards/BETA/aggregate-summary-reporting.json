@@ -1,0 +1,1034 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "Aggregate Summary Reporting (summary table only)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Total requests in selected range from proxy_requests_daily_summary.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.total_requests), 0) as value FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone)",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Overall success rate in selected range from summary data.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) as value FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone)",
+          "refId": "A"
+        }
+      ],
+      "title": "Success Rate %",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Total IP change count across selected range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.ip_change_count), 0) as value FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone)",
+          "refId": "A"
+        }
+      ],
+      "title": "Total IP Changes",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Number of unique proxies represented in summary rows for selected range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT s.proxy_id) as value FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone)",
+          "refId": "A"
+        }
+      ],
+      "title": "Distinct Proxies",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily trend from summary data only.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "auto",
+            "showValues": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT UNIX_TIMESTAMP(s.day) as time_sec, SUM(s.total_requests) as total_requests, SUM(s.ip_change_count) as ip_change_count, ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) as success_rate_pct FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone) GROUP BY s.day ORDER BY s.day",
+          "refId": "A"
+        }
+      ],
+      "title": "7-Day Behavior Trend (Requests, IP Changes, Success %)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Server-level behavior from summary rows in selected range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_response_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COALESCE(s.server_name, 'UNKNOWN') as server_name, COUNT(DISTINCT s.proxy_id) as proxies, SUM(s.total_requests) as total_requests, SUM(s.ip_change_count) as ip_changes, ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) as success_rate_pct, ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) as avg_response_ms FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone) GROUP BY COALESCE(s.server_name, 'UNKNOWN') ORDER BY ip_changes DESC, total_requests DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Server Details & Stats (Summary)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Per-proxy stats and IP list from ip_history_json in summary rows.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_response_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT s.proxy_id, COALESCE(MAX(s.device_name), s.proxy_id) as device_name, COALESCE(MAX(s.server_name), 'UNKNOWN') as server_name, COALESCE(MAX(s.location), 'N/A') as location, SUM(s.total_requests) as total_requests, SUM(s.ip_change_count) as ip_change_count, SUM(s.unique_ips_count) as unique_ips_count, ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) as success_rate_pct, ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) as avg_response_ms, MAX(s.first_ip) as first_ip, MAX(s.last_ip) as last_ip, MAX(s.most_used_ip) as most_used_ip, MAX(s.most_used_ip_count) as most_used_ip_count, MAX(CAST(s.ip_history_json AS CHAR)) as ip_history_json FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone) GROUP BY s.proxy_id ORDER BY ip_change_count DESC, total_requests DESC LIMIT 200",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-Proxy Stats & Changed IP List",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily rows where IP changed, with changed IP list, periodic rotation outcomes, and server/proxy details.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "day"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "periodic_success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT s.day, s.proxy_id, COALESCE(s.device_name, s.proxy_id) as device_name, COALESCE(s.server_name, 'UNKNOWN') as server_name, COALESCE(s.location, 'N/A') as location, s.ip_change_count, s.rotation_count, s.ip_rotation_periodic_success_count, s.ip_rotation_periodic_failure_count, (s.ip_rotation_periodic_success_count + s.ip_rotation_periodic_failure_count) as periodic_rotation_total_count, ROUND(s.ip_rotation_periodic_success_count * 100.0 / NULLIF(s.ip_rotation_periodic_success_count + s.ip_rotation_periodic_failure_count, 0), 2) as periodic_success_rate_pct, s.first_ip, s.last_ip, s.most_used_ip, s.most_used_ip_count, CAST(s.ip_history_json AS CHAR) as ip_history_json FROM proxy_requests_daily_summary s WHERE $__timeFilter(s.day) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone) AND s.ip_change_count > 0 ORDER BY s.day DESC, s.proxy_id",
+          "refId": "A"
+        }
+      ],
+      "title": "Daily IP Change Events (Changed IP List)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Transition matrix with proxy and server context parsed from ip_history_json changes array.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "change_events"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "share_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH transitions AS (SELECT s.proxy_id, COALESCE(s.device_name, s.proxy_id) as device_name, COALESCE(s.server_name, 'UNKNOWN') as server_name, COALESCE(s.location, 'N/A') as location, j.from_ip, j.to_ip, COUNT(*) as change_events FROM proxy_requests_daily_summary s JOIN JSON_TABLE(s.ip_history_json, '$.changes[*]' COLUMNS (from_ip VARCHAR(45) PATH '$.from', to_ip VARCHAR(45) PATH '$.to')) j WHERE $__timeFilter(s.day) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone) GROUP BY s.proxy_id, COALESCE(s.device_name, s.proxy_id), COALESCE(s.server_name, 'UNKNOWN'), COALESCE(s.location, 'N/A'), j.from_ip, j.to_ip), totals AS (SELECT SUM(change_events) as total_events FROM transitions) SELECT t.proxy_id, t.device_name, t.server_name, t.location, t.from_ip, t.to_ip, CONCAT(t.from_ip, ' -> ', t.to_ip) as transition, t.change_events, ROUND(t.change_events * 100.0 / NULLIF(tt.total_events, 0), 2) as share_pct FROM transitions t CROSS JOIN totals tt ORDER BY t.change_events DESC, t.server_name, t.proxy_id LIMIT 200",
+          "refId": "A"
+        }
+      ],
+      "title": "IP Transition Matrix (From -> To)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Snapshot trend of duplicate IPs classified as within one server versus across multiple servers.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "WITH ip_server_counts AS (SELECT d.captured_at, d.last_ip, COUNT(DISTINCT d.server_label) as server_count FROM duplicate_ip_snapshot_servers d WHERE $__timeFilter(d.captured_at) GROUP BY d.captured_at, d.last_ip) SELECT UNIX_TIMESTAMP(captured_at) as time_sec, SUM(CASE WHEN server_count = 1 THEN 1 ELSE 0 END) as duplicate_ips_within_server, SUM(CASE WHEN server_count > 1 THEN 1 ELSE 0 END) as duplicate_ips_across_servers FROM ip_server_counts GROUP BY captured_at ORDER BY captured_at",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicate IP Trend: Within Server vs Across Servers",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Time-range summary of duplicate IP split by duplicate type across all snapshots in the selected window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH ip_server_counts AS (SELECT s.last_ip, COUNT(DISTINCT s.server_label) as max_server_count FROM duplicate_ip_snapshot_servers s WHERE $__timeFilter(s.captured_at) GROUP BY s.last_ip), classified AS (SELECT CASE WHEN isc.max_server_count = 1 THEN 'Within Single Server' ELSE 'Across Multiple Servers' END as duplicate_type, COUNT(*) as unique_duplicate_ip_count FROM ip_server_counts isc GROUP BY duplicate_type), total AS (SELECT SUM(unique_duplicate_ip_count) as total_unique_duplicates FROM classified) SELECT c.duplicate_type, c.unique_duplicate_ip_count, ROUND(c.unique_duplicate_ip_count * 100.0 / NULLIF(t.total_unique_duplicates, 0), 2) as share_pct FROM classified c CROSS JOIN total t ORDER BY c.unique_duplicate_ip_count DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicate Type Split (Selected Time Range)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Top duplicated IPs across selected time range with server span and sibling proxy details.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH server_span AS (SELECT s.last_ip, COUNT(DISTINCT s.server_label) as server_count, GROUP_CONCAT(DISTINCT s.server_label ORDER BY s.server_label SEPARATOR ', ') as server_labels FROM duplicate_ip_snapshot_servers s WHERE $__timeFilter(s.captured_at) GROUP BY s.last_ip), row_agg AS (SELECT r.last_ip, MAX(r.phones_on_same_ip) as max_phones_on_same_ip, ROUND(AVG(r.phones_on_same_ip), 2) as avg_phones_on_same_ip, MIN(r.captured_at) as first_seen_in_range, MAX(r.captured_at) as last_seen_in_range, COUNT(DISTINCT DATE(r.captured_at)) as duplicate_days_count, GROUP_CONCAT(DISTINCT DATE_FORMAT(r.captured_at, '%Y-%m-%d') ORDER BY DATE(r.captured_at) SEPARATOR ', ') as duplicate_dates, GROUP_CONCAT(DISTINCT r.sibling_phones SEPARATOR ' | ') as sibling_phones, GROUP_CONCAT(DISTINCT r.device_ids SEPARATOR ' | ') as device_ids FROM duplicate_ip_snapshot_rows r WHERE $__timeFilter(r.captured_at) GROUP BY r.last_ip) SELECT ra.last_ip, CASE WHEN ss.server_count = 1 THEN 'Within Single Server' ELSE 'Across Multiple Servers' END as duplicate_type, ss.server_count, ss.server_labels, ra.max_phones_on_same_ip, ra.avg_phones_on_same_ip, ra.duplicate_days_count, ra.duplicate_dates, ra.first_seen_in_range, ra.last_seen_in_range, ra.sibling_phones, ra.device_ids FROM row_agg ra JOIN server_span ss ON ss.last_ip = ra.last_ip WHERE ra.max_phones_on_same_ip > 1 ORDER BY ss.server_count DESC, ra.max_phones_on_same_ip DESC, ra.last_seen_in_range DESC LIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Duplicate IPs (Selected Time Range)",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 42,
+  "tags": [
+    "x-proxy-tester",
+    "analytics",
+    "beta",
+    "summary-only"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location FROM proxy_requests_daily_summary WHERE location IS NOT NULL ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxy_requests_daily_summary WHERE location IS NOT NULL ORDER BY 1",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT COALESCE(server_name, 'UNKNOWN') FROM proxy_requests_daily_summary WHERE location IN ($location) ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "name": "server",
+        "options": [],
+        "query": "SELECT DISTINCT COALESCE(server_name, 'UNKNOWN') FROM proxy_requests_daily_summary WHERE location IN ($location) ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT proxy_id FROM proxy_requests_daily_summary WHERE location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "name": "phone",
+        "options": [],
+        "query": "SELECT DISTINCT proxy_id FROM proxy_requests_daily_summary WHERE location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BETA - Aggregate Summary Proxy Reporting",
+  "uid": "beta-aggregate-summary-proxy-reporting",
+  "version": 1
+}
