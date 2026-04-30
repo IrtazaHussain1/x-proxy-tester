@@ -1,0 +1,11 @@
+logs
+node_modules
+dist
+.git
+.cursor
+.claude
+.env
+.env.*
+*.zip
+coverage
+*.log
