@@ -13,7 +13,6 @@ import { logger } from '../lib/logger';
 import { backgroundDb as prisma } from '../lib/db';
 import { checkDatabaseHealth } from '../lib/db';
 import { hasDatabaseCapacityForBackgroundJobs } from '../lib/db';
-import { computeServerLabelFromDeviceName } from '../helpers/server-name';
 import { registerCronJob, stopScheduledJob } from './cron.service';
 
 let isRunning = false;
@@ -338,8 +337,7 @@ export async function aggregateDayInApp(
     logger.info({ day: dayLabel, proxyCount: proxyRows.length }, 'Aggregating proxies');
 
     const supportsDeviceName = await hasColumn('proxy_requests_daily_summary', 'device_name');
-    const supportsServerName = await hasColumn('proxy_requests_daily_summary', 'server_name');
-    const supportsExtendedDeviceMeta = supportsDeviceName && supportsServerName;
+    const supportsExtendedDeviceMeta = supportsDeviceName;
 
     const supportsRotationTypeCounts = await hasColumn(
       'proxy_requests_daily_summary',
@@ -574,7 +572,7 @@ export async function aggregateDayInApp(
         failure: sqlNumber(continuousRows[0]?.failure_count) ?? 0,
       };
       const deviceName = meta?.name ?? null;
-      const serverName = computeServerLabelFromDeviceName(deviceName);
+      // const serverName = computeServerLabelFromDeviceName(deviceName);
       const ipHistoryJson = JSON.stringify({
         assignedIps: stats.ipAssignments,
         uniqueIps: Array.from(stats.uniqueIps),
@@ -705,7 +703,7 @@ export async function aggregateDayInApp(
 
       const params = supportsExtendedDeviceMeta
         ? [
-            dayStr, proxyId, deviceName, serverName,
+            dayStr, proxyId, deviceName,
             meta?.location ?? null,
             meta?.relay_server_id != null ? String(meta.relay_server_id) : null,
             meta?.relay_server_ip_address ?? null,

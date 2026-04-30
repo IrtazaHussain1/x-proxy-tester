@@ -1,24 +1,4 @@
 services:
-  redis:
-    image: redis:7.2-bookworm
-    platform: ${REDIS_DOCKER_PLATFORM:-linux/arm64/v8}
-    container_name: x-proxy-tester-redis
-    restart: unless-stopped
-    command: >
-      sh -c "redis-server --appendonly yes --save 60 1000
-      ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}"
-    # REDIS_PASSWORD unset/empty → no auth. Set it in .env for production security.
-    # Port not published externally — app reaches Redis via proxy-network bridge
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $REDIS_PASSWORD} ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    networks:
-      - proxy-network
-
   mysql:
     image: mysql:8.4
     container_name: x-proxy-tester-mysql
@@ -61,19 +41,12 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
       # Database
       DATABASE_URL: mysql://${MYSQL_USER:-xproxy}:${MYSQL_PASSWORD:-xproxy}@mysql:3306/${MYSQL_DATABASE:-xproxy_tester}
       # Caps concurrent portal→DB proxy row updates to avoid DB saturation on smaller hosts.
       PROXY_SYNC_CONCURRENCY: ${PROXY_SYNC_CONCURRENCY:-12}
       PROXY_TEST_WRITE_WORKER_CONCURRENCY: ${PROXY_TEST_WRITE_WORKER_CONCURRENCY:-4}
-      REDIS_HOST: redis
-      REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_DB: ${REDIS_DB:-0}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      
       # XProxy API
       XPROXY_API_URL: ${XPROXY_API_URL:-https://jmui.vercel.app}
       XPROXY_API_ENDPOINT: ${XPROXY_API_ENDPOINT:-/api/devices}
@@ -271,8 +244,6 @@ services:
 
 volumes:
   mysql_data:
-    driver: local
-  redis_data:
     driver: local
   grafana_data:
     driver: local

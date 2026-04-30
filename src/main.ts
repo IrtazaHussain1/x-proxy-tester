@@ -18,12 +18,7 @@ import { initDatabaseSchema, ensurePartitioningSetup } from './lib/init-db';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
-import { startProxyTestWriteWorker, stopProxyTestWriteQueue } from './lib/proxy-test-write-queue';
-import { startProxyMetaWriteWorker, stopProxyMetaWriteQueue } from './lib/proxy-meta-write-queue';
-import { processProxyMetaWriteJob, processProxyTestWriteJob } from './services/continuous-proxy-tester';
 import { registerTimeoutJob, stopAllScheduledJobs } from './services/cron.service';
-import type { ProxyTestWriteJobData } from './lib/proxy-test-write-queue';
-import type { ProxyMetaWriteJobData } from './lib/proxy-meta-write-queue';
 
 type DbSchemaSyncMode = 'push' | 'off';
 
@@ -35,8 +30,7 @@ function getDbSchemaSyncMode(): DbSchemaSyncMode {
 /**
  * Performs a graceful shutdown in the correct order:
  * 1. Stop all schedulers/loops (no new work enqueued)
- * 2. Drain BullMQ workers (they may still be writing to batchWriter)
- * 3. Flush batchWriter (pick up anything workers added during drain)
+ * 2. Flush batchWriter
  *
  * A 30-second hard deadline forces process.exit(1) if any step hangs.
  */
@@ -60,14 +54,7 @@ async function gracefulShutdown(reason: string): Promise<void> {
     stopDuplicateIpSnapshotService();
     stopAllScheduledJobs();
 
-    // Drain BullMQ workers BEFORE flushing batchWriter.
-    // Workers call batchWriter.add() — they must finish processing
-    // their current jobs before we snapshot and flush the batch.
-    await stopProxyTestWriteQueue();
-    await stopProxyMetaWriteQueue();
     await stopIpRotationTesting();
-
-    // Now flush anything the workers accumulated during their drain.
     await batchWriter.forceFlush();
 
     clearTimeout(forceExitTimer);
@@ -148,14 +135,6 @@ async function main(): Promise<void> {
     }
   }
 
-  async function handleProxyTestWriteJob(data: ProxyTestWriteJobData): Promise<void> {
-    await processProxyTestWriteJob(data.device, data.metrics, data.source);
-  }
-
-  async function handleProxyMetaWriteJob(data: ProxyMetaWriteJobData): Promise<void> {
-    await processProxyMetaWriteJob(data.deviceId, data.data);
-  }
-
   try {
     logger.info(
       {
@@ -196,12 +175,6 @@ async function main(): Promise<void> {
 
     // Ensure partitioning + monthly partition EVENT are configured on every startup.
     await ensurePartitioningSetup();
-
-    // Start BullMQ workers only after the schema is guaranteed to exist.
-    // Starting workers earlier causes them to immediately dequeue Redis jobs from a
-    // previous run and attempt DB writes before tables are created.
-    startProxyTestWriteWorker(handleProxyTestWriteJob);
-    startProxyMetaWriteWorker(handleProxyMetaWriteJob);
 
     // Start continuous testing
     await startContinuousTesting();

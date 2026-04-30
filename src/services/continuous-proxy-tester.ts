@@ -27,8 +27,7 @@ import { startInactiveProxyRotation } from './ip-rotation';
 import { rotateIp } from '../api/commands';
 import { config } from '../config';
 import { recordRequest, setActiveProxies } from '../lib/metrics';
-import { enqueueProxyTestWriteJob } from '../lib/proxy-test-write-queue';
-import { enqueueOrCoalesceProxyMetaWriteJob } from '../lib/proxy-meta-write-queue';
+import { batchWriter } from '../lib/batch-writer';
 import { encrypt } from '../lib/encryption';
 import type { Device, ProxyMetrics, RequestStatus, RotationStatus, RequestSource } from '../types';
 
@@ -170,15 +169,7 @@ export async function saveProxyTestToDatabase(
   metrics: ProxyMetrics,
   source: RequestSource = 'continuous'
 ): Promise<void> {
-  try {
-    await enqueueProxyTestWriteJob({ device, metrics, source });
-  } catch (enqueueErr) {
-    logger.warn(
-      { deviceId: device.device_id, error: enqueueErr instanceof Error ? enqueueErr.message : String(enqueueErr) },
-      'Redis unavailable — falling back to direct DB write'
-    );
-    await processProxyTestWriteJob(device, metrics, source);
-  }
+  await processProxyTestWriteJob(device, metrics, source);
 }
 
 /**
@@ -387,8 +378,10 @@ export async function processProxyTestWriteJob(
       rotationCount: finalRotationCount,
     };
 
-    await enqueueOrCoalesceProxyMetaWriteJob({
-      deviceId: proxy.deviceId,
+    batchWriter.add({
+      type: 'update',
+      model: 'proxy',
+      where: { deviceId: proxy.deviceId },
       data: proxyExistedBefore ? { ...portalSyncData, ...rotationData } : rotationData,
     });
     
@@ -397,8 +390,10 @@ export async function processProxyTestWriteJob(
     // DB failures. Using batchWriter.add() here caused silent data loss: the job was
     // acknowledged before the async batch flush, so a crash between enqueue and flush
     // permanently dropped the record.
-    await prisma.proxyRequest.createMany({
-      data: [{
+    batchWriter.add({
+      type: 'create',
+      model: 'proxyRequest',
+      data: {
         proxyId: proxy.deviceId,
         timestamp: eventTimestamp,
         createdAt: eventTimestamp,
@@ -415,8 +410,7 @@ export async function processProxyTestWriteJob(
         source: source,
         downloadSpeedMbps: null,
         uploadSpeedMbps: null,
-      }],
-      skipDuplicates: true,
+      },
     });
 
     if (hasCurrentIp && metrics.success) {
