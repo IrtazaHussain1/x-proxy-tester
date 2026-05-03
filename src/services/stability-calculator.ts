@@ -210,29 +210,36 @@ export async function calculateProxyStability(deviceId: string): Promise<Stabili
 }
 
 /**
- * Calculate stability for all active proxies using a single SQL aggregation.
- * Replaces the previous N×2 concurrent findMany approach which fired one query
- * per proxy for 1h and 24h windows simultaneously.
+ * Calculate stability for all active proxies using the 5-minute summary table.
+ * Reads ~57K rows (200 proxies × 288 windows) instead of scanning the raw
+ * proxy_requests table (2–4M rows/day), and runs on backgroundDb so it never
+ * competes with write workers or Grafana connections.
+ *
+ * failure_count is fully additive, so SUM across windows produces the same
+ * values that the previous raw scan produced. calculateDowntime() is unchanged.
+ *
+ * Cold-start: the summary table is empty for the first ~5 minutes after deploy.
+ * In that case we skip this tick rather than falling back to the raw scan —
+ * the table is populated on the next 5-min aggregation tick.
  */
 export async function calculateAllProxiesStability(): Promise<void> {
   try {
-    // One query covers all proxies and both time windows — uses backgroundDb to
-    // avoid competing with write workers on the write pool.
     const rows = await backgroundDb.$queryRawUnsafe<Array<{
       proxy_id: string;
       failures_1h: number;
       failures_24h: number;
     }>>(
-      `SELECT proxy_id,
-         SUM(CASE WHEN status != 'SUCCESS' AND timestamp >= NOW() - INTERVAL 1 HOUR  THEN 1 ELSE 0 END) AS failures_1h,
-         SUM(CASE WHEN status != 'SUCCESS' AND timestamp >= NOW() - INTERVAL 24 HOUR THEN 1 ELSE 0 END) AS failures_24h
-       FROM proxy_requests
-       WHERE timestamp >= NOW() - INTERVAL 24 HOUR
+      `SELECT
+         proxy_id,
+         SUM(CASE WHEN window_start >= NOW() - INTERVAL 1 HOUR THEN failure_count ELSE 0 END) AS failures_1h,
+         SUM(failure_count)                                                                    AS failures_24h
+       FROM proxy_requests_5min_summary
+       WHERE window_start >= NOW() - INTERVAL 24 HOUR
        GROUP BY proxy_id`
     );
 
     if (rows.length === 0) {
-      logger.info('No proxy_requests in last 24h — stability calculation skipped');
+      logger.warn('proxy_requests_5min_summary is empty — stability calculation skipped (cold-start or no data in 24h)');
       return;
     }
 

@@ -8,6 +8,7 @@ import { startContinuousTesting, stopContinuousTesting } from './services/contin
 import { startSpeedTestService, stopSpeedTestService } from './services/speed-test-service';
 import { stopIpRotationTesting } from './services/ip-rotation-testing';
 import { startDailyAggregationService, stopDailyAggregationService, aggregateRecentDays } from './services/daily-aggregation';
+import { start5MinAggregationService, stop5MinAggregationService } from './services/5min-aggregation';
 import { startPeriodicArchival, stopPeriodicArchival } from './services/archival';
 import { batchWriter } from './lib/batch-writer';
 import { logger } from './lib/logger';
@@ -50,6 +51,7 @@ async function gracefulShutdown(reason: string): Promise<void> {
     stopContinuousTesting();
     stopSpeedTestService();
     stopDailyAggregationService();
+    stop5MinAggregationService();
     stopPeriodicArchival();
     stopDuplicateIpSnapshotService();
     stopAllScheduledJobs();
@@ -238,6 +240,10 @@ async function main(): Promise<void> {
     } else {
       logger.info('Daily aggregation service startup disabled (ENABLE_DAILY_AGGREGATION_ON_START=false)');
     }
+
+    // Start 5-minute pre-aggregation service (feeds Grafana live dashboards,
+    // stability calculator, and analytics problems API from a lightweight summary table)
+    start5MinAggregationService();
 
     // Optional startup backfill. Disabled by default to avoid adding heavy read/write load
     // while continuous testing and rotation services are warming up.

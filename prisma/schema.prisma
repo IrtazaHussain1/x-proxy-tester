@@ -257,6 +257,40 @@ model DuplicateIpSnapshotRow {
   @@map("duplicate_ip_snapshot_rows")
 }
 
+/// Pre-aggregated 5-minute buckets for proxy_requests.
+/// Populated every 5 minutes by the app-side aggregation service.
+/// Retention: 2 days (rolling purge). Used by Grafana live dashboards,
+/// the stability calculator, and the analytics problems API.
+model ProxyRequests5MinSummary {
+  windowStart          DateTime @db.DateTime(0) @map("window_start")
+  proxyId              String   @db.VarChar(255) @map("proxy_id")
+
+  totalRequests        Int      @default(0) @map("total_requests")
+  successCount         Int      @default(0) @map("success_count")
+  failureCount         Int      @default(0) @map("failure_count")
+  timeoutCount         Int      @default(0) @map("timeout_count")
+  connectionErrorCount Int      @default(0) @map("connection_error_count")
+  httpErrorCount       Int      @default(0) @map("http_error_count")
+  dnsErrorCount        Int      @default(0) @map("dns_error_count")
+  ipChangeCount        Int      @default(0) @map("ip_change_count")
+  /// Requests with response_time_ms > 2000
+  slowRequestCount     Int      @default(0) @map("slow_request_count")
+
+  successRatePct       Decimal? @db.Decimal(5, 2) @map("success_rate_pct")
+  avgResponseTimeMs    Decimal? @db.Decimal(10, 2) @map("avg_response_time_ms")
+  minResponseTimeMs    Int?     @map("min_response_time_ms")
+  maxResponseTimeMs    Int?     @map("max_response_time_ms")
+  lastOutboundIp       String?  @db.VarChar(45) @map("last_outbound_ip")
+
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@id([windowStart, proxyId])
+  @@index([proxyId, windowStart])
+  @@index([windowStart])
+  @@map("proxy_requests_5min_summary")
+}
+
 /// Normalized server labels for one capture (same captured_at / scope as sibling rows).
 model DuplicateIpSnapshotServer {
   id               BigInt   @id @default(autoincrement())

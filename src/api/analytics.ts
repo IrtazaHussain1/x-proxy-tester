@@ -33,6 +33,20 @@ const OFFLINE_THRESHOLD_MS = 15 * 60 * 1000;   // 15 minutes
 const LOW_UPTIME_THRESHOLD = 90;                 // below 90% = problem
 const STUCK_IP_SAME_COUNT = 10;                  // same_ip_count >= 10 = stuck
 
+// ---------------------------------------------------------------------------
+// TTL cache — the underlying data changes at most every 5 minutes (stability
+// calc) so a 60-second TTL removes redundant raw-table scans while keeping
+// the response acceptably fresh.
+// ---------------------------------------------------------------------------
+
+interface CachedResult {
+  data: object;
+  expiresAt: number;
+}
+
+let problemsCache: CachedResult | null = null;
+const PROBLEMS_CACHE_TTL_MS = 60_000; // 60 seconds
+
 /**
  * GET /api/analytics/problems
  *
@@ -42,8 +56,21 @@ const STUCK_IP_SAME_COUNT = 10;                  // same_ip_count >= 10 = stuck
  *   - stuck_ip: rotation_status=NoRotation AND same_ip_count >= 10
  *   - unstable: stability_status is UnstableHourly or UnstableDaily
  *     (only flagged if not already captured by offline/low_uptime)
+ *
+ * Results are cached for 60 seconds. The `generatedAt` field in the response
+ * reflects the time the data was computed (not the time of the HTTP request).
+ *
+ * `recentStats` is served from proxy_requests_5min_summary to avoid scanning
+ * raw proxy_requests on every call. `last_seen` is approximated as
+ * window_start + 5 min, so the effective offline detection window is
+ * ~20 min rather than exactly 15 min — acceptable given the 60s cache TTL.
  */
 export async function getProblemsHandler(): Promise<object> {
+  // Return cached result if still fresh
+  if (problemsCache && Date.now() < problemsCache.expiresAt) {
+    return problemsCache.data;
+  }
+
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
   const offlineThreshold = new Date(now.getTime() - OFFLINE_THRESHOLD_MS);
@@ -64,14 +91,16 @@ export async function getProblemsHandler(): Promise<object> {
         },
       }),
 
+      // Read from the 5-min summary instead of scanning raw proxy_requests.
+      // last_seen = MAX(window_start) + 5 min (the window covers up to that point).
       prisma.$queryRaw<RecentStat[]>`
         SELECT
           proxy_id,
-          MAX(timestamp)                                             AS last_seen,
-          COUNT(*)                                                   AS total_1h,
-          SUM(CASE WHEN status = 'SUCCESS' THEN 1 ELSE 0 END)       AS success_1h
-        FROM proxy_requests
-        WHERE timestamp >= ${oneHourAgo}
+          DATE_ADD(MAX(window_start), INTERVAL 5 MINUTE) AS last_seen,
+          SUM(total_requests)                             AS total_1h,
+          SUM(success_count)                              AS success_1h
+        FROM proxy_requests_5min_summary
+        WHERE window_start >= ${oneHourAgo}
         GROUP BY proxy_id
       `,
     ]);
@@ -146,7 +175,7 @@ export async function getProblemsHandler(): Promise<object> {
       return aSeverity - bSeverity;
     });
 
-    return {
+    const result = {
       generatedAt: now.toISOString(),
       summary: {
         totalProblems: problems.length,
@@ -157,6 +186,9 @@ export async function getProblemsHandler(): Promise<object> {
       },
       problems,
     };
+
+    problemsCache = { data: result, expiresAt: Date.now() + PROBLEMS_CACHE_TTL_MS };
+    return result;
   } catch (error) {
     logger.error({ error }, 'Failed to fetch problem phones');
     throw error;

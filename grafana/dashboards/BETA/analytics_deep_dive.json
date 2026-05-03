@@ -220,7 +220,8 @@
           },
           "format": "time_series",
           "rawSql": "SELECT\n  $__timeGroupAlias(r.timestamp, '1m'),\n  COUNT(DISTINCT r.outbound_ip) as unique_ips,\n  COUNT(DISTINCT r.proxy_id) as active_phones\nFROM proxy_requests r\nJOIN proxies p ON r.proxy_id = p.device_id\nWHERE $__timeFilter(r.timestamp)\n  AND r.outbound_ip IS NOT NULL\n  AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}'\nGROUP BY 1\nORDER BY 1",
-          "refId": "A"
+          "refId": "A",
+          "interval": "5m"
         }
       ],
       "title": "Unique IPs & Active Phones \u2014 Trend",
@@ -1332,7 +1333,8 @@
           },
           "format": "time_series",
           "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '5m'), SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) as ip_rotations, ROUND(SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT r.proxy_id), 0), 2) as rotations_per_active_phone FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY 1 ORDER BY 1",
-          "refId": "A"
+          "refId": "A",
+          "interval": "5m"
         }
       ],
       "title": "IP Rotation Velocity \u2014 Trend",
@@ -1707,7 +1709,7 @@
     }
   ],
   "preload": false,
-  "refresh": "",
+  "refresh": "5m",
   "schemaVersion": 42,
   "tags": [
     "x-proxy-tester",
