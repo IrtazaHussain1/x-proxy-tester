@@ -4,15 +4,20 @@
  * Aggregates proxy request data by day into summary records.
  * Uses app-side streaming to avoid running heavy SQL on the DB server while
  * write workers are active. Rows are fetched in pages, metrics computed in
- * Node.js, then a single upsert is issued per proxy per day.
+ * Node.js, then Prisma upserts run in configurable batches (`AGGREGATION_UPSERT_BATCH_SIZE`).
  *
  * @module services/daily-aggregation
  */
 
+import { Prisma } from '@prisma/client';
+import { computeServerLabelFromDeviceName } from '../helpers/server-name';
 import { logger } from '../lib/logger';
-import { backgroundDb as prisma } from '../lib/db';
-import { checkDatabaseHealth } from '../lib/db';
-import { hasDatabaseCapacityForBackgroundJobs } from '../lib/db';
+import {
+  backgroundDb as prisma,
+  checkDatabaseHealth,
+  hasDatabaseCapacityForBackgroundJobs,
+  retryWithBackoff,
+} from '../lib/db';
 import { registerCronJob, stopScheduledJob } from './cron.service';
 
 let isRunning = false;
@@ -179,31 +184,278 @@ function getMostUsedIp(ipCounts: Map<string, number>): { ip: string | null; coun
   return { ip: mostUsedIp, count: mostUsedIpCount };
 }
 
-/** Normalize MySQL decimal / bigint from raw query to number | null. */
-function sqlNumber(v: unknown): number | null {
-  if (v === null || v === undefined) return null;
-  const x = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(x) ? x : null;
+/** Max retries for aggregation DB reads/writes (shared with hasColumn / batch flush). */
+function aggregationQueryMaxRetries(): number {
+  return Math.max(0, parseInt(process.env.AGGREGATION_QUERY_MAX_RETRIES ?? '5', 10) || 5);
 }
 
+/** True when `information_schema` reports the column exists (for mixed migration states). */
 async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
-  const rows = await prisma.$queryRawUnsafe<Array<{ cnt: bigint }>>(
-    `SELECT COUNT(*) AS cnt
-       FROM information_schema.COLUMNS
+  if (!/^[a-z0-9_]+$/i.test(tableName) || !/^[a-z0-9_]+$/i.test(columnName)) {
+    return false;
+  }
+  const rows = await retryWithBackoff(
+    () =>
+      prisma.$queryRaw<Array<{ cnt: bigint }>>(
+        Prisma.sql`SELECT COUNT(*) AS cnt
+      FROM information_schema.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?`,
-    tableName,
-    columnName
+        AND TABLE_NAME = ${tableName}
+        AND COLUMN_NAME = ${columnName}`
+      ),
+    `agg.hasColumn:${tableName}.${columnName}`,
+    aggregationQueryMaxRetries()
   );
   return Number(rows[0]?.cnt ?? 0) > 0;
+}
+
+type RotationOutcomeAcc = {
+  periodic: { success: number; failure: number };
+  inactiveProxy: { success: number; failure: number };
+};
+
+/** Min / max / avg for positive speed samples in a day (matches prior SQL CASE filters). */
+function reduceSpeedSamples(
+  rows: Array<{ downloadSpeedMbps: number | null; uploadSpeedMbps: number | null }>
+): {
+  avgDl: number | null;
+  maxDl: number | null;
+  minDl: number | null;
+  avgUl: number | null;
+  maxUl: number | null;
+  minUl: number | null;
+} {
+  const dl = rows.map((r) => r.downloadSpeedMbps).filter((v): v is number => v != null && v > 0);
+  const ul = rows.map((r) => r.uploadSpeedMbps).filter((v): v is number => v != null && v > 0);
+  const avg = (arr: number[]): number | null => (arr.length === 0 ? null : arr.reduce((s, x) => s + x, 0) / arr.length);
+  return {
+    avgDl: avg(dl),
+    maxDl: dl.length ? Math.max(...dl) : null,
+    minDl: dl.length ? Math.min(...dl) : null,
+    avgUl: avg(ul),
+    maxUl: ul.length ? Math.max(...ul) : null,
+    minUl: ul.length ? Math.min(...ul) : null,
+  };
+}
+
+async function fetchSpeedTestDayAggregates(
+  proxyId: string,
+  dayStart: Date,
+  dayEnd: Date
+): Promise<ReturnType<typeof reduceSpeedSamples>> {
+  const rows = await prisma.speedTest.findMany({
+    where: { proxyId, timestamp: { gte: dayStart, lt: dayEnd } },
+    select: { downloadSpeedMbps: true, uploadSpeedMbps: true },
+  });
+  return reduceSpeedSamples(rows);
+}
+
+async function fetchRotationOutcomesForDay(
+  proxyId: string,
+  dayStart: Date,
+  dayEnd: Date
+): Promise<RotationOutcomeAcc> {
+  const rows = await prisma.ipRotation.findMany({
+    where: {
+      proxyId,
+      rotationTimestamp: { gte: dayStart, lt: dayEnd },
+    },
+    select: {
+      success: true,
+      cycle: { select: { cycleType: true } },
+    },
+  });
+  const acc: RotationOutcomeAcc = {
+    periodic:      { success: 0, failure: 0 },
+    inactiveProxy: { success: 0, failure: 0 },
+  };
+  for (const r of rows) {
+    const t = r.cycle?.cycleType;
+    if (t === 'periodic') {
+      if (r.success) acc.periodic.success++;
+      else acc.periodic.failure++;
+    } else if (t === 'inactive_proxy') {
+      if (r.success) acc.inactiveProxy.success++;
+      else acc.inactiveProxy.failure++;
+    }
+  }
+  return acc;
+}
+
+async function fetchContinuousOutcomesForDay(
+  proxyId: string,
+  dayStart: Date,
+  dayEnd: Date
+): Promise<{ success: number; failure: number }> {
+  const rows = await prisma.proxyRequest.groupBy({
+    by: ['status'],
+    where: {
+      proxyId,
+      source: 'continuous',
+      timestamp: { gte: dayStart, lt: dayEnd },
+    },
+    _count: { _all: true },
+  });
+  let success = 0;
+  let failure = 0;
+  for (const r of rows) {
+    const c = r._count._all;
+    if (String(r.status).toLowerCase() === 'success') {
+      success += c;
+    } else {
+      failure += c;
+    }
+  }
+  return { success, failure };
+}
+
+function decimalOrNull(n: number | null, fractionDigits: number): Prisma.Decimal | null {
+  if (n === null || !Number.isFinite(n)) {
+    return null;
+  }
+  return new Prisma.Decimal(n.toFixed(fractionDigits));
+}
+
+type SummaryUpsertOp = {
+  where: Prisma.ProxyRequestsDailySummaryWhereUniqueInput;
+  create: Prisma.ProxyRequestsDailySummaryUncheckedCreateInput;
+  update: Prisma.ProxyRequestsDailySummaryUncheckedUpdateInput;
+};
+
+/** Builds Prisma upsert args for one proxy-day summary row. */
+function buildSummaryUpsertOp(input: {
+  day: Date;
+  proxyId: string;
+  supportsExtendedDeviceMeta: boolean;
+  summaryHasServerName: boolean;
+  meta: {
+    name: string;
+    location: string | null;
+    relayServerId: number | null;
+    relayServerIpAddress: string | null;
+  } | null;
+  stats: ProxyStats;
+  failure: number;
+  successRatePct: number;
+  ipDiversityScore: number;
+  rotationCount: number;
+  rotationOutcomes: RotationOutcomeAcc;
+  continuousOutcomes: { success: number; failure: number };
+  avgDl: number;
+  avgUl: number;
+  maxDl: number;
+  maxUl: number;
+  minDl: number;
+  minUl: number;
+  mostUsedIp: { ip: string | null; count: number };
+  ipHistory: Prisma.InputJsonValue;
+}): SummaryUpsertOp {
+  const {
+    day,
+    proxyId,
+    supportsExtendedDeviceMeta,
+    summaryHasServerName,
+    meta,
+    stats,
+    failure,
+    successRatePct,
+    ipDiversityScore,
+    rotationCount,
+    rotationOutcomes,
+    continuousOutcomes,
+    avgDl,
+    avgUl,
+    maxDl,
+    maxUl,
+    minDl,
+    minUl,
+    mostUsedIp,
+    ipHistory,
+  } = input;
+
+  const deviceName = supportsExtendedDeviceMeta ? (meta?.name ?? null) : undefined;
+  const serverLabel = computeServerLabelFromDeviceName(meta?.name);
+  const serverName =
+    supportsExtendedDeviceMeta && summaryHasServerName ? serverLabel : undefined;
+
+  const baseScalars = {
+    location: meta?.location ?? null,
+    relayServerId: meta?.relayServerId != null ? String(meta.relayServerId) : null,
+    relayServerIp: meta?.relayServerIpAddress ?? null,
+    totalRequests: stats.total,
+    successCount: stats.success,
+    failureCount: failure,
+    successRatePct: decimalOrNull(successRatePct, 2),
+    avgResponseTimeMs: decimalOrNull(avg(stats.responseTimes), 2),
+    minResponseTimeMs: minOf(stats.responseTimes),
+    maxResponseTimeMs: maxOf(stats.responseTimes),
+    p50ResponseTimeMs: pct(stats.responseTimes, 50),
+    p95ResponseTimeMs: pct(stats.responseTimes, 95),
+    p99ResponseTimeMs: pct(stats.responseTimes, 99),
+    timeoutCount: stats.timeout,
+    connectionErrorCount: stats.connectionError,
+    httpErrorCount: stats.httpError,
+    dnsErrorCount: stats.dnsError,
+    rotationCount,
+    ipRotationPeriodicSuccessCount: rotationOutcomes.periodic.success,
+    ipRotationPeriodicFailureCount: rotationOutcomes.periodic.failure,
+    ipRotationInactiveProxySuccessCount: rotationOutcomes.inactiveProxy.success,
+    ipRotationInactiveProxyFailureCount: rotationOutcomes.inactiveProxy.failure,
+    ipRotationContinuousSuccessCount: continuousOutcomes.success,
+    ipRotationContinuousFailureCount: continuousOutcomes.failure,
+    avgDownloadSpeedMbps: decimalOrNull(avgDl, 4),
+    avgUploadSpeedMbps: decimalOrNull(avgUl, 4),
+    maxDownloadSpeedMbps: decimalOrNull(maxDl, 4),
+    maxUploadSpeedMbps: decimalOrNull(maxUl, 4),
+    minDownloadSpeedMbps: decimalOrNull(minDl, 4),
+    minUploadSpeedMbps: decimalOrNull(minUl, 4),
+    uniqueIpsCount: stats.uniqueIps.size,
+    ipDiversityScore: decimalOrNull(ipDiversityScore, 2),
+    ipHistoryJson: ipHistory,
+    ipChangeCount: rotationCount,
+    firstIp: stats.firstIp,
+    lastIp: stats.lastIp,
+    mostUsedIp: mostUsedIp.ip,
+    mostUsedIpCount: mostUsedIp.count,
+  } satisfies Prisma.ProxyRequestsDailySummaryUncheckedUpdateInput;
+
+  const create: Prisma.ProxyRequestsDailySummaryUncheckedCreateInput = {
+    day,
+    proxyId,
+    ...baseScalars,
+    ...(deviceName !== undefined ? { deviceName } : {}),
+    ...(serverName !== undefined ? { serverName } : {}),
+  };
+
+  const update: Prisma.ProxyRequestsDailySummaryUncheckedUpdateInput = {
+    ...baseScalars,
+    ...(deviceName !== undefined ? { deviceName } : {}),
+    ...(serverName !== undefined ? { serverName } : {}),
+  };
+
+  return {
+    where: { day_proxyId: { day, proxyId } },
+    create,
+    update,
+  };
+}
+
+async function flushSummaryUpsertBatch(ops: SummaryUpsertOp[]): Promise<void> {
+  if (ops.length === 0) {
+    return;
+  }
+  await retryWithBackoff(
+    () => prisma.$transaction(ops.map((op) => prisma.proxyRequestsDailySummary.upsert(op))),
+    'agg.flushSummaryUpsertBatch',
+    aggregationQueryMaxRetries()
+  );
 }
 
 // ---------------------------------------------------------------------------
 // App-side streaming aggregation (primary path)
 // ---------------------------------------------------------------------------
 
-const PAGE_SIZE = 5_000;
+const DEFAULT_PAGE_SIZE = 5_000;
 
 /**
  * Aggregates a single calendar day entirely in Node.js.
@@ -213,8 +465,14 @@ const PAGE_SIZE = 5_000;
  *  2. Computes all summary metrics in memory.
  *  3. Upserts one row into proxy_requests_daily_summary.
  *
- * A configurable delay between proxies (`AGGREGATION_PROXY_DELAY_MS`, default 50ms)
+ * A configurable delay between proxy chunks (`AGGREGATION_PROXY_DELAY_MS`, default 50ms)
  * releases DB connections between pages so write workers can breathe.
+ *
+ * Transient DB errors on each query (groupBy, per-proxy pages, upsert batches, etc.) are retried
+ * with exponential backoff (`AGGREGATION_QUERY_MAX_RETRIES`, default 5 — same semantics as `src/lib/db.ts`).
+ *
+ * Bounded concurrency is configurable via `AGGREGATION_PROXY_CONCURRENCY` (default 1).
+ * Page size is configurable via `AGGREGATION_PROXY_REQUEST_PAGE_SIZE` (default 5000).
  *
  * @returns Number of proxy rows upserted.
  */
@@ -280,6 +538,17 @@ export async function aggregateDayInApp(
     0,
     parseInt(process.env.AGGREGATION_PROXY_DELAY_MS ?? '50', 10) || 50
   );
+  const proxyConcurrency = Math.max(
+    1,
+    parseInt(process.env.AGGREGATION_PROXY_CONCURRENCY ?? '1', 10) || 1
+  );
+  const proxyRequestPageSize = Math.max(
+    1_000,
+    parseInt(
+      process.env.AGGREGATION_PROXY_REQUEST_PAGE_SIZE ?? String(DEFAULT_PAGE_SIZE),
+      10
+    ) || DEFAULT_PAGE_SIZE
+  );
 
   isAggregating = true;
   // Watchdog: release the flag if the aggregation hangs (e.g. MySQL packet-level stall).
@@ -294,49 +563,80 @@ export async function aggregateDayInApp(
   }, WATCHDOG_MS);
   watchdog.unref();
 
+  /** Proxies fully written this run; declared outside `try` so failure path reports partial progress. */
+  let upserted = 0;
+  const pendingSummaryOps: SummaryUpsertOp[] = [];
+  let upsertedCount = 0;
+  let writeQueue: Promise<void> = Promise.resolve();
+
   try {
     logger.info({ day: dayLabel }, 'Starting app-side daily aggregation');
 
-    // 1. Distinct proxies that have data for this day.
-    //    Uses the partition-pruning-friendly range predicate.
-    const proxyRows = await prisma.$queryRawUnsafe<Array<{ proxy_id: string }>>(
-      `SELECT DISTINCT proxy_id
-         FROM proxy_requests
-        WHERE timestamp >= ?
-          AND timestamp <  ?`,
-      dayStart,
-      dayEnd
+    const aggRetries = aggregationQueryMaxRetries();
+    const withAgg = <T>(label: string, fn: () => Promise<T>): Promise<T> =>
+      retryWithBackoff(fn, label, aggRetries);
+
+    // 1. Distinct proxies that have data for this day (partition-friendly range on timestamp).
+    const proxyGroups = await withAgg('agg.proxyRequest.groupBy', () =>
+      prisma.proxyRequest.groupBy({
+        by: ['proxyId'],
+        where: {
+          timestamp: { gte: dayStart, lt: dayEnd },
+        },
+        _count: { _all: true },
+      })
     );
 
-    if (proxyRows.length === 0) {
-      logger.info({ day: dayLabel }, 'No proxy_requests found for day, skipping aggregation');
+    if (proxyGroups.length === 0) {
+      const bounds = await withAgg('agg.proxyRequest.bounds', () =>
+        prisma.proxyRequest.aggregate({
+          _min: { timestamp: true },
+          _max: { timestamp: true },
+        })
+      );
+      logger.info(
+        {
+          day: dayLabel,
+          windowUtc: { from: dayStart.toISOString(), to: dayEnd.toISOString() },
+          proxyRequestsTableMinUtc: bounds._min.timestamp?.toISOString() ?? null,
+          proxyRequestsTableMaxUtc: bounds._max.timestamp?.toISOString() ?? null,
+        },
+        'No proxy_requests in this UTC day window — compare windowUtc to your SQL range (aggregation uses UTC midnight, not server local DATE)'
+      );
       return finish('empty', 0, dayLabel, 'no proxy_requests for day');
     }
 
     if (options.skipIfAlreadyAggregated) {
-      const summaryRows = await prisma.$queryRawUnsafe<Array<{ cnt: bigint }>>(
-        `SELECT COUNT(*) AS cnt
-           FROM proxy_requests_daily_summary
-          WHERE day = ?`,
-        dayLabel
+      const summaryCount = await withAgg('agg.proxyRequestsDailySummary.count', () =>
+        prisma.proxyRequestsDailySummary.count({
+          where: { day: dayStart },
+        })
       );
-      const summaryCount = Number(summaryRows[0]?.cnt ?? 0);
-      if (summaryCount >= proxyRows.length) {
+      if (summaryCount >= proxyGroups.length) {
         logger.info(
-          { day: dayLabel, summaryCount, proxyCount: proxyRows.length },
+          { day: dayLabel, summaryCount, proxyCount: proxyGroups.length },
           'Skipping aggregation for day because summary rows already cover all proxies'
         );
         return finish('skipped', 0, dayLabel, 'already aggregated');
       }
       logger.info(
-        { day: dayLabel, summaryCount, proxyCount: proxyRows.length },
+        { day: dayLabel, summaryCount, proxyCount: proxyGroups.length },
         'Summary rows are incomplete for day, continuing aggregation'
       );
     }
 
-    logger.info({ day: dayLabel, proxyCount: proxyRows.length }, 'Aggregating proxies');
+    logger.info(
+      {
+        day: dayLabel,
+        proxyCount: proxyGroups.length,
+        proxyConcurrency,
+        proxyRequestPageSize,
+      },
+      'Aggregating proxies'
+    );
 
     const supportsDeviceName = await hasColumn('proxy_requests_daily_summary', 'device_name');
+    const summaryHasServerName = await hasColumn('proxy_requests_daily_summary', 'server_name');
     const supportsExtendedDeviceMeta = supportsDeviceName;
 
     const supportsRotationTypeCounts = await hasColumn(
@@ -365,22 +665,35 @@ export async function aggregateDayInApp(
       return finish('skipped', 0, dayLabel, 'missing column: ip_rotation_inactive_proxy_success_count — run migrate deploy');
     }
 
-    let upserted = 0;
-
-    for (const { proxy_id: proxyId } of proxyRows) {
-      // 2. Fetch proxy metadata (location, relay server info).
-      const proxyMeta = await prisma.$queryRawUnsafe<Array<{
-        name: string | null;
-        server_name: string | null;
-        location: string | null;
-        relay_server_id: number | null;
-        relay_server_ip_address: string | null;
-      }>>(
-        `SELECT name, server_name, location, relay_server_id, relay_server_ip_address
-           FROM proxies WHERE device_id = ? LIMIT 1`,
-        proxyId
+    const upsertBatchSize = Math.max(
+      1,
+      parseInt(process.env.AGGREGATION_UPSERT_BATCH_SIZE ?? '20', 10) || 20
+    );
+    const processProxy = async (
+      proxyId: string
+    ): Promise<{ op: SummaryUpsertOp | null; durationMs: number; proxyId: string }> => {
+      const proxyStartedAt = Date.now();
+      // 2. Proxy row (device display name drives server bucket via computeServerLabelFromDeviceName — not a DB column).
+      const proxyRow = await withAgg(`agg.proxy.findUnique:${proxyId}`, () =>
+        prisma.proxy.findUnique({
+          where: { deviceId: proxyId },
+          select: {
+            name: true,
+            location: true,
+            relayServerId: true,
+            relayServerIpAddress: true,
+          },
+        })
       );
-      const meta = proxyMeta[0] ?? null;
+      const meta =
+        proxyRow === null
+          ? null
+          : {
+              name: proxyRow.name,
+              location: proxyRow.location,
+              relayServerId: proxyRow.relayServerId,
+              relayServerIpAddress: proxyRow.relayServerIpAddress,
+            };
 
       // 3. Stream all rows for this proxy on this day via cursor-based pagination.
       //    Uses a composite (timestamp, id) cursor so that rows sharing the same
@@ -393,27 +706,37 @@ export async function aggregateDayInApp(
       // Start cursor just before dayStart so the first page captures rows
       // with timestamp exactly equal to dayStart.
       let cursor = { timestamp: new Date(dayStart.getTime() - 1), id: '' };
+      let proxyRequestPage = 0;
 
       while (true) {
-        const rows = await prisma.$queryRawUnsafe<Array<{
-          id: string;
-          status: string;
-          response_time_ms: number | null;
-          ip_changed: number | boolean;
-          download_speed_mbps: number | null;
-          upload_speed_mbps: number | null;
-          outbound_ip: string | null;
-          timestamp: Date;
-        }>>(
-          `SELECT id, status, response_time_ms, ip_changed,
-                  download_speed_mbps, upload_speed_mbps, outbound_ip, timestamp
-             FROM proxy_requests
-            WHERE proxy_id = ?
-              AND (timestamp > ? OR (timestamp = ? AND id > ?))
-              AND timestamp < ?
-            ORDER BY timestamp ASC, id ASC
-            LIMIT ?`,
-          proxyId, cursor.timestamp, cursor.timestamp, cursor.id, dayEnd, PAGE_SIZE
+        proxyRequestPage += 1;
+        const rows = await withAgg(`agg.proxyRequest.page:${proxyId}:${proxyRequestPage}`, () =>
+          prisma.proxyRequest.findMany({
+            where: {
+              proxyId,
+              timestamp: { lt: dayEnd },
+              OR: [
+                { timestamp: { gt: cursor.timestamp } },
+                {
+                  AND: [
+                    { timestamp: cursor.timestamp },
+                    { id: { gt: cursor.id } },
+                  ],
+                },
+              ],
+            },
+            orderBy: [{ timestamp: 'asc' }, { id: 'asc' }],
+            take: proxyRequestPageSize,
+            select: {
+              id: true,
+              status: true,
+              responseTimeMs: true,
+              downloadSpeedMbps: true,
+              uploadSpeedMbps: true,
+              outboundIp: true,
+              timestamp: true,
+            },
+          })
         );
 
         if (rows.length === 0) break;
@@ -421,81 +744,56 @@ export async function aggregateDayInApp(
         for (const row of rows) {
           accumulateRow(stats, {
             status: row.status,
-            responseTimeMs: row.response_time_ms,
-            downloadSpeedMbps: row.download_speed_mbps,
-            uploadSpeedMbps: row.upload_speed_mbps,
-            outboundIp: row.outbound_ip,
+            responseTimeMs: row.responseTimeMs,
+            downloadSpeedMbps: row.downloadSpeedMbps,
+            uploadSpeedMbps: row.uploadSpeedMbps,
+            outboundIp: row.outboundIp,
             timestamp: row.timestamp,
           });
         }
 
-        // Advance composite cursor to the last row of this page.
         const lastRow = rows[rows.length - 1];
         cursor = { timestamp: lastRow.timestamp, id: lastRow.id };
-        if (rows.length < PAGE_SIZE) break;
+        if (rows.length < proxyRequestPageSize) break;
       }
 
-      if (stats.total === 0) continue;
+      if (stats.total === 0) return { op: null, durationMs: Date.now() - proxyStartedAt, proxyId };
 
-      // 4a. Speed metrics from speed_tests (authoritative).
-      //     Continuous tests leave proxy_requests.download_speed_mbps / upload_speed_mbps NULL;
-      //     speed-test-service writes to speed_tests only.
-      //     Use conditional aggregates so rows with only download or only upload success still contribute.
-      const speedRows = await prisma.$queryRawUnsafe<Array<{
-        avg_download: unknown;
-        max_download: unknown;
-        min_download: unknown;
-        avg_upload: unknown;
-        max_upload: unknown;
-        min_upload: unknown;
-      }>>(
-        `SELECT
-           AVG(CASE WHEN download_speed_mbps IS NOT NULL AND download_speed_mbps > 0
-                    THEN download_speed_mbps END) AS avg_download,
-           MAX(CASE WHEN download_speed_mbps IS NOT NULL AND download_speed_mbps > 0
-                    THEN download_speed_mbps END) AS max_download,
-           MIN(CASE WHEN download_speed_mbps IS NOT NULL AND download_speed_mbps > 0
-                    THEN download_speed_mbps END) AS min_download,
-           AVG(CASE WHEN upload_speed_mbps IS NOT NULL AND upload_speed_mbps > 0
-                    THEN upload_speed_mbps END) AS avg_upload,
-           MAX(CASE WHEN upload_speed_mbps IS NOT NULL AND upload_speed_mbps > 0
-                    THEN upload_speed_mbps END) AS max_upload,
-           MIN(CASE WHEN upload_speed_mbps IS NOT NULL AND upload_speed_mbps > 0
-                    THEN upload_speed_mbps END) AS min_upload
-         FROM speed_tests
-        WHERE proxy_id = ?
-          AND timestamp >= ?
-          AND timestamp < ?`,
-        proxyId, dayStart, dayEnd
-      );
-      const rawSpd = speedRows[0] ?? null;
-
-      const fromSpeedTests = rawSpd
-        ? {
-            avgDl: sqlNumber(rawSpd.avg_download),
-            maxDl: sqlNumber(rawSpd.max_download),
-            minDl: sqlNumber(rawSpd.min_download),
-            avgUl: sqlNumber(rawSpd.avg_upload),
-            maxUl: sqlNumber(rawSpd.max_upload),
-            minUl: sqlNumber(rawSpd.min_upload),
-          }
-        : null;
+      // 4a. Supporting day aggregates queried in parallel.
+      const [spd, rotationOutcomes, continuousOutcomes] = await Promise.all([
+        withAgg(`agg.speedTests:${proxyId}`, () =>
+          fetchSpeedTestDayAggregates(proxyId, dayStart, dayEnd)
+        ),
+        withAgg(`agg.ipRotation:${proxyId}`, () =>
+          fetchRotationOutcomesForDay(proxyId, dayStart, dayEnd)
+        ),
+        withAgg(`agg.continuous:${proxyId}`, () =>
+          fetchContinuousOutcomesForDay(proxyId, dayStart, dayEnd)
+        ),
+      ]);
+      const fromSpeedTests = {
+        avgDl: spd.avgDl,
+        maxDl: spd.maxDl,
+        minDl: spd.minDl,
+        avgUl: spd.avgUl,
+        maxUl: spd.maxUl,
+        minUl: spd.minUl,
+      };
 
       const hasSpeedTestDay =
-        fromSpeedTests &&
-        (fromSpeedTests.avgDl != null ||
-          fromSpeedTests.maxDl != null ||
-          fromSpeedTests.minDl != null ||
-          fromSpeedTests.avgUl != null ||
-          fromSpeedTests.maxUl != null ||
-          fromSpeedTests.minUl != null);
+        fromSpeedTests.avgDl != null ||
+        fromSpeedTests.maxDl != null ||
+        fromSpeedTests.minDl != null ||
+        fromSpeedTests.avgUl != null ||
+        fromSpeedTests.maxUl != null ||
+        fromSpeedTests.minUl != null;
 
-      const avgDl = (hasSpeedTestDay ? fromSpeedTests!.avgDl : avg(stats.downloadSpeeds)) ?? 0;
-      const avgUl = (hasSpeedTestDay ? fromSpeedTests!.avgUl : avg(stats.uploadSpeeds)) ?? 0;
-      const maxDl = (hasSpeedTestDay ? fromSpeedTests!.maxDl : maxOf(stats.downloadSpeeds)) ?? 0;
-      const maxUl = (hasSpeedTestDay ? fromSpeedTests!.maxUl : maxOf(stats.uploadSpeeds)) ?? 0;
-      const minDl = (hasSpeedTestDay ? fromSpeedTests!.minDl : minOf(stats.downloadSpeeds)) ?? 0;
-      const minUl = (hasSpeedTestDay ? fromSpeedTests!.minUl : minOf(stats.uploadSpeeds)) ?? 0;
+      const avgDl = (hasSpeedTestDay ? fromSpeedTests.avgDl : avg(stats.downloadSpeeds)) ?? 0;
+      const avgUl = (hasSpeedTestDay ? fromSpeedTests.avgUl : avg(stats.uploadSpeeds)) ?? 0;
+      const maxDl = (hasSpeedTestDay ? fromSpeedTests.maxDl : maxOf(stats.downloadSpeeds)) ?? 0;
+      const maxUl = (hasSpeedTestDay ? fromSpeedTests.maxUl : maxOf(stats.uploadSpeeds)) ?? 0;
+      const minDl = (hasSpeedTestDay ? fromSpeedTests.minDl : minOf(stats.downloadSpeeds)) ?? 0;
+      const minUl = (hasSpeedTestDay ? fromSpeedTests.minUl : minOf(stats.uploadSpeeds)) ?? 0;
 
       // 4. Compute derived metrics.
       stats.responseTimes.sort((a, b) => a - b);
@@ -509,253 +807,130 @@ export async function aggregateDayInApp(
           : 0;
       const mostUsedIp = getMostUsedIp(stats.ipCounts);
       const rotationCount = stats.ipChanges.length;
-      const rotationOutcomeRows = await prisma.$queryRawUnsafe<Array<{
-        rotation_group: string;
-        success_count: unknown;
-        failure_count: unknown;
-      }>>(
-        `SELECT
-           CASE
-             WHEN rc.cycle_type = 'periodic'      THEN 'periodic'
-             WHEN rc.cycle_type = 'inactive_proxy' THEN 'inactive_proxy'
-             ELSE rc.cycle_type
-           END AS rotation_group,
-           SUM(CASE WHEN ir.success = true THEN 1 ELSE 0 END) AS success_count,
-           SUM(CASE WHEN ir.success = false THEN 1 ELSE 0 END) AS failure_count
-         FROM ip_rotations ir
-         JOIN rotation_cycles rc ON rc.id = ir.cycle_id
-         WHERE ir.proxy_id = ?
-           AND ir.rotation_timestamp >= ?
-           AND ir.rotation_timestamp < ?
-         GROUP BY
-           CASE
-             WHEN rc.cycle_type = 'periodic'      THEN 'periodic'
-             WHEN rc.cycle_type = 'inactive_proxy' THEN 'inactive_proxy'
-             ELSE rc.cycle_type
-           END`,
-        proxyId, dayStart, dayEnd
-      );
-      const rotationOutcomes = rotationOutcomeRows.reduce(
-        (acc, row) => {
-          const successCount = sqlNumber(row.success_count) ?? 0;
-          const failureCount = sqlNumber(row.failure_count) ?? 0;
-          if (row.rotation_group === 'periodic') {
-            acc.periodic.success += successCount;
-            acc.periodic.failure += failureCount;
-          } else if (row.rotation_group === 'inactive_proxy') {
-            acc.inactiveProxy.success += successCount;
-            acc.inactiveProxy.failure += failureCount;
-          }
-          return acc;
-        },
-        {
-          periodic:      { success: 0, failure: 0 },
-          inactiveProxy: { success: 0, failure: 0 },
-        }
-      );
 
-      const continuousRows = await prisma.$queryRawUnsafe<Array<{
-        success_count: unknown;
-        failure_count: unknown;
-      }>>(
-        `SELECT
-           SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END)                       AS success_count,
-           SUM(CASE WHEN status != 'success' THEN 1 ELSE 0 END)                       AS failure_count
-         FROM proxy_requests
-         WHERE proxy_id = ?
-           AND timestamp >= ?
-           AND timestamp <  ?
-           AND source = 'continuous'`,
-        proxyId, dayStart, dayEnd
-      );
-      const continuousOutcomes = {
-        success: sqlNumber(continuousRows[0]?.success_count) ?? 0,
-        failure: sqlNumber(continuousRows[0]?.failure_count) ?? 0,
-      };
-      const deviceName = meta?.name ?? null;
-      const serverName = meta?.server_name ?? null;
-      const ipHistoryJson = JSON.stringify({
+      const ipHistory: Prisma.InputJsonValue = {
         assignedIps: stats.ipAssignments,
         uniqueIps: Array.from(stats.uniqueIps),
         counts: Object.fromEntries(stats.ipCounts),
         changes: stats.ipChanges,
+      };
+
+      const op = buildSummaryUpsertOp({
+        day: dayStart,
+        proxyId,
+        supportsExtendedDeviceMeta,
+        summaryHasServerName,
+        meta,
+        stats,
+        failure,
+        successRatePct,
+        ipDiversityScore,
+        rotationCount,
+        rotationOutcomes,
+        continuousOutcomes,
+        avgDl,
+        avgUl,
+        maxDl,
+        maxUl,
+        minDl,
+        minUl,
+        mostUsedIp,
+        ipHistory,
+      });
+      return { op, durationMs: Date.now() - proxyStartedAt, proxyId };
+    };
+
+    let nextProxyIndex = 0;
+    let processed = 0;
+    const workerCount = Math.min(proxyConcurrency, proxyGroups.length);
+
+    const enqueueWrite = async (result: {
+      op: SummaryUpsertOp | null;
+      durationMs: number;
+      proxyId: string;
+    }): Promise<void> => {
+      writeQueue = writeQueue.then(async () => {
+        processed += 1;
+        if (result.op !== null) {
+          pendingSummaryOps.push(result.op);
+        }
+
+        const reachedProgressBoundary = processed % 100 === 0 || processed === proxyGroups.length;
+        const shouldFlush = pendingSummaryOps.length >= upsertBatchSize || reachedProgressBoundary;
+        if (shouldFlush && pendingSummaryOps.length > 0) {
+          const batch = pendingSummaryOps.splice(0, pendingSummaryOps.length);
+          await flushSummaryUpsertBatch(batch);
+          upsertedCount += batch.length;
+        }
+
+        logger.info(
+          `Aggregation proxy completed day=${dayLabel} proxy=${processed}/${proxyGroups.length} proxyId=${result.proxyId} durationMs=${result.durationMs}`
+        );
+        if (reachedProgressBoundary) {
+          logger.info(
+            { day: dayLabel, processed, total: proxyGroups.length, upserted: upsertedCount },
+            'Aggregation progress'
+          );
+        }
       });
 
-      // 5. Upsert via raw SQL (INSERT ... ON DUPLICATE KEY UPDATE) so this
-      //    works regardless of whether the Prisma client has been regenerated.
-      const dayStr = dayStart.toISOString().split('T')[0];
-      const insertSql = supportsExtendedDeviceMeta
-        ? `INSERT INTO proxy_requests_daily_summary (
-           day, proxy_id, device_name, server_name, location, relay_server_id, relay_server_ip,
-           total_requests, success_count, failure_count, success_rate_pct,
-           avg_response_time_ms, min_response_time_ms, max_response_time_ms,
-           p50_response_time_ms, p95_response_time_ms, p99_response_time_ms,
-           timeout_count, connection_error_count, http_error_count, dns_error_count,
-           rotation_count,
-           ip_rotation_periodic_success_count, ip_rotation_periodic_failure_count,
-           ip_rotation_inactive_proxy_success_count, ip_rotation_inactive_proxy_failure_count,
-           ip_rotation_continuous_success_count, ip_rotation_continuous_failure_count,
-           avg_download_speed_mbps, avg_upload_speed_mbps,
-           max_download_speed_mbps, max_upload_speed_mbps,
-           min_download_speed_mbps, min_upload_speed_mbps,
-           unique_ips_count, ip_diversity_score,
-           ip_history_json, ip_change_count, first_ip, last_ip, most_used_ip, most_used_ip_count,
-           created_at, updated_at
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
-         ON DUPLICATE KEY UPDATE
-           device_name           = VALUES(device_name),
-           server_name           = VALUES(server_name),
-           location              = VALUES(location),
-           relay_server_id       = VALUES(relay_server_id),
-           relay_server_ip       = VALUES(relay_server_ip),
-           total_requests        = VALUES(total_requests),
-           success_count         = VALUES(success_count),
-           failure_count         = VALUES(failure_count),
-           success_rate_pct      = VALUES(success_rate_pct),
-           avg_response_time_ms  = VALUES(avg_response_time_ms),
-           min_response_time_ms  = VALUES(min_response_time_ms),
-           max_response_time_ms  = VALUES(max_response_time_ms),
-           p50_response_time_ms  = VALUES(p50_response_time_ms),
-           p95_response_time_ms  = VALUES(p95_response_time_ms),
-           p99_response_time_ms  = VALUES(p99_response_time_ms),
-           timeout_count         = VALUES(timeout_count),
-           connection_error_count= VALUES(connection_error_count),
-           http_error_count      = VALUES(http_error_count),
-           dns_error_count       = VALUES(dns_error_count),
-           rotation_count        = VALUES(rotation_count),
-           ip_rotation_periodic_success_count       = VALUES(ip_rotation_periodic_success_count),
-           ip_rotation_periodic_failure_count       = VALUES(ip_rotation_periodic_failure_count),
-           ip_rotation_inactive_proxy_success_count = VALUES(ip_rotation_inactive_proxy_success_count),
-           ip_rotation_inactive_proxy_failure_count = VALUES(ip_rotation_inactive_proxy_failure_count),
-           ip_rotation_continuous_success_count     = VALUES(ip_rotation_continuous_success_count),
-           ip_rotation_continuous_failure_count     = VALUES(ip_rotation_continuous_failure_count),
-           avg_download_speed_mbps = VALUES(avg_download_speed_mbps),
-           avg_upload_speed_mbps   = VALUES(avg_upload_speed_mbps),
-           max_download_speed_mbps = VALUES(max_download_speed_mbps),
-           max_upload_speed_mbps   = VALUES(max_upload_speed_mbps),
-           min_download_speed_mbps = VALUES(min_download_speed_mbps),
-           min_upload_speed_mbps   = VALUES(min_upload_speed_mbps),
-           unique_ips_count      = VALUES(unique_ips_count),
-           ip_diversity_score    = VALUES(ip_diversity_score),
-           ip_history_json       = VALUES(ip_history_json),
-           ip_change_count       = VALUES(ip_change_count),
-           first_ip              = VALUES(first_ip),
-           last_ip               = VALUES(last_ip),
-           most_used_ip          = VALUES(most_used_ip),
-           most_used_ip_count    = VALUES(most_used_ip_count),
-           updated_at            = CURRENT_TIMESTAMP`
-        : `INSERT INTO proxy_requests_daily_summary (
-           day, proxy_id, location, relay_server_id, relay_server_ip,
-           total_requests, success_count, failure_count, success_rate_pct,
-           avg_response_time_ms, min_response_time_ms, max_response_time_ms,
-           p50_response_time_ms, p95_response_time_ms, p99_response_time_ms,
-           timeout_count, connection_error_count, http_error_count, dns_error_count,
-           rotation_count,
-           ip_rotation_periodic_success_count, ip_rotation_periodic_failure_count,
-           ip_rotation_inactive_proxy_success_count, ip_rotation_inactive_proxy_failure_count,
-           ip_rotation_continuous_success_count, ip_rotation_continuous_failure_count,
-           avg_download_speed_mbps, avg_upload_speed_mbps,
-           max_download_speed_mbps, max_upload_speed_mbps,
-           min_download_speed_mbps, min_upload_speed_mbps,
-           unique_ips_count, ip_diversity_score,
-           ip_history_json, ip_change_count, first_ip, last_ip, most_used_ip, most_used_ip_count,
-           created_at, updated_at
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
-         ON DUPLICATE KEY UPDATE
-           location              = VALUES(location),
-           relay_server_id       = VALUES(relay_server_id),
-           relay_server_ip       = VALUES(relay_server_ip),
-           total_requests        = VALUES(total_requests),
-           success_count         = VALUES(success_count),
-           failure_count         = VALUES(failure_count),
-           success_rate_pct      = VALUES(success_rate_pct),
-           avg_response_time_ms  = VALUES(avg_response_time_ms),
-           min_response_time_ms  = VALUES(min_response_time_ms),
-           max_response_time_ms  = VALUES(max_response_time_ms),
-           p50_response_time_ms  = VALUES(p50_response_time_ms),
-           p95_response_time_ms  = VALUES(p95_response_time_ms),
-           p99_response_time_ms  = VALUES(p99_response_time_ms),
-           timeout_count         = VALUES(timeout_count),
-           connection_error_count= VALUES(connection_error_count),
-           http_error_count      = VALUES(http_error_count),
-           dns_error_count       = VALUES(dns_error_count),
-           rotation_count        = VALUES(rotation_count),
-           ip_rotation_periodic_success_count       = VALUES(ip_rotation_periodic_success_count),
-           ip_rotation_periodic_failure_count       = VALUES(ip_rotation_periodic_failure_count),
-           ip_rotation_inactive_proxy_success_count = VALUES(ip_rotation_inactive_proxy_success_count),
-           ip_rotation_inactive_proxy_failure_count = VALUES(ip_rotation_inactive_proxy_failure_count),
-           ip_rotation_continuous_success_count     = VALUES(ip_rotation_continuous_success_count),
-           ip_rotation_continuous_failure_count     = VALUES(ip_rotation_continuous_failure_count),
-           avg_download_speed_mbps = VALUES(avg_download_speed_mbps),
-           avg_upload_speed_mbps   = VALUES(avg_upload_speed_mbps),
-           max_download_speed_mbps = VALUES(max_download_speed_mbps),
-           max_upload_speed_mbps   = VALUES(max_upload_speed_mbps),
-           min_download_speed_mbps = VALUES(min_download_speed_mbps),
-           min_upload_speed_mbps   = VALUES(min_upload_speed_mbps),
-           unique_ips_count      = VALUES(unique_ips_count),
-           ip_diversity_score    = VALUES(ip_diversity_score),
-           ip_history_json       = VALUES(ip_history_json),
-           ip_change_count       = VALUES(ip_change_count),
-           first_ip              = VALUES(first_ip),
-           last_ip               = VALUES(last_ip),
-           most_used_ip          = VALUES(most_used_ip),
-           most_used_ip_count    = VALUES(most_used_ip_count),
-           updated_at            = CURRENT_TIMESTAMP`;
+      await writeQueue;
+    };
 
-      const params = supportsExtendedDeviceMeta
-        ? [
-            dayStr, proxyId, deviceName, serverName,
-            meta?.location ?? null,
-            meta?.relay_server_id != null ? String(meta.relay_server_id) : null,
-            meta?.relay_server_ip_address ?? null,
-            stats.total, stats.success, failure, successRatePct,
-            avg(stats.responseTimes), minOf(stats.responseTimes), maxOf(stats.responseTimes),
-            pct(stats.responseTimes, 50), pct(stats.responseTimes, 95), pct(stats.responseTimes, 99),
-            stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
-            rotationCount,
-            rotationOutcomes.periodic.success, rotationOutcomes.periodic.failure,
-            rotationOutcomes.inactiveProxy.success, rotationOutcomes.inactiveProxy.failure,
-            continuousOutcomes.success, continuousOutcomes.failure,
-            avgDl, avgUl, maxDl, maxUl, minDl, minUl,
-            stats.uniqueIps.size, ipDiversityScore,
-            ipHistoryJson, rotationCount, stats.firstIp, stats.lastIp, mostUsedIp.ip, mostUsedIp.count
-          ]
-        : [
-            dayStr, proxyId,
-            meta?.location ?? null,
-            meta?.relay_server_id != null ? String(meta.relay_server_id) : null,
-            meta?.relay_server_ip_address ?? null,
-            stats.total, stats.success, failure, successRatePct,
-            avg(stats.responseTimes), minOf(stats.responseTimes), maxOf(stats.responseTimes),
-            pct(stats.responseTimes, 50), pct(stats.responseTimes, 95), pct(stats.responseTimes, 99),
-            stats.timeout, stats.connectionError, stats.httpError, stats.dnsError,
-            rotationCount,
-            rotationOutcomes.periodic.success, rotationOutcomes.periodic.failure,
-            rotationOutcomes.inactiveProxy.success, rotationOutcomes.inactiveProxy.failure,
-            continuousOutcomes.success, continuousOutcomes.failure,
-            avgDl, avgUl, maxDl, maxUl, minDl, minUl,
-            stats.uniqueIps.size, ipDiversityScore,
-            ipHistoryJson, rotationCount, stats.firstIp, stats.lastIp, mostUsedIp.ip, mostUsedIp.count
-          ];
-
-      await prisma.$executeRawUnsafe(insertSql, ...params);
-
-      upserted++;
-
-      if (delayMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+    const runWorker = async (): Promise<void> => {
+      while (true) {
+        const currentIndex = nextProxyIndex;
+        if (currentIndex >= proxyGroups.length) {
+          return;
+        }
+        nextProxyIndex += 1;
+        const proxyId = proxyGroups[currentIndex].proxyId;
+        const result = await processProxy(proxyId);
+        await enqueueWrite(result);
+        if (delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
       }
+    };
+
+    await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+    await writeQueue;
+    if (pendingSummaryOps.length > 0) {
+      const batch = pendingSummaryOps.splice(0, pendingSummaryOps.length);
+      await flushSummaryUpsertBatch(batch);
+      upsertedCount += batch.length;
     }
+    upserted = upsertedCount;
 
     logger.info({ day: dayLabel, upserted }, 'App-side daily aggregation completed');
     return finish('success', upserted, dayLabel);
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
+    try {
+      await writeQueue;
+      if (pendingSummaryOps.length > 0) {
+        const batch = pendingSummaryOps.splice(0, pendingSummaryOps.length);
+        await flushSummaryUpsertBatch(batch);
+        upsertedCount += batch.length;
+      }
+      upserted = upsertedCount;
+    } catch (flushError) {
+      logger.error(
+        {
+          day: dayLabel,
+          flushError: flushError instanceof Error ? flushError.message : String(flushError),
+          pendingOps: pendingSummaryOps.length,
+          upsertedBeforeFlushError: upsertedCount,
+        },
+        'Failed to flush pending aggregation rows after aggregation error'
+      );
+      upserted = upsertedCount;
+    }
     logger.error(
-      { error: errMsg, day: dayLabel },
-      'App-side daily aggregation failed'
+      { error: errMsg, day: dayLabel, upsertedBeforeFailure: upserted },
+      'App-side daily aggregation failed (upserted count is rows completed before this error; pending batch may be unflushed)'
     );
-    return finish('failed', 0, dayLabel, errMsg);
+    return finish('failed', upserted, dayLabel, errMsg);
   } finally {
     clearTimeout(watchdog);
     isAggregating = false;
@@ -793,7 +968,7 @@ export async function aggregateDailySummary(day?: Date): Promise<number> {
     logger.info({ day: dayDate }, 'Starting stored-proc daily aggregation');
 
     try {
-      await prisma.$executeRawUnsafe(`CALL aggregate_daily_summary(?)`, dayDate);
+      await prisma.$executeRaw(Prisma.sql`CALL aggregate_daily_summary(${dayDate})`);
     } catch (error: any) {
       if (error?.message?.includes('does not exist') || error?.code === '42000') {
         logger.warn('Stored procedure not found, falling back to aggregateDayInApp');
@@ -802,11 +977,9 @@ export async function aggregateDailySummary(day?: Date): Promise<number> {
       throw error;
     }
 
-    const result = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
-      `SELECT COUNT(DISTINCT proxy_id) as count FROM proxy_requests_daily_summary WHERE day = ?`,
-      dayDate
-    );
-    const proxyCount = Number(result[0]?.count || 0);
+    const proxyCount = await prisma.proxyRequestsDailySummary.count({
+      where: { day: dayStart },
+    });
     logger.info({ day: dayDate, proxyCount }, 'Stored-proc daily aggregation completed');
     return proxyCount;
   } catch (error) {

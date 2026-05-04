@@ -7,8 +7,22 @@ import { getDatabaseUrlWithConnectionLimit } from './db-pool-config';
  * Retry configuration
  */
 const MAX_RETRIES = 5;
-const INITIAL_RETRY_DELAY_MS = 1000; // 1 second
-const MAX_RETRY_DELAY_MS = 30000; // 30 seconds
+const INITIAL_RETRY_DELAY_MS = Math.max(
+  100,
+  parseInt(process.env.DB_RETRY_INITIAL_DELAY_MS ?? '1000', 10) || 1000
+);
+const MAX_RETRY_DELAY_MS = Math.max(
+  INITIAL_RETRY_DELAY_MS,
+  parseInt(process.env.DB_RETRY_MAX_DELAY_MS ?? '30000', 10) || 30000
+);
+const LOCK_RETRY_DELAY_MIN_MS = Math.max(
+  50,
+  parseInt(process.env.DB_RETRY_LOCK_DELAY_MIN_MS ?? '500', 10) || 500
+);
+const LOCK_RETRY_DELAY_MAX_MS = Math.max(
+  LOCK_RETRY_DELAY_MIN_MS,
+  parseInt(process.env.DB_RETRY_LOCK_DELAY_MAX_MS ?? '900', 10) || 900
+);
 
 /**
  * Calculate exponential backoff delay
@@ -69,9 +83,9 @@ function isTransientLockError(error: any): boolean {
 }
 
 /**
- * Retry function with exponential backoff
+ * Retry function with exponential backoff (used by write path, health checks, and aggregation).
  */
-async function retryWithBackoff<T>(
+export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   operation: string,
   maxRetries: number = MAX_RETRIES
@@ -97,7 +111,8 @@ async function retryWithBackoff<T>(
 
       if (isTransientLockError(error) && attempt < maxRetries) {
         // Jitter avoids many workers retrying in lockstep and re-contending the same rows.
-        const delay = 500 + Math.floor(Math.random() * 400);
+        const delayRange = LOCK_RETRY_DELAY_MAX_MS - LOCK_RETRY_DELAY_MIN_MS;
+        const delay = LOCK_RETRY_DELAY_MIN_MS + Math.floor(Math.random() * (delayRange + 1));
         logger.debug(
           { operation, attempt: attempt + 1, maxRetries, delay },
           'Lock wait timeout, retrying'
