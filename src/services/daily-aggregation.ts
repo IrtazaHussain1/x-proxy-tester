@@ -371,11 +371,12 @@ export async function aggregateDayInApp(
       // 2. Fetch proxy metadata (location, relay server info).
       const proxyMeta = await prisma.$queryRawUnsafe<Array<{
         name: string | null;
+        server_name: string | null;
         location: string | null;
         relay_server_id: number | null;
         relay_server_ip_address: string | null;
       }>>(
-        `SELECT name, location, relay_server_id, relay_server_ip_address
+        `SELECT name, server_name, location, relay_server_id, relay_server_ip_address
            FROM proxies WHERE device_id = ? LIMIT 1`,
         proxyId
       );
@@ -572,7 +573,7 @@ export async function aggregateDayInApp(
         failure: sqlNumber(continuousRows[0]?.failure_count) ?? 0,
       };
       const deviceName = meta?.name ?? null;
-      // const serverName = computeServerLabelFromDeviceName(deviceName);
+      const serverName = meta?.server_name ?? null;
       const ipHistoryJson = JSON.stringify({
         assignedIps: stats.ipAssignments,
         uniqueIps: Array.from(stats.uniqueIps),
@@ -703,7 +704,7 @@ export async function aggregateDayInApp(
 
       const params = supportsExtendedDeviceMeta
         ? [
-            dayStr, proxyId, deviceName,
+            dayStr, proxyId, deviceName, serverName,
             meta?.location ?? null,
             meta?.relay_server_id != null ? String(meta.relay_server_id) : null,
             meta?.relay_server_ip_address ?? null,
