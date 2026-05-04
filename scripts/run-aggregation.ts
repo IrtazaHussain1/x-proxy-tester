@@ -9,6 +9,10 @@
  *   npx ts-node scripts/run-aggregation.ts --day=2026-04-05 # specific day
  *   npx ts-node scripts/run-aggregation.ts --days=7         # last 7 days
  *   npx ts-node scripts/run-aggregation.ts --day=2026-04-01 --to=2026-04-05  # date range
+ *
+ * Env:
+ *   DOTENV_CONFIG_PATH — optional; e.g. `.env.prod` (see dotenv `config.js`).
+ *   LOG_FULL_DATABASE_URL=1 — print full DATABASE_URL (contains secrets; avoid in shared logs).
  */
 
 import 'dotenv/config';
@@ -30,6 +34,21 @@ function arg(name: string, fallback = ''): string {
 const DAY_ARG  = arg('day');
 const TO_ARG   = arg('to');
 const DAYS_ARG = arg('days');
+
+/** Redacts password in `scheme://user:password@host` for safe console output. */
+function redactDatabaseUrl(raw: string | undefined): string {
+  if (raw == null || raw === '') {
+    return '(DATABASE_URL unset)';
+  }
+  return raw.replace(/^(\w+:\/\/)([^@/]+)@/u, (_full, protocol: string, userpass: string) => {
+    const colon = userpass.indexOf(':');
+    if (colon === -1) {
+      return `${protocol}${userpass}@`;
+    }
+    const user = userpass.slice(0, colon);
+    return `${protocol}${user}:***@`;
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Build list of days to process
@@ -115,6 +134,18 @@ async function main(): Promise<void> {
   console.log('║          proxy_requests_daily_summary Runner         ║');
   console.log('║          (uses production aggregateDayInApp)         ║');
   console.log('╚══════════════════════════════════════════════════════╝');
+
+  const dotenvPath =
+    process.env.DOTENV_CONFIG_PATH != null && process.env.DOTENV_CONFIG_PATH !== ''
+      ? process.env.DOTENV_CONFIG_PATH
+      : '(not set — dotenv loaded default .env if present)';
+  console.log(`  DOTENV_CONFIG_PATH: ${dotenvPath}`);
+  const dbUrl = process.env.DATABASE_URL;
+  if (process.env.LOG_FULL_DATABASE_URL === '1') {
+    console.log(`  DATABASE_URL      : ${dbUrl ?? '(unset)'}`);
+  } else {
+    console.log(`  DATABASE_URL      : ${redactDatabaseUrl(dbUrl)}`);
+  }
 
   const days = buildDayList();
   console.log(`  days to process : ${days.map((d) => d.toISOString().split('T')[0]).join(', ')}\n`);
