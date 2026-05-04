@@ -81,7 +81,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.status != 'SUCCESS'",
+          "rawSql": "SELECT SUM(s.failure_count) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)",
           "refId": "A"
         }
       ],
@@ -151,7 +151,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(r.status != 'SUCCESS') * 100.0 / NULLIF(COUNT(*), 0), 0) as value FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp)",
+          "rawSql": "SELECT COALESCE(SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)",
           "refId": "A"
         }
       ],
@@ -391,7 +391,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT p.name as value FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND pr.status != 'SUCCESS' AND p.location IN ($location) GROUP BY p.device_id, p.name ORDER BY COUNT(*) DESC LIMIT 1",
+          "rawSql": "SELECT p.name AS value\nFROM proxies p\nJOIN proxy_requests_5min_summary s ON p.device_id = s.proxy_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\nGROUP BY p.device_id, p.name\nORDER BY SUM(s.failure_count) DESC\nLIMIT 1",
           "refId": "A"
         }
       ],
@@ -567,7 +567,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '1m'), COALESCE(SUM(r.status != 'SUCCESS') * 100.0 / NULLIF(COUNT(*), 0), 0) as error_rate FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) GROUP BY 1 ORDER BY 1",
+          "rawSql": "SELECT\n  s.window_start AS time,\n  COALESCE(SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 0) AS error_rate\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\nGROUP BY s.window_start\nORDER BY s.window_start",
           "refId": "A"
         }
       ],
@@ -623,7 +623,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT p.name, p.device_id, p.location, p.version, SUM(pr.status != 'SUCCESS') as error_count, COUNT(*) as total_requests, COALESCE(SUM(pr.status != 'SUCCESS') * 100.0 / NULLIF(COUNT(*), 0), 0) as error_rate, GROUP_CONCAT(DISTINCT pr.error_type) as error_types FROM proxies p JOIN proxy_requests pr ON p.device_id = pr.proxy_id WHERE $__timeFilter(pr.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name, p.location, p.version HAVING error_count > 0 ORDER BY error_count DESC LIMIT 20",
+          "rawSql": "SELECT\n  p.name,\n  p.device_id,\n  p.location,\n  p.version,\n  SUM(s.failure_count)                                                         AS error_count,\n  SUM(s.total_requests)                                                        AS total_requests,\n  COALESCE(SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 0) AS error_rate\nFROM proxies p\nJOIN proxy_requests_5min_summary s ON p.device_id = s.proxy_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\nGROUP BY p.device_id, p.name, p.location, p.version\nHAVING error_count > 0\nORDER BY error_count DESC\nLIMIT 20",
           "refId": "A"
         }
       ],

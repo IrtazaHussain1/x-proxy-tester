@@ -50,7 +50,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT AVG(r.response_time_ms) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.response_time_ms IS NOT NULL AND p.location IN ($location)"
+          "rawSql": "SELECT ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND s.avg_response_time_ms IS NOT NULL\n  AND p.location IN ($location)"
         }
       ],
       "title": "Avg Response Time (P50)",
@@ -174,7 +174,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) / 60.0 as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location)"
+          "rawSql": "SELECT ROUND(SUM(s.total_requests) / NULLIF(COUNT(DISTINCT s.window_start) * 5.0, 0), 1) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)"
         }
       ],
       "title": "Requests per Minute",
@@ -203,7 +203,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  AVG(r.response_time_ms) as p50,\n  MAX(r.response_time_ms) as p99\nFROM proxy_requests r\nJOIN proxies p ON r.proxy_id = p.device_id\nWHERE $__timeFilter(r.timestamp)\n  AND r.response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(s.window_start) AS time_sec,\n  ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS p50,\n  MAX(s.max_response_time_ms)                                                                   AS p99\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND s.avg_response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY s.window_start\nORDER BY s.window_start",
           "refId": "A"
         }
       ],
@@ -247,7 +247,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  p.name,\n  p.location,\n  p.version,\n  AVG(pr.response_time_ms) as avg_response_time,\n  COUNT(*) as request_count,\n  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY p.device_id, p.name, p.location, p.version\nORDER BY avg_response_time DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  p.name,\n  p.location,\n  p.version,\n  ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS avg_response_time,\n  SUM(s.total_requests)                                                                         AS request_count,\n  ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2)                   AS success_rate\nFROM proxies p\nJOIN proxy_requests_5min_summary s ON p.device_id = s.proxy_id\nWHERE $__timeFilter(s.window_start)\n  AND s.avg_response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY p.device_id, p.name, p.location, p.version\nORDER BY avg_response_time DESC\nLIMIT 20",
           "refId": "A"
         }
       ],

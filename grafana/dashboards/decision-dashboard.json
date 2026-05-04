@@ -266,9 +266,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value\nFROM (\n  SELECT\n    p.device_id,\n    SUM(CASE WHEN pr.status != 'SUCCESS' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as error_rate\n  FROM proxies p\n  JOIN proxy_requests pr ON p.device_id = pr.proxy_id\n  WHERE $__timeFilter(pr.timestamp)\n    AND p.location IN ($location)\n    AND p.city IN ($city)
-  AND p.active IN ($active)\n  GROUP BY p.device_id\n) per_proxy\nWHERE per_proxy.error_rate > (\n  SELECT AVG(error_rate) + 2 * STDDEV_SAMP(error_rate)\n  FROM (\n    SELECT\n      p.device_id,\n      SUM(CASE WHEN pr.status != 'SUCCESS' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as error_rate\n    FROM proxies p\n    JOIN proxy_requests pr ON p.device_id = pr.proxy_id\n    WHERE $__timeFilter(pr.timestamp)\n      AND p.location IN ($location)\n      AND p.city IN ($city)
-  AND p.active IN ($active)\n    GROUP BY p.device_id\n  ) stats\n)",
+          "rawSql": "SELECT COUNT(*) AS value\nFROM (\n  SELECT\n    s.proxy_id,\n    SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0) AS error_rate\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE $__timeFilter(s.window_start)\n    AND p.location IN ($location)\n    AND p.city IN ($city)\n    AND p.active IN ($active)\n  GROUP BY s.proxy_id\n) per_proxy\nWHERE per_proxy.error_rate > (\n  SELECT AVG(error_rate) + 2 * STDDEV_SAMP(error_rate)\n  FROM (\n    SELECT\n      s.proxy_id,\n      SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0) AS error_rate\n    FROM proxy_requests_5min_summary s\n    JOIN proxies p ON s.proxy_id = p.device_id\n    WHERE $__timeFilter(s.window_start)\n      AND p.location IN ($location)\n      AND p.city IN ($city)\n      AND p.active IN ($active)\n    GROUP BY s.proxy_id\n  ) stats\n)",
           "refId": "A"
         }
       ],
@@ -338,8 +336,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value\nFROM proxy_requests pr\nJOIN proxies p ON pr.proxy_id = p.device_id\nWHERE $__timeFilter(pr.timestamp)\n  AND p.location IN ($location)\n  AND p.city IN ($city)
-  AND p.active IN ($active)",
+          "rawSql": "SELECT SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\n  AND p.city IN ($city)\n  AND p.active IN ($active)",
           "refId": "A"
         }
       ],
@@ -399,8 +396,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT AVG(pr.response_time_ms) as value\nFROM proxy_requests pr\nJOIN proxies p ON pr.proxy_id = p.device_id\nWHERE $__timeFilter(pr.timestamp)\n  AND p.location IN ($location)\n  AND p.city IN ($city)
-  AND p.active IN ($active)",
+          "rawSql": "SELECT ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\n  AND p.city IN ($city)\n  AND p.active IN ($active)",
           "refId": "A"
         }
       ],
@@ -617,8 +613,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxy_requests pr\nJOIN proxies p ON pr.proxy_id = p.device_id\nWHERE $__timeFilter(pr.timestamp)\n  AND p.location IN ($location)\n  AND p.city IN ($city)
-  AND p.active IN ($active)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(s.window_start) AS time_sec,\n  SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0) AS success_rate\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\n  AND p.city IN ($city)\n  AND p.active IN ($active)\nGROUP BY s.window_start\nORDER BY s.window_start",
           "refId": "A"
         }
       ],
@@ -686,8 +681,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT AVG(error_count) as value\nFROM (\n  SELECT p.device_id,\n         COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count\n  FROM proxies p\n  JOIN proxy_requests pr ON p.device_id = pr.proxy_id\n  WHERE $__timeFilter(pr.timestamp)\n    AND p.location IN ($location)\n    AND p.city IN ($city)
-  AND p.active IN ($active)\n  GROUP BY p.device_id\n) per_proxy",
+          "rawSql": "SELECT AVG(error_count) AS value\nFROM (\n  SELECT s.proxy_id, SUM(s.failure_count) AS error_count\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE $__timeFilter(s.window_start)\n    AND p.location IN ($location)\n    AND p.city IN ($city)\n    AND p.active IN ($active)\n  GROUP BY s.proxy_id\n) per_proxy",
           "refId": "A"
         }
       ],
@@ -757,8 +751,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value\nFROM proxy_requests pr\nJOIN proxies p ON pr.proxy_id = p.device_id\nWHERE $__timeFilter(pr.timestamp)\n  AND p.location IN ($location)\n  AND p.city IN ($city)
-  AND p.active IN ($active)",
+          "rawSql": "SELECT SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\n  AND p.city IN ($city)\n  AND p.active IN ($active)",
           "refId": "A"
         }
       ],
@@ -851,8 +844,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate\nFROM proxy_requests pr\nJOIN proxies p ON pr.proxy_id = p.device_id\nWHERE $__timeFilter(pr.timestamp)\n  AND p.location IN ($location)\n  AND p.city IN ($city)
-  AND p.active IN ($active)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(s.window_start) AS time_sec,\n  SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0) AS error_rate\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\n  AND p.city IN ($city)\n  AND p.active IN ($active)\nGROUP BY s.window_start\nORDER BY s.window_start",
           "refId": "A"
         }
       ],
@@ -1149,8 +1141,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT p.name, p.device_id, p.location, p.city, p.version,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate,\n  GROUP_CONCAT(DISTINCT pr.error_type) as error_types\nFROM proxies p\nJOIN proxy_requests pr ON p.device_id = pr.proxy_id\nWHERE $__timeFilter(pr.timestamp)\n  AND p.location IN ($location)\n  AND p.city IN ($city)
-  AND p.active IN ($active)\nGROUP BY p.device_id, p.name, p.location, p.city, p.version\nHAVING error_count > 0\nORDER BY error_count DESC\nLIMIT $limit",
+          "rawSql": "SELECT\n  p.name,\n  p.device_id,\n  p.location,\n  p.city,\n  p.version,\n  SUM(s.failure_count)                                                         AS error_count,\n  SUM(s.total_requests)                                                        AS total_requests,\n  ROUND(SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2)   AS error_rate\nFROM proxies p\nJOIN proxy_requests_5min_summary s ON p.device_id = s.proxy_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\n  AND p.city IN ($city)\n  AND p.active IN ($active)\nGROUP BY p.device_id, p.name, p.location, p.city, p.version\nHAVING error_count > 0\nORDER BY error_count DESC\nLIMIT $limit",
           "refId": "A"
         }
       ],
@@ -1206,8 +1197,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  p.device_id,\n  p.name,\n  p.location,\n  p.city,\n  p.version,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as error_count,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as error_rate,\n  AVG(pr.response_time_ms) as avg_response_time_ms,\n  MAX(pr.timestamp) as last_seen\nFROM proxy_requests pr\nJOIN proxies p ON pr.proxy_id = p.device_id\nWHERE $__timeFilter(pr.timestamp)\n  AND p.location IN ($location)\n  AND p.city IN ($city)
-  AND p.active IN ($active)\nGROUP BY p.device_id, p.name, p.location, p.city, p.version\nORDER BY error_rate DESC, avg_response_time_ms DESC\nLIMIT $limit",
+          "rawSql": "SELECT\n  p.device_id,\n  p.name,\n  p.location,\n  p.city,\n  p.version,\n  SUM(s.total_requests)                                                                        AS total_requests,\n  SUM(s.failure_count)                                                                         AS error_count,\n  ROUND(SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2)                  AS error_rate,\n  ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS avg_response_time_ms,\n  DATE_ADD(MAX(s.window_start), INTERVAL 5 MINUTE)                                            AS last_seen\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\n  AND p.city IN ($city)\n  AND p.active IN ($active)\nGROUP BY p.device_id, p.name, p.location, p.city, p.version\nORDER BY error_rate DESC, avg_response_time_ms DESC\nLIMIT $limit",
           "refId": "A"
         }
       ],
