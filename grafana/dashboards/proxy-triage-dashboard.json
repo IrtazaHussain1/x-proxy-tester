@@ -1,0 +1,603 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "Fleet Health — last 24 hours (hardcoded thresholds: err>20%, rotation>7d, gap>60min)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Count of active proxies where more than 20% of test requests failed in the last 24 hours.\n\nFailure = any request with status != SUCCESS (timeouts, connection errors, HTTP errors, DNS errors).\n\nThreshold is hardcoded at 20%. A proxy at 100% here means it sent requests but every single one failed — likely dead or misconfigured.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT proxy_id) as value\nFROM (\n  SELECT proxy_id,\n    COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as err_rate\n  FROM proxy_requests\n  WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  GROUP BY proxy_id\n  HAVING err_rate > 20\n) t",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxies — Error Rate > 20% (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Count of active proxies where the IP has NOT actually changed in the last 7 days.\n\nThis is based on proxies.last_rotation_at — a field updated by the tester service each time it detects the outbound IP changed between two consecutive requests. It reflects a real observed IP change, not just a rotation command being sent.\n\nNULL last_rotation_at (never rotated) and stale last_rotation_at (> 7 days ago) are both counted here. A high number may indicate stuck proxies or newly added proxies that have not yet completed a rotation cycle.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as value\nFROM proxies\nWHERE active = true\n  AND (last_rotation_at IS NULL OR last_rotation_at < DATE_SUB(NOW(), INTERVAL 7 DAY))",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxies — No Rotation in 7d",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Count of active proxies whose current IP (last_ip) is shared with at least one other active proxy.\n\nlast_ip is the most recent outbound IP recorded for the proxy — a point-in-time snapshot, not historical. Two proxies sharing the same last_ip means they appear to come from the same IP address right now, which defeats the purpose of using separate proxies.\n\nThis is a current-state check only. Use the Duplicate IP dashboards for historical trend and server-level breakdown.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as value\nFROM proxies\nWHERE active = true\n  AND last_ip IS NOT NULL AND last_ip != ''\n  AND last_ip IN (\n    SELECT last_ip FROM proxies\n    WHERE last_ip IS NOT NULL AND last_ip != ''\n    GROUP BY last_ip HAVING COUNT(*) > 1\n  )",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxies — Duplicate IP (current)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Count of active proxies that had at least one silent period longer than 60 minutes in the last 24 hours.\n\nCalculated by looking at gaps between consecutive request timestamps per proxy. If a proxy sent a request at 10:00 and the next request was at 16:30, that is a 6.5-hour gap — meaning the proxy was not sending any traffic for that entire window (offline, crashed, or network issue).\n\nThreshold is hardcoded at 60 minutes. Proxies with zero requests in the last 24h are NOT counted here (they have no consecutive timestamps to compare). Check requests_24h = 0 rows in the triage table for fully silent proxies.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT proxy_id) as value\nFROM (\n  SELECT proxy_id,\n    TIMESTAMPDIFF(MINUTE,\n      LAG(timestamp) OVER (PARTITION BY proxy_id ORDER BY timestamp),\n      timestamp\n    ) as gap_min\n  FROM proxy_requests\n  WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n) gaps\nWHERE gap_min > 60",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxies — Inactivity Gap > 60min (24h)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 101,
+      "title": "Per-Proxy Triage Table",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "One row per active proxy. Sorted by error_rate_24h_pct then days_since_rotation. Color coding: red=critical, yellow=warning, green=ok.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error_rate_24h_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 10
+                    },
+                    {
+                      "color": "red",
+                      "value": 30
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "description",
+                "value": "% of requests that failed (non-SUCCESS status) in the last 24 hours. Green <10%, yellow 10–30%, red >30%."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_ip"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "YES": {
+                        "color": "red",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "description",
+                "value": "YES if last_ip is currently shared with at least one other active proxy. Indicates IP pool overlap."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "days_since_rotation"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 3
+                    },
+                    {
+                      "color": "red",
+                      "value": 7
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "description",
+                "value": "Days since last_rotation_at. 999 means never rotated or null. Green <3d, yellow 3–7d, red ≥7d."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_gap_min_24h"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 30
+                    },
+                    {
+                      "color": "red",
+                      "value": 60
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "description",
+                "value": "Longest gap (minutes) between consecutive requests in the last 24h. Green <30min, yellow 30–60min, red ≥60min."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "requests_24h"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "description",
+                "value": "Total requests sent by this proxy in the last 24 hours. Low count may indicate inactivity."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device_name"
+            },
+            "properties": [
+              {
+                "id": "description",
+                "value": "Proxy name from the proxies table (falls back to device_id if name is null)."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "server"
+            },
+            "properties": [
+              {
+                "id": "description",
+                "value": "Relay server derived from proxy name prefix (e.g. S14). 'Unknown' means name doesn't match expected pattern."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "stability_status"
+            },
+            "properties": [
+              {
+                "id": "description",
+                "value": "Current stability classification stored on the proxy row: Stable, UnstableHourly, or UnstableDaily."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rotation_status"
+            },
+            "properties": [
+              {
+                "id": "description",
+                "value": "Current rotation classification: whether the proxy is actively rotating IPs or stuck."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_ip"
+            },
+            "properties": [
+              {
+                "id": "description",
+                "value": "Most recent outbound IP recorded for this proxy (point-in-time snapshot from proxies table)."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_seen"
+            },
+            "properties": [
+              {
+                "id": "description",
+                "value": "Timestamp of the most recent request from this proxy in the last 24h. NULL means no activity today."
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 5,
+      "options": {
+        "footer": {
+          "enablePagination": false,
+          "show": false
+        },
+        "sortBy": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH recent AS (\n  SELECT\n    proxy_id,\n    COUNT(*) as total_req,\n    COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) as failed_req,\n    MAX(timestamp) as last_seen\n  FROM proxy_requests\n  WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  GROUP BY proxy_id\n),\ngaps AS (\n  SELECT proxy_id, MAX(gap_min) as max_gap_min\n  FROM (\n    SELECT proxy_id,\n      TIMESTAMPDIFF(MINUTE,\n        LAG(timestamp) OVER (PARTITION BY proxy_id ORDER BY timestamp),\n        timestamp\n      ) as gap_min\n    FROM proxy_requests\n    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)\n  ) g\n  WHERE gap_min IS NOT NULL\n  GROUP BY proxy_id\n),\ndup_ips AS (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n)\nSELECT\n  COALESCE(p.name, p.device_id) as device_name,\n  CASE\n    WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)$'\n      THEN CONCAT('S', REGEXP_SUBSTR(UPPER(TRIM(p.name)), '[0-9]+'))\n    ELSE 'Unknown'\n  END as server,\n  p.stability_status,\n  p.rotation_status,\n  p.last_ip,\n  CASE WHEN p.last_ip IN (SELECT last_ip FROM dup_ips) THEN 'YES' ELSE '' END as duplicate_ip,\n  COALESCE(ROUND(r.failed_req * 100.0 / NULLIF(r.total_req, 0), 1), 0) as error_rate_24h_pct,\n  COALESCE(r.total_req, 0) as requests_24h,\n  COALESCE(DATEDIFF(NOW(), p.last_rotation_at), 999) as days_since_rotation,\n  COALESCE(g.max_gap_min, 0) as max_gap_min_24h,\n  r.last_seen\nFROM proxies p\nLEFT JOIN recent r ON p.device_id = r.proxy_id\nLEFT JOIN gaps g ON p.device_id = g.proxy_id\nWHERE p.active = true\nORDER BY error_rate_24h_pct DESC, days_since_rotation DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxy Triage — All Active Proxies",
+      "type": "table"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": [
+    "triage",
+    "proxies",
+    "decisions"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Proxy Triage — Action Needed",
+  "uid": "proxy-triage-v1",
+  "version": 1
+}
