@@ -18,9 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
   "links": [],
-  "liveNow": false,
   "panels": [
     {
       "fieldConfig": {
@@ -30,7 +28,6 @@
           },
           "mappings": [
             {
-              "type": "value",
               "options": {
                 "0": {
                   "text": "No"
@@ -44,7 +41,8 @@
                 "true": {
                   "text": "Yes"
                 }
-              }
+              },
+              "type": "value"
             }
           ],
           "thresholds": {
@@ -52,11 +50,12 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           }
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -65,6 +64,24 @@
         "y": 0
       },
       "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -72,7 +89,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT active as value FROM proxies WHERE device_id IN ($proxy)"
+          "rawSql": "SELECT active as value FROM proxies WHERE device_id IN ($proxy)",
+          "refId": "A"
         }
       ],
       "title": "Active",
@@ -86,21 +104,21 @@
           },
           "mappings": [
             {
-              "type": "value",
               "options": {
                 "0": {
-                  "text": "No"
+                  "text": "Unknown"
                 },
                 "1": {
-                  "text": "Yes"
+                  "text": "Stable"
                 },
-                "false": {
-                  "text": "No"
+                "2": {
+                  "text": "UnstableHourly"
                 },
-                "true": {
-                  "text": "Yes"
+                "3": {
+                  "text": "UnstableDaily"
                 }
-              }
+              },
+              "type": "value"
             }
           ],
           "thresholds": {
@@ -108,11 +126,12 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           }
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -121,6 +140,24 @@
         "y": 0
       },
       "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -128,7 +165,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT stability_status as value FROM proxies WHERE device_id IN ($proxy)"
+          "rawSql": "SELECT CASE\n  WHEN s.total_24h = 0 THEN 0\n  WHEN s.failures_24h > 720 THEN 3\n  WHEN s.failures_1h > 120 THEN 2\n  ELSE 1\nEND AS value\nFROM (\n  SELECT\n    SUM(CASE WHEN pr.timestamp >= NOW() - INTERVAL 1 HOUR AND pr.status <> 'SUCCESS' THEN 1 ELSE 0 END) AS failures_1h,\n    SUM(CASE WHEN pr.timestamp >= NOW() - INTERVAL 24 HOUR AND pr.status <> 'SUCCESS' THEN 1 ELSE 0 END) AS failures_24h,\n    SUM(CASE WHEN pr.timestamp >= NOW() - INTERVAL 24 HOUR THEN 1 ELSE 0 END) AS total_24h\n  FROM proxy_requests pr\n  WHERE pr.proxy_id IN (${proxy:sqlstring})\n) s",
+          "refId": "A"
         }
       ],
       "title": "Stability Status",
@@ -142,21 +180,18 @@
           },
           "mappings": [
             {
-              "type": "value",
               "options": {
                 "0": {
-                  "text": "No"
+                  "text": "Unknown"
                 },
                 "1": {
-                  "text": "Yes"
+                  "text": "NoRotation"
                 },
-                "false": {
-                  "text": "No"
-                },
-                "true": {
-                  "text": "Yes"
+                "2": {
+                  "text": "Rotated"
                 }
-              }
+              },
+              "type": "value"
             }
           ],
           "thresholds": {
@@ -164,11 +199,12 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           }
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -177,6 +213,24 @@
         "y": 0
       },
       "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -184,7 +238,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT rotation_status as value FROM v_rotation_stats WHERE device_id IN ($proxy)"
+          "rawSql": "SELECT CASE COALESCE(MAX(p.rotation_status), 'Unknown')\n  WHEN 'Rotated' THEN 2\n  WHEN 'NoRotation' THEN 1\n  ELSE 0\nEND AS value\nFROM proxies p\nWHERE p.device_id IN (${proxy:sqlstring})",
+          "refId": "A"
         }
       ],
       "title": "Rotation Status",
@@ -196,17 +251,19 @@
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           },
           "unit": "short"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -215,6 +272,24 @@
         "y": 0
       },
       "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -222,7 +297,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT rotation_count as value FROM v_rotation_stats WHERE device_id IN ($proxy)"
+          "rawSql": "SELECT rotation_count AS value FROM proxies WHERE device_id IN ($proxy)",
+          "refId": "A"
         }
       ],
       "title": "Rotation Count",
@@ -234,16 +310,19 @@
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
-        }
+          },
+          "unit": "dateTimeAsLocal"
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -252,6 +331,24 @@
         "y": 0
       },
       "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -259,7 +356,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT last_rotation_at as value FROM v_rotation_stats WHERE device_id IN ($proxy)"
+          "rawSql": "SELECT COALESCE(\n  UNIX_TIMESTAMP(MAX(p.last_rotation_at)) * 1000,\n  UNIX_TIMESTAMP(MAX(ir.rotation_timestamp)) * 1000\n) AS value\nFROM proxies p\nLEFT JOIN ip_rotations ir ON ir.proxy_id = p.device_id\nWHERE p.device_id IN (${proxy:sqlstring})",
+          "refId": "A"
         }
       ],
       "title": "Last Rotation At",
@@ -268,10 +366,13 @@
     {
       "fieldConfig": {
         "defaults": {
-          "decimals": 2,
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 2,
+          "mappings": [],
+          "max": 100,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -290,7 +391,8 @@
             ]
           },
           "unit": "percent"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -299,6 +401,24 @@
         "y": 4
       },
       "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -306,7 +426,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)"
+          "rawSql": "SELECT COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)",
+          "refId": "A"
         }
       ],
       "title": "Success Rate",
@@ -315,10 +436,13 @@
     {
       "fieldConfig": {
         "defaults": {
-          "decimals": 2,
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 2,
+          "mappings": [],
+          "max": 100,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -337,7 +461,8 @@
             ]
           },
           "unit": "percent"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -346,6 +471,24 @@
         "y": 4
       },
       "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -353,7 +496,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)"
+          "rawSql": "SELECT COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)",
+          "refId": "A"
         }
       ],
       "title": "Error Rate",
@@ -362,21 +506,23 @@
     {
       "fieldConfig": {
         "defaults": {
-          "decimals": 0,
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 0,
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           },
           "unit": "ms"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -385,6 +531,24 @@
         "y": 4
       },
       "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -392,7 +556,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT AVG(pr.response_time_ms) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)"
+          "rawSql": "SELECT AVG(pr.response_time_ms) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)",
+          "refId": "A"
         }
       ],
       "title": "Average Response Time",
@@ -404,6 +569,7 @@
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -414,7 +580,8 @@
             ]
           },
           "unit": "short"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -423,6 +590,24 @@
         "y": 4
       },
       "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -430,7 +615,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)"
+          "rawSql": "SELECT COUNT(*) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)",
+          "refId": "A"
         }
       ],
       "title": "Total Requests",
@@ -439,10 +625,13 @@
     {
       "fieldConfig": {
         "defaults": {
-          "decimals": 2,
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 2,
+          "mappings": [],
+          "max": 100,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -461,7 +650,8 @@
             ]
           },
           "unit": "percent"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -470,6 +660,24 @@
         "y": 8
       },
       "id": 15,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -477,7 +685,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source = 'periodic_rotation'\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)"
+          "rawSql": "SELECT COALESCE(\n  ROUND(\n    COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0),\n    2\n  ),\n  0\n) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source = 'periodic_rotation'\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN (${proxy:sqlstring})",
+          "refId": "A"
         }
       ],
       "title": "Rotation Test Failure Rate",
@@ -487,10 +696,13 @@
       "description": "Uses ip_changed=false during periodic rotation as rotation failure signal.",
       "fieldConfig": {
         "defaults": {
-          "decimals": 2,
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 2,
+          "mappings": [],
+          "max": 100,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -509,7 +721,8 @@
             ]
           },
           "unit": "percent"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -518,6 +731,24 @@
         "y": 8
       },
       "id": 16,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -525,66 +756,33 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(CASE WHEN pr.ip_changed = false THEN 1 END) * 100.0 / COUNT(*) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source = 'periodic_rotation'\n  AND pr.source IN ($source)\n  AND pr.rotation_cycle_started_at IS NOT NULL\n  AND pr.proxy_id IN ($proxy)"
+          "rawSql": "SELECT ROUND(\n  COUNT(CASE WHEN ir.ip_after IS NULL OR ir.ip_after = ir.ip_before THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0),\n  2\n) as value\nFROM ip_rotations ir\nWHERE $__timeFilter(ir.rotation_timestamp)\n  AND ir.proxy_id IN ($proxy)",
+          "refId": "A"
         }
       ],
       "title": "Rotation IP No-Change Rate",
       "type": "stat"
     },
     {
+      "description": "Most recent proxies.updated_at timestamp for this proxy. Updated whenever the proxy record is synced or modified.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 8
-      },
-      "id": 19,
-      "targets": [
-        {
-          "datasource": {
-            "type": "mysql",
-            "uid": "xproxy-tester-mysql"
-          },
-          "format": "table",
-          "rawSql": "SELECT MAX(in_xproxy_dashboard) as value\nFROM proxies\nWHERE device_id IN ($proxy)"
-        }
-      ],
-      "title": "In XProxy Dashboard",
-      "type": "stat"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           },
           "unit": "dateTimeAsIso"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -593,6 +791,24 @@
         "y": 8
       },
       "id": 20,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -600,10 +816,11 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT MAX(last_sync_at) as value\nFROM proxies\nWHERE device_id IN ($proxy)"
+          "rawSql": "SELECT COALESCE(\n  UNIX_TIMESTAMP(MAX(p.updated_at)) * 1000,\n  UNIX_TIMESTAMP(MAX(pr.timestamp)) * 1000\n) AS value\nFROM proxies p\nLEFT JOIN proxy_requests pr ON pr.proxy_id = p.device_id\nWHERE p.device_id IN (${proxy:sqlstring})",
+          "refId": "A"
         }
       ],
-      "title": "Last Sync At",
+      "title": "Last Updated At",
       "type": "stat"
     },
     {
@@ -612,24 +829,44 @@
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           }
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 8
+        "y": 12
       },
-      "id": 7,
+      "id": 27,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -637,7 +874,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT version as value FROM proxies WHERE device_id IN ($proxy)"
+          "rawSql": "SELECT version as value FROM proxies WHERE device_id IN ($proxy)",
+          "refId": "A"
         }
       ],
       "title": "Version",
@@ -646,48 +884,60 @@
     {
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
-            "spanNulls": false
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
-          "unit": "percent"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "id": 10,
-      "targets": [
-        {
-          "datasource": {
-            "type": "mysql",
-            "uid": "xproxy-tester-mysql"
-          },
-          "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec"
-        }
-      ],
-      "title": "Success Rate Over Time",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "showPoints": "never",
-            "spanNulls": false
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "ms"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -696,6 +946,20 @@
         "y": 12
       },
       "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -703,7 +967,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  AVG(pr.response_time_ms) as avg_response_time\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec"
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  AVG(pr.response_time_ms) as avg_response_time\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec",
+          "refId": "A"
         }
       ],
       "title": "Response Time Over Time",
@@ -712,23 +977,82 @@
     {
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
-            "spanNulls": false
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "percent"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 16
       },
-      "id": 17,
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -736,24 +1060,70 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(pr.rotation_cycle_started_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN pr.ip_changed = false THEN 1 END) * 100.0 / COUNT(*) as ip_change_failure_rate\nFROM proxy_requests pr\nWHERE pr.rotation_cycle_started_at IS NOT NULL\n  AND pr.source = 'periodic_rotation'\n  AND pr.source IN ($source)\n  AND $__timeFilter(pr.rotation_cycle_started_at)\n  AND pr.proxy_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec"
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(pr.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as success_rate\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec",
+          "refId": "A"
         }
       ],
-      "title": "Rotation IP No-Change Rate Over Time",
+      "title": "Success Rate Over Time",
       "type": "timeseries"
     },
     {
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
-            "spanNulls": false
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           },
           "unit": "percent"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -762,6 +1132,20 @@
         "y": 20
       },
       "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -769,10 +1153,104 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(pr.rotation_cycle_started_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) * 100.0 / COUNT(*) as test_failure_rate\nFROM proxy_requests pr\nWHERE pr.rotation_cycle_started_at IS NOT NULL\n  AND pr.source = 'periodic_rotation'\n  AND pr.source IN ($source)\n  AND $__timeFilter(pr.rotation_cycle_started_at)\n  AND pr.proxy_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec"
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(ir.rotation_timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  ROUND(\n    COUNT(CASE WHEN ir.success = false THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0),\n    2\n  ) as test_failure_rate\nFROM ip_rotations ir\nWHERE $__timeFilter(ir.rotation_timestamp)\n  AND ir.proxy_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec",
+          "refId": "A"
         }
       ],
       "title": "Rotation Test Failure Rate Over Time",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(ir.rotation_timestamp, '%Y-%m-%d %H:%i:00')) as time_sec,\n  ROUND(\n    COUNT(CASE WHEN ir.ip_after IS NULL OR ir.ip_after = ir.ip_before THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0),\n    2\n  ) as ip_no_change_rate\nFROM ip_rotations ir\nWHERE $__timeFilter(ir.rotation_timestamp)\n  AND ir.proxy_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec",
+          "refId": "A"
+        }
+      ],
+      "title": "Rotation IP No-Change Rate Over Time",
       "type": "timeseries"
     },
     {
@@ -784,7 +1262,15 @@
         "defaults": {
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
         },
         "overrides": []
       },
@@ -792,7 +1278,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 28
+        "y": 32
       },
       "id": 12,
       "options": {
@@ -811,6 +1297,7 @@
         },
         "sort": "desc",
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
@@ -819,7 +1306,7 @@
       "targets": [
         {
           "format": "table",
-          "rawSql": "SELECT COALESCE(pr.error_type, 'UNKNOWN') as metric, COUNT(*) as value\nFROM proxy_requests pr\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.status != 'SUCCESS'\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)\nGROUP BY metric",
+          "rawSql": "SELECT COALESCE(pr.error_type, 'UNKNOWN') AS metric, COUNT(*) AS value\nFROM proxy_requests pr\nWHERE pr.timestamp >= FROM_UNIXTIME($__unixEpochFrom())\n  AND pr.timestamp <= FROM_UNIXTIME($__unixEpochTo())\n  AND pr.proxy_id IN ($proxy)\n  AND pr.source IN ($source)\n  AND pr.status <> 'SUCCESS'\nGROUP BY COALESCE(pr.error_type, 'UNKNOWN')\nORDER BY value DESC\nLIMIT 25",
           "refId": "A"
         }
       ],
@@ -838,16 +1325,36 @@
               "reducers": []
             },
             "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           }
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 28
+        "y": 32
       },
       "id": 13,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -855,7 +1362,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  DATE_FORMAT(pr.rotation_cycle_started_at, '%Y-%m-%d %H:%i:%s') as cycle_time,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN pr.status = 'SUCCESS' THEN 1 END) as success_count,\n  COUNT(CASE WHEN pr.status != 'SUCCESS' THEN 1 END) as failure_count,\n  COUNT(CASE WHEN pr.ip_changed = true THEN 1 END) as ip_changes,\n  COUNT(CASE WHEN pr.ip_changed = true THEN 1 END) * 100.0 / COUNT(*) as ip_change_rate,\n  AVG(pr.response_time_ms) as avg_response_time_ms\nFROM proxy_requests pr\nWHERE pr.rotation_cycle_started_at IS NOT NULL\n  AND pr.source = 'periodic_rotation'\n  AND pr.source IN ($source)\n  AND $__timeFilter(pr.rotation_cycle_started_at)\n  AND pr.proxy_id IN ($proxy)\nGROUP BY pr.rotation_cycle_started_at\nORDER BY cycle_time DESC\nLIMIT $limit"
+          "rawSql": "SELECT\n  DATE_FORMAT(ir.rotation_timestamp, '%Y-%m-%d %H:%i:%s') AS cycle_time,\n  ir.rotation_type AS cycle_type,\n  ir.ip_before,\n  ir.ip_after,\n  ir.success,\n  ir.rotation_duration_ms,\n  ir.retry_count,\n  ir.error_message\nFROM ip_rotations ir\nWHERE ir.rotation_timestamp >= FROM_UNIXTIME($__unixEpochFrom())\n  AND ir.rotation_timestamp <= FROM_UNIXTIME($__unixEpochTo())\n  AND ir.proxy_id IN ($proxy)\n  AND ir.rotation_type = 'periodic'\nORDER BY ir.rotation_timestamp DESC\nLIMIT $limit",
+          "refId": "A"
         }
       ],
       "title": "Rotation Cycle Summary (Periodic)",
@@ -873,16 +1381,36 @@
               "reducers": []
             },
             "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           }
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 36
+        "y": 40
       },
       "id": 14,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -890,7 +1418,8 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  pr.timestamp,\n  pr.status,\n  pr.response_time_ms,\n  pr.error_type,\n  pr.error_message,\n  pr.outbound_ip,\n  rs.last_ip,\n  pr.ip_changed,\n  pr.source\nFROM proxy_requests pr\nJOIN v_rotation_stats rs ON pr.proxy_id = rs.device_id\nWHERE $__timeFilter(pr.timestamp)\n  AND pr.source IN ($source)\n  AND pr.proxy_id IN ($proxy)\nORDER BY pr.timestamp DESC\nLIMIT $limit"
+          "rawSql": "SELECT\n  pr.timestamp,\n  pr.status,\n  pr.response_time_ms,\n  pr.error_type,\n  pr.error_message,\n  pr.outbound_ip,\n  pr.ip_changed,\n  pr.source\nFROM proxy_requests pr\nWHERE pr.timestamp >= FROM_UNIXTIME($__unixEpochFrom())\n  AND pr.timestamp <= FROM_UNIXTIME($__unixEpochTo())\n  AND pr.proxy_id IN ($proxy)\n  AND pr.source IN ($source)\nORDER BY pr.timestamp DESC\nLIMIT $limit",
+          "refId": "A"
         }
       ],
       "title": "Recent Requests (Per Proxy)",
@@ -908,16 +1437,36 @@
               "reducers": []
             },
             "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           }
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 50
       },
       "id": 21,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
@@ -925,13 +1474,318 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT\n  device_id,\n  name,\n  location,\n  rotation_status,\n  last_rotation_at,\n  rotation_count,\n  last_ip,\n  version,\n  updated_at\nFROM v_rotation_stats\nWHERE rotation_count = 0\n  AND last_rotation_at IS NULL\n  AND device_id IN ($proxy)\nORDER BY updated_at DESC\nLIMIT $limit"
+          "rawSql": "SELECT\n  p.device_id,\n  p.name,\n  p.location,\n  p.rotation_status,\n  p.last_rotation_at,\n  p.rotation_count,\n  p.last_ip,\n  p.version,\n  p.updated_at\nFROM proxies p\nWHERE p.rotation_count = 0\n  AND p.last_rotation_at IS NULL\nORDER BY p.updated_at DESC\nLIMIT $limit",
+          "refId": "A"
         }
       ],
       "title": "Never Rotated Proxies (Tester)",
       "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "id": 22,
+      "panels": [],
+      "title": "Proxy Lifecycle",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Earliest request timestamp recorded for this proxy.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "dateTimeAsLocal"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 59
+      },
+      "id": 23,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT UNIX_TIMESTAMP(MIN(`timestamp`)) * 1000 as value\nFROM proxy_requests\nWHERE `timestamp` >= FROM_UNIXTIME($__unixEpochFrom())\n  AND `timestamp` <= FROM_UNIXTIME($__unixEpochTo())\n  AND proxy_id IN ($proxy)",
+          "refId": "A"
+        }
+      ],
+      "title": "First Seen",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Most recent request timestamp recorded for this proxy.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "dateTimeAsLocal"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 59
+      },
+      "id": 24,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT UNIX_TIMESTAMP(MAX(`timestamp`)) * 1000 as value\nFROM proxy_requests\nWHERE `timestamp` >= FROM_UNIXTIME($__unixEpochFrom())\n  AND `timestamp` <= FROM_UNIXTIME($__unixEpochTo())\n  AND proxy_id IN ($proxy)",
+          "refId": "A"
+        }
+      ],
+      "title": "Last Seen",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Total distinct calendar days this proxy sent at least one request.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 59
+      },
+      "id": 25,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT DATE(timestamp)) as value FROM proxy_requests WHERE proxy_id IN ($proxy)",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Days (total)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Request count per 5-minute window. Gaps where count drops to zero indicate inactivity periods.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT\n  FLOOR(UNIX_TIMESTAMP(`timestamp`) / 300) * 300 AS time_sec,\n  COUNT(*) AS requests\nFROM proxy_requests\nWHERE `timestamp` >= FROM_UNIXTIME($__unixEpochFrom())\n  AND `timestamp` <= FROM_UNIXTIME($__unixEpochTo())\n  AND proxy_id IN ($proxy)\nGROUP BY FLOOR(UNIX_TIMESTAMP(`timestamp`) / 300) * 300\nORDER BY time_sec",
+          "refId": "A"
+        }
+      ],
+      "title": "Activity Timeline (requests per 5-min bucket)",
+      "type": "timeseries"
     }
   ],
+  "preload": false,
   "refresh": "",
   "schemaVersion": 42,
   "tags": [
@@ -943,12 +1797,11 @@
     "list": [
       {
         "current": {
-          "selected": true,
           "text": [
-            "All"
+            "0072ff3ba8161ae3 - TCL_T781SPP"
           ],
           "value": [
-            "$__all"
+            "0072ff3ba8161ae3"
           ]
         },
         "datasource": {
@@ -956,7 +1809,6 @@
           "uid": "xproxy-tester-mysql"
         },
         "definition": "SELECT CONCAT(device_id, ' - ', name) as __text, device_id as __value FROM proxies WHERE name IS NOT NULL",
-        "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "proxy",
@@ -964,7 +1816,6 @@
         "query": "SELECT CONCAT(device_id, ' - ', name) as __text, device_id as __value FROM proxies WHERE name IS NOT NULL",
         "refresh": 1,
         "regex": "",
-        "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
@@ -973,40 +1824,84 @@
           "text": "100",
           "value": "100"
         },
-        "hide": 0,
         "label": "Limit",
         "name": "limit",
-        "options": [],
+        "options": [
+          {
+            "selected": false,
+            "text": "10",
+            "value": "10"
+          },
+          {
+            "selected": false,
+            "text": "20",
+            "value": "20"
+          },
+          {
+            "selected": false,
+            "text": "50",
+            "value": "50"
+          },
+          {
+            "selected": true,
+            "text": "100",
+            "value": "100"
+          },
+          {
+            "selected": false,
+            "text": "200",
+            "value": "200"
+          },
+          {
+            "selected": false,
+            "text": "500",
+            "value": "500"
+          },
+          {
+            "selected": false,
+            "text": "1000",
+            "value": "1000"
+          }
+        ],
         "query": "10,20,50,100,200,500,1000",
         "type": "custom"
       },
       {
         "current": {
-          "selected": true,
           "text": [
-            "All"
+            "$__all"
           ],
           "value": [
             "$__all"
           ]
         },
-        "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "source",
-        "options": [],
+        "options": [
+          {
+            "selected": false,
+            "text": "continuous",
+            "value": "continuous"
+          },
+          {
+            "selected": false,
+            "text": "periodic_rotation",
+            "value": "periodic_rotation"
+          }
+        ],
         "query": "continuous,periodic_rotation",
         "type": "custom"
       }
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "XProxy Tester - Proxy Detail",
-  "uid": "xproxy-proxy-detail",
-  "version": 1
+  "title": "XProxy Tester - Proxy Detail (V2)",
+  "uid": "xproxy-proxy-detail-v2",
+  "version": 7
 }
