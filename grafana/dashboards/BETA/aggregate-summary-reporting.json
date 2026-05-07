@@ -760,7 +760,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk.",
+      "description": "Splits each duplicate-IP capture into within-server collisions (one server label on the IP) versus cross-server collisions (multiple server labels on the IP). The $server filter scopes the universe to IPs that involve at least one selected server, while the within/cross classification still uses the IP's full server set, so an IP shared by S10 + S14 stays cross-server even when only S10 is selected.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -842,7 +842,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "WITH ip_server_counts AS (SELECT d.captured_at, d.last_ip, COUNT(DISTINCT d.server_label) as server_count FROM duplicate_ip_snapshot_servers d WHERE $__timeFilter(d.captured_at) GROUP BY d.captured_at, d.last_ip) SELECT UNIX_TIMESTAMP(captured_at) as time_sec, SUM(CASE WHEN server_count = 1 THEN 1 ELSE 0 END) as duplicate_ips_within_server, SUM(CASE WHEN server_count > 1 THEN 1 ELSE 0 END) as duplicate_ips_across_servers FROM ip_server_counts GROUP BY captured_at ORDER BY captured_at",
+          "rawSql": "WITH ip_server_counts AS (SELECT d.captured_at, d.last_ip, COUNT(DISTINCT d.server_label) AS server_count FROM duplicate_ip_snapshot_servers d WHERE $__timeFilter(d.captured_at) AND EXISTS (SELECT 1 FROM duplicate_ip_snapshot_servers sf WHERE sf.captured_at = d.captured_at AND sf.proxy_status_scope = d.proxy_status_scope AND sf.last_ip = d.last_ip AND TRIM(sf.server_label) IN (${server:sqlstring})) GROUP BY d.captured_at, d.last_ip) SELECT UNIX_TIMESTAMP(captured_at) AS time_sec, SUM(CASE WHEN server_count = 1 THEN 1 ELSE 0 END) AS duplicate_ips_within_server, SUM(CASE WHEN server_count > 1 THEN 1 ELSE 0 END) AS duplicate_ips_across_servers FROM ip_server_counts GROUP BY captured_at ORDER BY captured_at",
           "refId": "A"
         }
       ],
@@ -915,7 +915,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This metric counts how many duplicate-IP snapshots were captured during the selected period. It confirms data continuity and shows whether trend gaps may come from missing scans.",
+      "description": "This metric counts how many duplicate-IP captures were taken during the selected period. It confirms data continuity and shows whether trend gaps may come from missing captures.",
       "fieldConfig": {
         "defaults": {
           "color": {
