@@ -73,12 +73,13 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM v_rotation_stats WHERE active = true AND rotation_status = 'Rotated' AND location IN ($location)",
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND rotation_status = 'Rotated' AND location IN ($location)",
           "refId": "A"
         }
       ],
       "title": "Proxies with Rotation",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "datasource": {
@@ -135,12 +136,13 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM v_rotation_stats WHERE active = true AND rotation_status = 'NoRotation' AND location IN ($location)",
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND rotation_status = 'NoRotation' AND location IN ($location)",
           "refId": "A"
         }
       ],
       "title": "Proxies with No Rotation",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "fieldConfig": {
@@ -203,7 +205,8 @@
         }
       ],
       "title": "Total Rotations (24h)",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "fieldConfig": {
@@ -296,7 +299,8 @@
         }
       ],
       "title": "Rotation Events Over Time",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "datasource": {
@@ -360,7 +364,8 @@
         }
       ],
       "title": "Rotation Status Distribution",
-      "type": "piechart"
+      "type": "piechart",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "fieldConfig": {
@@ -416,7 +421,8 @@
         }
       ],
       "title": "Proxies with High Same IP Count (Potential Rotation Issues)",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     }
   ],
   "refresh": "",
