@@ -419,7 +419,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "WITH last_snapshot_per_day AS (SELECT DATE(captured_at) AS day, MAX(captured_at) AS last_snap FROM duplicate_ip_snapshot_rows WHERE $__timeFilter(captured_at) GROUP BY DATE(captured_at)), daily_rows AS (SELECT DATE(r.captured_at) AS day, SUM(r.phones_on_same_ip) AS impacted_phones, COUNT(DISTINCT r.last_ip) AS duplicate_ips FROM duplicate_ip_snapshot_rows r INNER JOIN last_snapshot_per_day ls ON ls.last_snap = r.captured_at INNER JOIN duplicate_ip_snapshot_servers s ON s.captured_at = r.captured_at AND s.proxy_status_scope = r.proxy_status_scope AND s.last_ip = r.last_ip WHERE $__timeFilter(r.captured_at) AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY DATE(r.captured_at)), daily_servers AS (SELECT DATE(s.captured_at) AS day, COUNT(DISTINCT s.server_label) AS affected_servers FROM duplicate_ip_snapshot_servers s INNER JOIN last_snapshot_per_day ls ON ls.last_snap = s.captured_at WHERE $__timeFilter(s.captured_at) AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY DATE(s.captured_at)) SELECT UNIX_TIMESTAMP(dr.day) AS time_sec, dr.duplicate_ips, dr.impacted_phones, COALESCE(ds.affected_servers, 0) AS affected_servers, ROUND(dr.impacted_phones * 1.0 / NULLIF(dr.duplicate_ips, 0), 2) AS impacted_phones_per_dup_ip FROM daily_rows dr LEFT JOIN daily_servers ds ON ds.day = dr.day ORDER BY dr.day",
+          "rawSql": "WITH last_capture_per_day AS (SELECT DATE(captured_at) AS day, MAX(captured_at) AS last_capture FROM duplicate_ip_snapshot_rows WHERE $__timeFilter(captured_at) GROUP BY DATE(captured_at)), daily_rows AS (SELECT DATE(r.captured_at) AS day, SUM(r.phones_on_same_ip) AS impacted_phones, COUNT(DISTINCT r.last_ip) AS duplicate_ips FROM duplicate_ip_snapshot_rows r INNER JOIN last_capture_per_day ls ON ls.last_capture = r.captured_at INNER JOIN duplicate_ip_snapshot_servers s ON s.captured_at = r.captured_at AND s.proxy_status_scope = r.proxy_status_scope AND s.last_ip = r.last_ip WHERE $__timeFilter(r.captured_at) AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY DATE(r.captured_at)), daily_servers AS (SELECT DATE(s.captured_at) AS day, COUNT(DISTINCT s.server_label) AS affected_servers FROM duplicate_ip_snapshot_servers s INNER JOIN last_capture_per_day ls ON ls.last_capture = s.captured_at WHERE $__timeFilter(s.captured_at) AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY DATE(s.captured_at)) SELECT UNIX_TIMESTAMP(dr.day) AS time_sec, dr.duplicate_ips, dr.impacted_phones, COALESCE(ds.affected_servers, 0) AS affected_servers, ROUND(dr.impacted_phones * 1.0 / NULLIF(dr.duplicate_ips, 0), 2) AS impacted_phones_per_dup_ip FROM daily_rows dr LEFT JOIN daily_servers ds ON ds.day = dr.day ORDER BY dr.day",
           "refId": "A"
         }
       ],
@@ -660,67 +660,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Total per-phone unique IP sessions in the selected period, summed across all phones and days. This measures identity activity breadth, but it is not fleet-deduplicated because the same IP can be counted once per phone.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 5,
-        "x": 0,
-        "y": 38
-      },
-      "id": 201,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "12.3.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "mysql",
-            "uid": "xproxy-tester-mysql"
-          },
-          "format": "table",
-          "rawSql": "SELECT SUM(unique_ips_count) AS value FROM proxy_requests_daily_summary WHERE day >= DATE($__timeFrom()) AND day <= DATE($__timeTo()) AND location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) AND proxy_id IN ($phone)",
-          "refId": "A"
-        }
-      ],
-      "title": "Unique IP Sessions (period)",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "mysql",
-        "uid": "xproxy-tester-mysql"
-      },
-      "description": "Total number of outbound IP change events detected during the selected period. Compare this with Unique IP Sessions to separate frequent IP flipping from broader IP pool usage.",
+      "description": "Total number of outbound IP change events (rotations) detected during the selected period. Compare with Distinct End-of-Day IPs (period) to separate frequent IP flipping from broader pool usage — a large ratio of changes vs distinct end-of-day IPs means rotations are cycling through the same small set of exits.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -741,8 +681,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 5,
+        "w": 6,
+        "x": 0,
         "y": 38
       },
       "id": 202,
@@ -813,8 +753,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 10,
+        "w": 6,
+        "x": 6,
         "y": 38
       },
       "id": 203,
@@ -885,8 +825,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 15,
+        "w": 6,
+        "x": 12,
         "y": 38
       },
       "id": 204,
@@ -924,7 +864,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Total distinct IP addresses observed fleet-wide in the selected period, deduplicated across all phones. Compare it with Unique IP Sessions to quantify overlap and understand true pool size.",
+      "description": "Distinct end-of-day exit IPs across all phones × days in the selected period (one count per IP no matter how many phones or days used it). Each (phone, day) bucket contributes only its final outbound IP for that day, so mid-day rotations a phone moved away from are not counted. Treat this as a conservative floor on real exit-pool diversity. The cumulative trend chart below ends at exactly this number on its final point. Compare with IP Changes (period): IP Changes ≫ this number means rotations are cycling through the same small set of exits; IP Changes ≈ this number means rotations are landing on fresh exits.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -945,8 +885,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 20,
+        "w": 6,
+        "x": 18,
         "y": 38
       },
       "id": 209,
@@ -976,7 +916,7 @@
           "refId": "A"
         }
       ],
-      "title": "Fleet Unique IPs (deduped, period)",
+      "title": "Distinct End-of-Day IPs (period)",
       "type": "stat"
     },
     {
@@ -984,7 +924,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Compares daily distinct IP coverage versus daily IP-change activity across the selected period. Use this to see whether broader IP usage is improving alongside rotation intensity.",
+      "description": "Left axis: running total of distinct end-of-day exit IPs the filtered fleet has seen from the start of the window through each day, deduplicated across the whole window. The final point on the chart matches the Distinct End-of-Day IPs (period) stat exactly. A flat tail means the fleet has hit its exit pool ceiling; a still-rising line means new exits keep appearing. Right axis: number of rotation events on each individual day (not cumulative); the sum across all days matches the IP Changes (period) stat.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1056,12 +996,12 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "unique_ip_sessions"
+              "options": "cumulative_distinct_end_of_day_ips"
             },
             "properties": [
               {
                 "id": "custom.axisLabel",
-                "value": "Distinct IPs Seen"
+                "value": "Cumulative distinct end-of-day exit IPs"
               }
             ]
           }
@@ -1095,11 +1035,11 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT UNIX_TIMESTAMP(day) AS time_sec, SUM(unique_ips_count) AS unique_ip_sessions, SUM(ip_change_count) AS ip_changes FROM proxy_requests_daily_summary WHERE day >= DATE($__timeFrom()) AND day <= DATE($__timeTo()) AND location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) AND proxy_id IN ($phone) GROUP BY day ORDER BY day",
+          "rawSql": "WITH first_seen AS (SELECT last_ip, MIN(day) AS first_day FROM proxy_requests_daily_summary WHERE day >= DATE($__timeFrom()) AND day <= DATE($__timeTo()) AND last_ip IS NOT NULL AND last_ip != '' AND location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) AND proxy_id IN ($phone) GROUP BY last_ip), new_per_day AS (SELECT first_day AS day, COUNT(*) AS new_ips FROM first_seen GROUP BY first_day), per_day AS (SELECT day, SUM(ip_change_count) AS ip_changes FROM proxy_requests_daily_summary WHERE day >= DATE($__timeFrom()) AND day <= DATE($__timeTo()) AND location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) AND proxy_id IN ($phone) GROUP BY day) SELECT UNIX_TIMESTAMP(p.day) AS time_sec, SUM(COALESCE(n.new_ips, 0)) OVER (ORDER BY p.day) AS cumulative_distinct_end_of_day_ips, p.ip_changes AS ip_changes FROM per_day p LEFT JOIN new_per_day n ON n.day = p.day ORDER BY p.day",
           "refId": "A"
         }
       ],
-      "title": "Distinct IPs Seen vs IP Rotation Events per Day",
+      "title": "Cumulative Distinct End-of-Day IPs vs IP Rotation Events per Day",
       "type": "timeseries"
     },
     {
@@ -1201,7 +1141,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Server ranking by cumulative collision exposure across the selected period, using periodic collision captures collected roughly every 5 minutes. Compare Affected Phones, Duplicate IPs, and Max Phones/IP to identify both breadth and worst-case concentration.",
+      "description": "Server ranking by collision exposure across the selected period, derived from periodic captures (roughly every 5 minutes). Columns are deduplicated phone counts so they read as real fleet impact: 'Own Phones Affected' = how many of *this server's* phones ever sat on an IP shared with another phone; 'Cross-Server Phone Reach' = total distinct phones (any server) those shared IPs were colliding with — the contact graph this server leaks into. 'Duplicate IPs' is distinct shared IPs the server was on, and 'Max Phones / IP' is the worst single-moment cluster size on any one of those IPs. None of these counts is inflated by capture frequency.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1241,12 +1181,30 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "total_affected_phones"
+              "options": "own_phones_affected"
             },
             "properties": [
               {
                 "id": "displayName",
-                "value": "Affected Phones"
+                "value": "Own Phones Affected"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cross_server_phone_reach"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Cross-Server Phone Reach"
               },
               {
                 "id": "custom.cellOptions",
@@ -1308,7 +1266,7 @@
         "sortBy": [
           {
             "desc": true,
-            "displayName": "Affected Phones"
+            "displayName": "Own Phones Affected"
           }
         ]
       },
@@ -1320,11 +1278,11 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT s.server_label, COUNT(DISTINCT s.last_ip) AS duplicate_ips, SUM(r.phones_on_same_ip) AS total_affected_phones, MAX(r.phones_on_same_ip) AS max_on_one_ip FROM duplicate_ip_snapshot_servers s INNER JOIN duplicate_ip_snapshot_rows r ON r.captured_at = s.captured_at AND r.proxy_status_scope = s.proxy_status_scope AND r.last_ip = s.last_ip WHERE $__timeFilter(s.captured_at) AND s.proxy_status_scope = 'all' AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY s.server_label ORDER BY total_affected_phones DESC",
+          "rawSql": "WITH numbers AS (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15 UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19 UNION ALL SELECT 20 UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23 UNION ALL SELECT 24 UNION ALL SELECT 25 UNION ALL SELECT 26 UNION ALL SELECT 27 UNION ALL SELECT 28 UNION ALL SELECT 29 UNION ALL SELECT 30 UNION ALL SELECT 31 UNION ALL SELECT 32), exploded AS (SELECT TRIM(s.server_label) AS server_label, TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(r.sibling_phones, ' | ', n.n), ' | ', -1)) AS phone_name FROM duplicate_ip_snapshot_servers s JOIN duplicate_ip_snapshot_rows r ON r.captured_at = s.captured_at AND r.proxy_status_scope = s.proxy_status_scope AND r.last_ip = s.last_ip JOIN numbers n ON n.n <= 1 + (CHAR_LENGTH(r.sibling_phones) - CHAR_LENGTH(REPLACE(r.sibling_phones, ' | ', ''))) / 3 WHERE $__timeFilter(s.captured_at) AND s.proxy_status_scope = 'all' AND TRIM(s.server_label) IN (${server:sqlstring}) AND r.sibling_phones IS NOT NULL AND r.sibling_phones <> ''), base AS (SELECT TRIM(s.server_label) AS server_label, COUNT(DISTINCT s.last_ip) AS duplicate_ips, MAX(r.phones_on_same_ip) AS max_on_one_ip FROM duplicate_ip_snapshot_servers s INNER JOIN duplicate_ip_snapshot_rows r ON r.captured_at = s.captured_at AND r.proxy_status_scope = s.proxy_status_scope AND r.last_ip = s.last_ip WHERE $__timeFilter(s.captured_at) AND s.proxy_status_scope = 'all' AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY TRIM(s.server_label)), phones AS (SELECT server_label, COUNT(DISTINCT IF((server_label <> 'Unknown' AND UPPER(phone_name) REGEXP CONCAT('^', server_label, '([^0-9]|$)')) OR (server_label = 'Unknown' AND UPPER(phone_name) NOT REGEXP '^S[0-9]+'), phone_name, NULL)) AS own_phones_affected, COUNT(DISTINCT NULLIF(phone_name, '')) AS cross_server_phone_reach FROM exploded GROUP BY server_label) SELECT b.server_label, b.duplicate_ips, COALESCE(p.own_phones_affected, 0) AS own_phones_affected, COALESCE(p.cross_server_phone_reach, 0) AS cross_server_phone_reach, b.max_on_one_ip FROM base b LEFT JOIN phones p ON p.server_label = b.server_label ORDER BY own_phones_affected DESC, b.duplicate_ips DESC",
           "refId": "A"
         }
       ],
-      "title": "Servers Ranked by Total Affected Phones — Cumulative Across Selected Period",
+      "title": "Servers Ranked by Phones on Duplicate IPs — Across Selected Period",
       "type": "table"
     },
     {
