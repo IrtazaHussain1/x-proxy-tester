@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "This dashboard tracks IP overlap risk and diversity health across the fleet. It helps protect isolation quality and identify concentration problems early.",
+  "description": "Tracks IP collision history across the fleet over time. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and identifies any IPs shared by 2 or more phones. Each data point in this dashboard represents one such scan. Use this dashboard to spot trends, size worst-case exposure, and identify IPs that persistently stay shared across scans.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -32,7 +32,7 @@
       },
       "id": 100,
       "panels": [],
-      "title": "Snapshot summary (selected time range)",
+      "title": "IP Collision Summary (selected time range)",
       "type": "row"
     },
     {
@@ -105,9 +105,9 @@
           "refId": "A"
         }
       ],
-      "title": "Latest snapshot — duplicate IP rows",
+      "title": "Latest Scan — Shared IP Detail",
       "type": "stat",
-      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk."
+      "description": "Counts from the most recent scan in the selected time range. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and finds any IPs shared by 2 or more phones. Shows how many IPs are currently shared and how many phones are caught in those collisions."
     },
     {
       "datasource": {
@@ -171,9 +171,9 @@
           "refId": "A"
         }
       ],
-      "title": "Snapshot runs in range",
+      "title": "IP Scans in Range",
       "type": "stat",
-      "description": "This metric counts how many duplicate-IP snapshots were captured during the selected period. It confirms data continuity and shows whether trend gaps may come from missing scans."
+      "description": "How many IP scans completed during the selected period. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and identifies IPs shared by 2 or more phones. Expected: ~12 scans per hour. Gaps indicate the scan service was down or delayed during that window."
     },
     {
       "datasource": {
@@ -245,9 +245,9 @@
           "refId": "A"
         }
       ],
-      "title": "Max duplicate IPs (single snapshot)",
+      "title": "Peak Shared IPs (single scan)",
       "type": "stat",
-      "description": "This metric shows the highest single-period spike reached in the selected range. Use it to size worst-case risk and validate alert thresholds."
+      "description": "The highest number of shared IPs recorded in any single scan during the selected period. A scan = an automated check run every 5 minutes recording each phone's outbound IP. This is the worst-case collision count observed — use it to size risk exposure and set alert thresholds."
     },
     {
       "datasource": {
@@ -411,9 +411,9 @@
           "refId": "A"
         }
       ],
-      "title": "Duplicate IP row count over time (per snapshot)",
+      "title": "Shared IP Count Over Time (per scan)",
       "type": "timeseries",
-      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk."
+      "description": "Each data point = one scan. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and counts IPs shared by 2 or more phones. Y-axis = number of shared IPs detected in that scan. A rising trend means more IPs are entering collision. A flat line at zero means full isolation."
     },
     {
       "datasource": {
@@ -571,7 +571,7 @@
         "sortBy": [
           {
             "desc": true,
-            "displayName": "snapshot_appearances"
+            "displayName": "scan_appearances"
           }
         ]
       },
@@ -589,9 +589,9 @@
           "refId": "A"
         }
       ],
-      "title": "Most persistent duplicate IPs (by snapshot count)",
+      "title": "Most Persistent Shared IPs (by scan count)",
       "type": "table",
-      "description": "This metric counts how many duplicate-IP snapshots were captured during the selected period. It confirms data continuity and shows whether trend gaps may come from missing scans."
+      "description": "IPs ranked by how many scans they appeared as shared during the selected period. scan_appearances = number of 5-minute scans where this IP was found on 2 or more phones. High count = IP has been in collision for a long time and is not resolving. These are the IPs most likely to be causing sustained isolation failures."
     },
     {
       "datasource": {
@@ -659,9 +659,9 @@
           "refId": "A"
         }
       ],
-      "title": "Latest snapshot in range — per-IP detail (same grain as source panel)",
+      "title": "Latest Scan in Range — Per-IP Detail",
       "type": "table",
-      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk."
+      "description": "Row-level detail from the most recent scan within the selected time range. A scan = an automated check run every 5 minutes recording each phone's current outbound IP. Each row = one IP that was shared by 2 or more phones at the time of that scan. Shows which phones are on each IP, which servers they belong to, and how many phones are in the collision."
     }
   ],
   "preload": false,
@@ -706,7 +706,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Duplicate IP Snapshot History",
+  "title": "IP Collision History",
   "uid": "duplicate-ip-snapshot-history",
   "version": 1
 }
