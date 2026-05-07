@@ -38,7 +38,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Total requests in selected range from proxy_requests_daily_summary.",
+      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -102,7 +102,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Overall success rate in selected range from summary data.",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -175,7 +175,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Total IP change count across selected range.",
+      "description": "This metric tracks observed outbound IP-change activity across the selected period. It validates whether rotation behavior is producing real identity movement.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -239,7 +239,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Number of unique proxies represented in summary rows for selected range.",
+      "description": "This metric shows distinct proxies for the selected scope and period. Use it as a quick checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -303,7 +303,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Daily trend from summary data only.",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -397,7 +397,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Server-level behavior from summary rows in selected range.",
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -487,7 +487,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Per-proxy stats and IP list from ip_history_json in summary rows.",
+      "description": "This metric shows the highest single-period spike reached in the selected range. Use it to size worst-case risk and validate alert thresholds.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -577,7 +577,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Daily rows where IP changed, with changed IP list, periodic rotation outcomes, and server/proxy details.",
+      "description": "This metric tracks observed outbound IP-change activity across the selected period. It validates whether rotation behavior is producing real identity movement.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -667,7 +667,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Transition matrix with proxy and server context parsed from ip_history_json changes array.",
+      "description": "This metric tracks observed outbound IP-change activity across the selected period. It validates whether rotation behavior is producing real identity movement.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -760,7 +760,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Snapshot trend of duplicate IPs classified as within one server versus across multiple servers.",
+      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -854,7 +854,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Time-range summary of duplicate IP split by duplicate type across all snapshots in the selected window.",
+      "description": "This panel compares server-level contribution to performance or risk. It helps prioritize interventions where they will deliver the largest improvement.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -915,7 +915,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Top duplicated IPs across selected time range with server span and sibling proxy details.",
+      "description": "This metric counts how many duplicate-IP snapshots were captured during the selected period. It confirms data continuity and shows whether trend gaps may come from missing scans.",
       "fieldConfig": {
         "defaults": {
           "color": {

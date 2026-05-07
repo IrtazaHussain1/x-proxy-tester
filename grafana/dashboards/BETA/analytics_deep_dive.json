@@ -41,7 +41,7 @@
         "y": 0
       },
       "id": 500,
-      "title": "Deep dive \u2014 heavy queries; prefer shorter time ranges (e.g. 1\u20133h)",
+      "title": "Deep dive — heavy queries; prefer shorter time ranges (e.g. 1–3h)",
       "type": "row"
     },
     {
@@ -49,7 +49,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Average daily number of distinct outbound IPs per phone over the selected range. Value is unique IP count per phone per day, then averaged.",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -133,7 +133,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Time-series by minute: unique_ips is distinct outbound IPs seen in that minute; active_phones is distinct phones with at least one request in that minute.",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -224,7 +224,7 @@
           "interval": "5m"
         }
       ],
-      "title": "Unique IPs & Active Phones \u2014 Trend",
+      "title": "Unique IPs & Active Phones — Trend",
       "type": "timeseries"
     },
     {
@@ -232,7 +232,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Per-phone reliability table grouped by relay server. uptime_pct is SUCCESS/total requests; active_days is number of distinct days with activity; avg_response_ms is average latency.",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -365,7 +365,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Per-phone traffic and performance metrics. success_rate_pct is SUCCESS/total; unique_ips is distinct outbound IPs; avg_download_mbps and avg_upload_mbps are average measured throughput.",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -491,7 +491,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "For each phone, diversity_score_pct = distinct outbound IPs divided by total requests, shown as percent. Higher values indicate more IP variation.",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -573,7 +573,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Aggregates performance by hour of day (0-23) within selected range. success_rate_pct is hourly SUCCESS ratio; active_phones and unique_ips show concurrency and IP spread.",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -691,7 +691,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Lists outbound IPs used by more than one phone in the selected period. phones_sharing is distinct phone count sharing the same IP; total_occurrences is total request rows for that IP.",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -792,7 +792,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Phone ranking by uptime and IP breadth. uptime_pct is SUCCESS ratio; unique_ips and ip_diversity_pct indicate rotation variety; rotations_detected counts rows where ip_changed=1.",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -929,7 +929,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Monthly aggregation by server. unique_ips is distinct outbound IPs in that month, active_phones is number of phones active, and uptime_pct is monthly SUCCESS ratio.",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1042,7 +1042,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Daily per-phone breakdown. unique_ips is distinct outbound IPs for the day; requests is total request count; uptime_pct is daily SUCCESS ratio; avg_response_ms is average latency.",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1155,7 +1155,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Breakdown of non-success statuses in selected time range with share percentage of all failures.",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1237,7 +1237,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "5-minute IP rotation velocity. rotations_per_active_phone highlights how aggressively IPs change per active phone.",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1337,7 +1337,7 @@
           "interval": "5m"
         }
       ],
-      "title": "IP Rotation Velocity \u2014 Trend",
+      "title": "IP Rotation Velocity — Trend",
       "type": "timeseries"
     },
     {
@@ -1345,7 +1345,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Tail latency by relay server using p95/p99 over selected range.",
+      "description": "This metric shows tail-latency performance for slower requests rather than the average case. Rising values indicate growing risk of user-visible slowness and degraded service quality.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1439,7 +1439,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Tail latency by phone for top active phones in selected range.",
+      "description": "This metric shows tail-latency performance for slower requests rather than the average case. Rising values indicate growing risk of user-visible slowness and degraded service quality.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1533,7 +1533,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "IP churn by phone: total rotations and normalized rates per active hour/day.",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1619,7 +1619,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Largest inactivity gap per phone within selected range using adjacent request timestamps.",
+      "description": "This metric shows the highest observed value reached in any single period within the selected range. It helps quantify worst-case severity and set practical alert thresholds.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1826,8 +1826,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Proxy Analytics \u2014 Deep Dive (BETA)",
+  "title": "Proxy Analytics — Deep Dive (BETA)",
   "uid": "proxy-analytics-deep-dive-beta",
   "version": 1,
-  "description": "BETA: Forensic analytics removed from the main Proxy Analytics dashboard. Uses heavier SQL (distinct counts, window functions, percentiles). Use a narrow time range if load is slow."
+  "description": "This dashboard combines key reliability and behavior signals for deeper operational analysis. It helps convert monitoring data into prioritized action."
 }

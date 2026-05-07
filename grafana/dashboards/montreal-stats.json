@@ -101,7 +101,8 @@
         }
       ],
       "title": "Proxies In Montreal",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of proxies in montreal for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "datasource": {
@@ -212,7 +213,8 @@
         }
       ],
       "title": "Active Montreal Proxies",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
     },
     {
       "datasource": {
@@ -293,7 +295,8 @@
         }
       ],
       "title": "In Active Montreal Proxies",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
     }
   ],
   "preload": false,

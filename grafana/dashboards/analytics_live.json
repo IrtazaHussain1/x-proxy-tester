@@ -27,7 +27,7 @@
       "tags": [],
       "targetBlank": false,
       "title": "Deep Dive (BETA)",
-      "tooltip": "Forensic panels \u2014 heavier SQL; lives under grafana/dashboards/BETA/analytics_deep_dive.json",
+      "tooltip": "Forensic panels — heavier SQL; lives under grafana/dashboards/BETA/analytics_deep_dive.json",
       "type": "link",
       "url": "/d/proxy-analytics-deep-dive-beta"
     }
@@ -38,7 +38,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Count of distinct outbound IP addresses observed in the selected time range and location filter. Higher values indicate broader IP rotation across all phones.",
+      "description": "This metric shows the current value of total unique ips seen for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -102,7 +102,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Percentage of requests with status SUCCESS out of total requests in the selected range. 100% means every request succeeded.",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -175,7 +175,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Total number of proxy test requests recorded in the selected time range and location filter.",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -239,7 +239,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Minute-level success rate over time. Each point is SUCCESS requests divided by total requests for that minute, expressed as percent.",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -329,7 +329,7 @@
           "refId": "A"
         }
       ],
-      "title": "Overall Uptime % \u2014 Trend",
+      "title": "Overall Uptime % — Trend",
       "type": "timeseries"
     },
     {
@@ -337,7 +337,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Minute-level percent of slow requests where response_time_ms > 2000. Helps detect latency spikes that averages hide.",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -431,7 +431,7 @@
           "refId": "A"
         }
       ],
-      "title": "Slow Requests % \u2014 Trend",
+      "title": "Slow Requests % — Trend",
       "type": "timeseries"
     },
     {
@@ -439,7 +439,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Failure reason trend over time. Each series is one non-success status.",
+      "description": "This panel breaks failures into major error categories and their relative volume. It helps you identify which failure class is driving most incidents so remediation can be prioritized correctly.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -525,7 +525,7 @@
           "refId": "A"
         }
       ],
-      "title": "Failure Reason Breakdown \u2014 Trend",
+      "title": "Failure Reason Breakdown — Trend",
       "type": "timeseries"
     },
     {
@@ -533,7 +533,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Active phones vs total phones by location and server. High saturation may indicate overloaded pools.",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -672,7 +672,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Top unstable phones using weighted score: uptime drop + latency pressure + low IP churn.",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
       "fieldConfig": {
         "defaults": {
           "color": {

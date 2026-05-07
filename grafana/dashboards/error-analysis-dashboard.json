@@ -86,7 +86,8 @@
         }
       ],
       "title": "Total Errors",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of total errors for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -156,7 +157,8 @@
         }
       ],
       "title": "Error Rate",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     },
     {
       "datasource": {
@@ -245,7 +247,8 @@
         }
       ],
       "title": "Error Type Distribution",
-      "type": "piechart"
+      "type": "piechart",
+      "description": "This panel breaks failures into major error categories and their relative volume. It helps you identify which failure class is driving most incidents so remediation can be prioritized correctly."
     },
     {
       "datasource": {
@@ -330,7 +333,8 @@
         }
       ],
       "title": "Unique Error Types",
-      "type": "stat"
+      "type": "stat",
+      "description": "This panel breaks failures into major error categories and their relative volume. It helps you identify which failure class is driving most incidents so remediation can be prioritized correctly."
     },
     {
       "datasource": {
@@ -396,7 +400,8 @@
         }
       ],
       "title": "Top Failing Proxy",
-      "type": "stat"
+      "type": "stat",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
     },
     {
       "datasource": {
@@ -475,7 +480,8 @@
         }
       ],
       "title": "Unique Errors List",
-      "type": "table"
+      "type": "table",
+      "description": "This panel breaks failures into major error categories and their relative volume. It helps you identify which failure class is driving most incidents so remediation can be prioritized correctly."
     },
     {
       "fieldConfig": {
@@ -572,7 +578,8 @@
         }
       ],
       "title": "Error Rate Over Time",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     },
     {
       "fieldConfig": {
@@ -628,7 +635,8 @@
         }
       ],
       "title": "Top 20 Failing Proxies",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     }
   ],
   "preload": false,

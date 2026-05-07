@@ -81,7 +81,8 @@
         }
       ],
       "title": "Proxy Status Breakdown",
-      "type": "stat"
+      "type": "stat",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
     },
     {
       "fieldConfig": {
@@ -143,7 +144,8 @@
         }
       ],
       "title": "Never Rotated",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "fieldConfig": {
@@ -205,7 +207,8 @@
         }
       ],
       "title": "No Rotation Status",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "fieldConfig": {
@@ -271,7 +274,8 @@
         }
       ],
       "title": "Proxies Above Normal Error Rate",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     },
     {
       "fieldConfig": {
@@ -341,7 +345,8 @@
         }
       ],
       "title": "Success Rate",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
     },
     {
       "fieldConfig": {
@@ -401,7 +406,8 @@
         }
       ],
       "title": "Average Response Time",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
     },
     {
       "fieldConfig": {
@@ -459,7 +465,8 @@
         }
       ],
       "title": "Stable Proxies",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of stable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -525,7 +532,8 @@
         }
       ],
       "title": "Unstable Proxies",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of unstable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -618,7 +626,8 @@
         }
       ],
       "title": "Success Rate Over Time",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
     },
     {
       "fieldConfig": {
@@ -686,7 +695,8 @@
         }
       ],
       "title": "Average Errors per Proxy",
-      "type": "stat"
+      "type": "stat",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
     },
     {
       "fieldConfig": {
@@ -756,7 +766,8 @@
         }
       ],
       "title": "Overall Error Rate",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     },
     {
       "fieldConfig": {
@@ -849,7 +860,8 @@
         }
       ],
       "title": "Error Rate Over Time",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     },
     {
       "fieldConfig": {
@@ -942,7 +954,8 @@
         }
       ],
       "title": "IP Change Rate by Rotation Cycle",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "fieldConfig": {
@@ -1034,7 +1047,8 @@
         }
       ],
       "title": "Rotation Cycles (Proxies Tested)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "fieldConfig": {
@@ -1090,7 +1104,8 @@
         }
       ],
       "title": "High Same IP Count (Rotation Risk)",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "fieldConfig": {
@@ -1146,7 +1161,8 @@
         }
       ],
       "title": "Top 20 Failing Proxies",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     },
     {
       "fieldConfig": {
@@ -1202,7 +1218,8 @@
         }
       ],
       "title": "Per-Proxy Error Summary",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
     },
     {
       "fieldConfig": {
@@ -1258,7 +1275,8 @@
         }
       ],
       "title": "Recent Proxy Request Logs (Per Proxy)",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
     }
   ],
   "preload": false,

@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Duplicate shared IP trends. **Snapshot details** table first. **IP\u2194server (edge = snapshot time)**: bipartite graph; IP nodes blue, server nodes amber; **edges** multi-colored by snapshot+IP. **IP\u2194server (latest update)**: same styling for latest snapshot only. **Server\u2194IP** node chart: server pairs sharing an IP (latest snapshot). Filters: Proxy scope, **Duplicate IP** (JSON_TABLE), **Server name** (multi-select `IN ($server_name)` like other MySQL variables).",
+  "description": "This dashboard tracks IP overlap risk and diversity health across the fleet. It helps protect isolation quality and identify concentration problems early.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -27,7 +27,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "**dup_scope**: cross-server = IP shared across \u22652 server labels; same-server-only = duplicate phones under one label only.",
+      "description": "This panel compares server-level performance or risk contribution in the selected period. It helps focus intervention on the server groups creating the largest operational impact.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -163,7 +163,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "**Latest snapshot** only. **Styling**: all IP nodes **#2563EB**, all server nodes **#C2410C**; **edges** multi-colored by shared IP. Node ids: `ip:` / `srv:`. Placeholder node if empty.",
+      "description": "This panel shows ip ↔ server (latest update) for the selected scope and period. It supports faster, evidence-based operational decisions.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -225,7 +225,7 @@
           "refId": "nodes"
         }
       ],
-      "title": "IP \u2194 server (latest update)",
+      "title": "IP ↔ server (latest update)",
       "transformations": [],
       "type": "nodeGraph"
     }
@@ -334,7 +334,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Duplicate IP \u2014 Server count trends",
+  "title": "Duplicate IP — Server count trends",
   "uid": "duplicate-ip-server-trends",
   "version": 19
 }

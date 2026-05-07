@@ -54,7 +54,8 @@
         }
       ],
       "title": "Avg Response Time (P50)",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the typical response-time level experienced by requests in the selected period. It is best used to track baseline performance and detect broad slowdown trends."
     },
     {
       "fieldConfig": {
@@ -101,7 +102,8 @@
         }
       ],
       "title": "P95 Response Time",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows tail-latency performance for slower requests rather than the average case. Rising values indicate growing risk of user-visible slowness and degraded service quality."
     },
     {
       "fieldConfig": {
@@ -148,7 +150,8 @@
         }
       ],
       "title": "P99 Response Time",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows tail-latency performance for slower requests rather than the average case. Rising values indicate growing risk of user-visible slowness and degraded service quality."
     },
     {
       "fieldConfig": {
@@ -178,7 +181,8 @@
         }
       ],
       "title": "Requests per Minute",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     },
     {
       "fieldConfig": {
@@ -208,7 +212,8 @@
         }
       ],
       "title": "Response Time Distribution (P50, P95, P99)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows the typical response-time level experienced by requests in the selected period. It is best used to track baseline performance and detect broad slowdown trends."
     },
     {
       "gridPos": {
@@ -230,7 +235,8 @@
         }
       ],
       "title": "Response Time Histogram",
-      "type": "histogram"
+      "type": "histogram",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
     },
     {
       "gridPos": {
@@ -252,7 +258,8 @@
         }
       ],
       "title": "Top 20 Proxies by Average Response Time",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
     }
   ],
   "refresh": "",

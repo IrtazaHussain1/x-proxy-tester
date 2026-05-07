@@ -7,7 +7,7 @@
   "id": null,
   "links": [],
   "liveNow": true,
-  "description": "Raw realtime data from proxy_requests. Use short time ranges (last 1h\u201324h) for fast queries.",
+  "description": "This dashboard summarizes fleet health, reliability, and performance in one operational view. It helps stakeholders quickly understand current state and prioritize next actions.",
   "panels": [
     {
       "collapsed": false,
@@ -18,7 +18,7 @@
         "y": 0
       },
       "id": 100,
-      "title": "Summary \u2014 raw proxy_requests",
+      "title": "Summary — raw proxy_requests",
       "type": "row"
     },
     {
@@ -56,7 +56,8 @@
           "format": "table",
           "rawSql": "SELECT COUNT(*) as value FROM proxies p WHERE p.active = true\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
-      ]
+      ],
+      "description": "This metric shows total active proxies for the selected scope and period. Use it as a quick checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -94,7 +95,8 @@
           "format": "table",
           "rawSql": "SELECT SUM(s.total_requests) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
-      ]
+      ],
+      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes."
     },
     {
       "fieldConfig": {
@@ -141,7 +143,8 @@
           "format": "table",
           "rawSql": "SELECT ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
-      ]
+      ],
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context."
     },
     {
       "fieldConfig": {
@@ -188,7 +191,8 @@
           "format": "table",
           "rawSql": "SELECT ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND s.avg_response_time_ms IS NOT NULL\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
-      ]
+      ],
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
     },
     {
       "fieldConfig": {
@@ -234,7 +238,8 @@
           "format": "table",
           "rawSql": "SELECT COALESCE(SUM(s.ip_change_count), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
-      ]
+      ],
+      "description": "This metric tracks observed outbound IP-change activity across the selected period. It validates whether rotation behavior is producing real identity movement."
     },
     {
       "collapsed": false,
@@ -245,7 +250,7 @@
         "y": 5
       },
       "id": 101,
-      "title": "Trends \u2014 hourly from raw",
+      "title": "Trends — hourly from raw",
       "type": "row"
     },
     {
@@ -281,7 +286,8 @@
           "rawSql": "SELECT\n  FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600 AS time_sec,\n  SUM(s.total_requests)                               AS total_requests\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes."
     },
     {
       "fieldConfig": {
@@ -316,7 +322,8 @@
           "rawSql": "SELECT\n  FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600               AS time_sec,\n  ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) AS success_rate\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context."
     },
     {
       "fieldConfig": {
@@ -351,7 +358,8 @@
           "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(ir.rotation_timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n  SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) as periodic_success,\n  SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) as periodic_failure,\n  SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) as continuous_success,\n  SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) as continuous_failure\nFROM ip_rotations ir\nJOIN rotation_cycles rc ON rc.id = ir.cycle_id\nJOIN proxies p ON ir.proxy_id = p.device_id\nWHERE ir.rotation_timestamp >= $__timeFrom() AND ir.rotation_timestamp <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "This metric reflects rotation execution and outcome quality for the selected scope. It helps detect stalled, weak, or failing rotation behavior early."
     },
     {
       "fieldConfig": {
@@ -386,7 +394,8 @@
           "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n  COUNT(DISTINCT r.outbound_ip) as unique_ips_count\nFROM proxy_requests r\nJOIN proxies p ON r.proxy_id = p.device_id\nWHERE r.timestamp >= $__timeFrom() AND r.timestamp <= $__timeTo()\n  AND r.outbound_ip IS NOT NULL\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)\nGROUP BY time_sec\nORDER BY time_sec",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk."
     },
     {
       "collapsed": false,
@@ -552,7 +561,8 @@
           "format": "table",
           "rawSql": "SELECT\n  p.device_id as proxy_id,\n  COALESCE(p.name, p.device_id) as device_name,\n  CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END as server_name,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) as success_count,\n  COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) as failure_count,\n  ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as success_rate_pct,\n  ROUND(AVG(r.response_time_ms), 0) as avg_response_ms,\n  COUNT(CASE WHEN r.status = 'TIMEOUT' THEN 1 END) as timeout_count,\n  GREATEST(COUNT(DISTINCT r.outbound_ip) - 1, 0) as ip_change_count,\n  COUNT(DISTINCT r.outbound_ip) as unique_ips_count,\n  GROUP_CONCAT(DISTINCT r.outbound_ip ORDER BY r.outbound_ip SEPARATOR ', ') as ip_history\nFROM proxy_requests r\nJOIN proxies p ON r.proxy_id = p.device_id\nWHERE r.timestamp >= $__timeFrom() AND r.timestamp <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)\nGROUP BY p.device_id, p.name\nORDER BY total_requests DESC"
         }
-      ]
+      ],
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
     }
   ],
   "refresh": "30s",

@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Details Stats for the rotation cycle againt proxies",
+  "description": "This dashboard provides a client-facing view of operational health and service quality. It supports faster, better-informed decision-making.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -100,7 +100,8 @@
         }
       ],
       "title": "Rotation Cycle By Category",
-      "type": "gauge"
+      "type": "gauge",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "datasource": {
@@ -181,7 +182,8 @@
         }
       ],
       "title": "Rotation Request Count By Category",
-      "type": "gauge"
+      "type": "gauge",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "datasource": {
@@ -280,7 +282,8 @@
         }
       ],
       "title": "Never Rotated Proxies Count",
-      "type": "gauge"
+      "type": "gauge",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "datasource": {
@@ -361,7 +364,8 @@
         }
       ],
       "title": "Never Rotated Proxies",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "datasource": {
@@ -473,7 +477,8 @@
         }
       ],
       "title": "Periodic Rotation Trend",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "datasource": {
@@ -585,7 +590,8 @@
         }
       ],
       "title": "Inactive Proxies Rotation Trend",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "datasource": {
@@ -669,7 +675,8 @@
         }
       ],
       "title": "Periodic Rotation Cycle Details",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     }
   ],
   "preload": false,

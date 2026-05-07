@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Historical duplicate shared external IPs from app snapshots (captured_at on each row). Empty captures use sentinel last_ip __snapshot_empty__. Identical consecutive captures may be skipped in the app — time series shows gaps when unchanged.",
+  "description": "This dashboard tracks IP overlap risk and diversity health across the fleet. It helps protect isolation quality and identify concentration problems early.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -106,7 +106,8 @@
         }
       ],
       "title": "Latest snapshot — duplicate IP rows",
-      "type": "stat"
+      "type": "stat",
+      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk."
     },
     {
       "datasource": {
@@ -171,7 +172,8 @@
         }
       ],
       "title": "Snapshot runs in range",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric counts how many duplicate-IP snapshots were captured during the selected period. It confirms data continuity and shows whether trend gaps may come from missing scans."
     },
     {
       "datasource": {
@@ -244,7 +246,8 @@
         }
       ],
       "title": "Max duplicate IPs (single snapshot)",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the highest single-period spike reached in the selected range. Use it to size worst-case risk and validate alert thresholds."
     },
     {
       "datasource": {
@@ -309,7 +312,8 @@
         }
       ],
       "title": "Distinct duplicate IPs seen (range)",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk."
     },
     {
       "datasource": {
@@ -408,7 +412,8 @@
         }
       ],
       "title": "Duplicate IP row count over time (per snapshot)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk."
     },
     {
       "datasource": {
@@ -515,7 +520,8 @@
         }
       ],
       "title": "Server labels — how often a server appears on duplicate-IP rows (historical)",
-      "type": "barchart"
+      "type": "barchart",
+      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk."
     },
     {
       "datasource": {
@@ -584,7 +590,8 @@
         }
       ],
       "title": "Most persistent duplicate IPs (by snapshot count)",
-      "type": "table"
+      "type": "table",
+      "description": "This metric counts how many duplicate-IP snapshots were captured during the selected period. It confirms data continuity and shows whether trend gaps may come from missing scans."
     },
     {
       "datasource": {
@@ -653,7 +660,8 @@
         }
       ],
       "title": "Latest snapshot in range — per-IP detail (same grain as source panel)",
-      "type": "table"
+      "type": "table",
+      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk."
     }
   ],
   "preload": false,
