@@ -366,7 +366,7 @@
       ],
       "title": "Last Rotation At",
       "type": "stat",
-      "description": "Timestamp of the most recent IP rotation. Falls back to the latest record in ip_rotations if the proxies table value is missing."
+      "description": "Timestamp of the most recent IP rotation. Falls back to the latest recorded rotation event if the proxy's stored value is missing."
     },
     {
       "fieldConfig": {
@@ -1172,7 +1172,7 @@
       ],
       "title": "Rotation Test Failure Rate Over Time",
       "type": "timeseries",
-      "description": "Per-minute trend of failed rotation attempts (success = false in ip_rotations). Use to detect rotation outages or systemic failures."
+      "description": "Per-minute trend of failed rotation attempts. Use to detect rotation outages or systemic failures."
     },
     {
       "fieldConfig": {
@@ -1384,7 +1384,7 @@
       ],
       "title": "Rotation Cycle Summary (Periodic)",
       "type": "table",
-      "description": "Per-rotation row from ip_rotations (periodic type only): timestamp, ip_before/ip_after, success flag, duration, retry count, error message."
+      "description": "Per-rotation row (periodic type only): timestamp, IP before, IP after, success flag, duration, retry count, error message."
     },
     {
       "fieldConfig": {
@@ -1441,7 +1441,7 @@
       ],
       "title": "Recent Requests (Per Proxy)",
       "type": "table",
-      "description": "Most recent individual proxy_requests rows for this proxy (timestamp, status, response time, error info, outbound IP, ip_changed, source). Drill-down for triage."
+      "description": "Most recent individual request rows for this proxy (timestamp, status, response time, error info, outbound IP, IP-change flag, source). Drill-down for triage."
     },
     {
       "fieldConfig": {

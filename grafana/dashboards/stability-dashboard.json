@@ -259,7 +259,7 @@
       ],
       "title": "Stability Trend Over Time",
       "type": "timeseries",
-      "description": "Per-hour count of active proxies classified as Stable vs UnstableHourly. Computed from proxy_requests_5min_summary using the original threshold (>120 failures/hour ≈ >10min downtime at 5s test interval). Source table retains ~2 days of data, so longer time ranges show empty buckets for older periods."
+      "description": "Per-hour count of active proxies classified as Stable vs UnstableHourly. Derived from 5-minute aggregates using the original stability threshold (>120 failures/hour ≈ >10min downtime at 5s test interval). The underlying 5-minute aggregates retain roughly 2 days, so longer time ranges show empty buckets for older periods."
     },
     {
       "fieldConfig": {

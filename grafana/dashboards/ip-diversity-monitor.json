@@ -434,7 +434,7 @@
     },
     {
       "id": 8,
-      "title": "Duplicate Phones Trend (snapshot history)",
+      "title": "Duplicate Phones Trend (capture history)",
       "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk.",
       "type": "timeseries",
       "datasource": {
@@ -502,7 +502,7 @@
     },
     {
       "id": 10,
-      "title": "Servers Ranked by Duplicate Phones (Latest Snapshot)",
+      "title": "Servers Ranked by Duplicate Phones (Latest Capture)",
       "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk.",
       "type": "table",
       "datasource": {
