@@ -270,7 +270,7 @@ export async function checkAndRotateInactiveProxies(
     const cycleId = await createRotationCycle('inactive_proxy', proxyIds);
 
     // Start rotation cycle - send commands
-    await startRotationCycle(cycleId, proxyIds, rotationType);
+    await startRotationCycle(cycleId, proxyIds, rotationType, 'inactive_proxy');
 
     // Wait a bit before starting verification
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -391,7 +391,10 @@ async function rotateAllDevices(): Promise<void> {
     cycleId = await createRotationCycle('periodic', proxyIds);
 
     // Start rotation cycle - send commands
-    await startRotationCycle(cycleId, proxyIds, rotationType);
+    // Passing cycleType='periodic' enables fast-fail retries on the rotateIp
+    // HTTP call (see startRotationCycle docs) so a single slow tick doesn't
+    // overrun PERIODIC_IP_ROTATION_INTERVAL_MS and skip the next interval.
+    await startRotationCycle(cycleId, proxyIds, rotationType, 'periodic');
 
     // Wait a bit before starting verification
     await new Promise((resolve) => setTimeout(resolve, 2000));

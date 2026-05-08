@@ -10,9 +10,11 @@
 import { prismaWithRetry as prisma } from '../lib/db';
 import { logger } from '../lib/logger';
 import { rotateIp, rotateUniqueIp } from '../api/commands';
+import type { CommandRetryOptions } from '../api/commands';
 import { getAllDevices } from '../helpers/devices';
 import { getDeviceById } from '../api/devices';
 import { config } from '../config';
+import type { Device } from '../types';
 export type CycleType = 'periodic' | 'inactive_proxy' | 'manual';
 export type CycleStatus = 'in_progress' | 'verifying' | 'completed' | 'failed';
 
@@ -101,7 +103,27 @@ async function getIpBeforeRotation(proxyId: string): Promise<string | null> {
 }
 
 /**
- * Get device metadata for storage
+ * Build the metadata blob persisted on the IpRotation record from an
+ * already-loaded Device. Cheap, synchronous, no I/O — preferred over
+ * `getDeviceMetadata` whenever the caller already has the device in hand
+ * (e.g. from the cached `getAllDevices()` result).
+ */
+function buildDeviceMetadataFromDevice(device: Device): Record<string, any> {
+  return {
+    name: device.name,
+    country: device.country || null,
+    state: device.state || null,
+    city: device.city || null,
+  };
+}
+
+/**
+ * Get device metadata for storage.
+ *
+ * NOTE: This performs a DB lookup + a portal API call (`getDeviceById`).
+ * It is kept as a fallback for paths that don't already have a Device handy.
+ * Hot paths (e.g. periodic rotation cycle) should prefer
+ * `buildDeviceMetadataFromDevice` to avoid 1 API call per device.
  */
 async function getDeviceMetadata(deviceId: string): Promise<Record<string, any> | null> {
   try {
@@ -134,7 +156,19 @@ async function getDeviceMetadata(deviceId: string): Promise<Record<string, any> 
 }
 
 /**
- * Send rotation command to a single proxy and create rotation record
+ * Send rotation command to a single proxy and create rotation record.
+ *
+ * @param cycleId - Parent cycle id
+ * @param cycleTimestamp - Shared cycle timestamp (used for rotationTimestamp)
+ * @param proxyId - Device id (string)
+ * @param rotationType - 'standard' | 'unique'
+ * @param statusBefore - proxy_status snapshot from portal (pre-rotation)
+ * @param wsStatusBefore - ws_status snapshot from portal (pre-rotation)
+ * @param device - Optional already-loaded Device. When provided, avoids one
+ *                 portal API call (`getDeviceById`) per rotation.
+ * @param retryOptions - Optional override for command retry/backoff. Used to
+ *                       fast-fail rotation commands during periodic cycles
+ *                       (those will simply be retried in the next cycle).
  */
 async function sendRotationCommandForProxy(
   cycleId: string,
@@ -142,19 +176,25 @@ async function sendRotationCommandForProxy(
   proxyId: string,
   rotationType: 'standard' | 'unique',
   statusBefore: string | null,
-  wsStatusBefore: string | null
+  wsStatusBefore: string | null,
+  device?: Device,
+  retryOptions?: CommandRetryOptions
 ): Promise<string> {
   const commandSentAt = new Date();
   const ipBefore = await getIpBeforeRotation(proxyId);
-  const deviceMetadata = await getDeviceMetadata(proxyId);
+  // Prefer the in-memory Device (no I/O) over the API-call-based fallback.
+  // This is the hot path for periodic rotation cycles (thousands of devices).
+  const deviceMetadata = device
+    ? buildDeviceMetadataFromDevice(device)
+    : await getDeviceMetadata(proxyId);
 
   let commandResponse: any = null;
   let errorMessage: string | null = null;
 
   try {
     const response = rotationType === 'unique'
-      ? await rotateUniqueIp(proxyId)
-      : await rotateIp(proxyId);
+      ? await rotateUniqueIp(proxyId, retryOptions)
+      : await rotateIp(proxyId, retryOptions);
     
     commandResponse = response;
     
@@ -196,11 +236,15 @@ async function sendRotationCommandForProxy(
  * @param cycleId - Cycle ID
  * @param proxyIds - Array of proxy IDs
  * @param rotationType - Type of rotation (standard or unique)
+ * @param cycleType - Cycle type. When 'periodic', a fast-fail retry policy is
+ *                    applied to the rotateIp/rotateUniqueIp HTTP calls so that
+ *                    one slow/failed cycle doesn't bleed into the next interval.
  */
 export async function startRotationCycle(
   cycleId: string,
   proxyIds: string[],
-  rotationType: 'standard' | 'unique' = 'standard'
+  rotationType: 'standard' | 'unique' = 'standard',
+  cycleType?: CycleType
 ): Promise<void> {
   const cycle = await prisma.rotationCycle.findUnique({
     where: { id: cycleId },
@@ -210,11 +254,23 @@ export async function startRotationCycle(
     throw new Error(`Rotation cycle ${cycleId} not found`);
   }
 
+  // For periodic cycles we override the default 3-retry policy with a much
+  // tighter one — failed devices are simply retried in the next periodic
+  // tick, so multiplying every failure by 3 retries × backoff is wasteful
+  // and was the dominant contributor to >20-min cycle durations.
+  const commandRetryOptions: CommandRetryOptions | undefined =
+    cycleType === 'periodic'
+      ? { maxRetries: config.ipRotation.periodicCommandMaxRetries }
+      : undefined;
+
   logger.info(
     {
       cycleId,
       proxyCount: proxyIds.length,
       rotationType,
+      cycleType: cycleType || 'unknown',
+      commandConcurrency: config.ipRotation.commandConcurrency,
+      commandMaxRetries: commandRetryOptions?.maxRetries ?? 'default',
     },
     'Starting rotation cycle - sending commands'
   );
@@ -223,8 +279,9 @@ export async function startRotationCycle(
   const devices = await getAllDevices();
   const deviceMap = new Map(devices.map((d) => [d.device_id, d]));
 
-  // Send rotation commands with bounded concurrency to avoid Prisma pool exhaustion.
-  const semaphore = new Semaphore(config.database.proxySyncConcurrency);
+  // Command sending is API-bound, not Prisma-pool-bound — use a dedicated,
+  // higher concurrency semaphore independent of `proxySyncConcurrency`.
+  const semaphore = new Semaphore(config.ipRotation.commandConcurrency);
   const rotationPromises = proxyIds.map(async (proxyId) => {
     await semaphore.acquire();
     const device = deviceMap.get(proxyId);
@@ -238,7 +295,9 @@ export async function startRotationCycle(
         proxyId,
         rotationType,
         statusBefore,
-        wsStatusBefore
+        wsStatusBefore,
+        device,
+        commandRetryOptions
       );
     } catch (error) {
       logger.error(
