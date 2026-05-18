@@ -19,7 +19,7 @@ import { initDatabaseSchema, ensurePartitioningSetup } from './lib/init-db';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
-import { registerTimeoutJob, stopAllScheduledJobs } from './services/cron.service';
+import { markScheduledJobDisabled, registerTimeoutJob, stopAllScheduledJobs } from './services/cron.service';
 
 type DbSchemaSyncMode = 'push' | 'off';
 
@@ -213,6 +213,18 @@ async function main(): Promise<void> {
         config.duplicateIpSnapshot.retentionDays
       );
     } else {
+      markScheduledJobDisabled('duplicate-ip-snapshot-tick', {
+        kind: 'interval',
+        description: 'Captures duplicate-IP snapshot rows for active and all proxy scopes.',
+        disabledReason: 'env_flag_off',
+        intervalMs: config.duplicateIpSnapshot.intervalMs,
+      });
+      markScheduledJobDisabled('duplicate-ip-snapshot-retention', {
+        kind: 'interval',
+        description: 'Purges duplicate-IP snapshot rows older than the configured retention window.',
+        disabledReason: 'env_flag_off',
+        intervalMs: 24 * 60 * 60 * 1000,
+      });
       logger.info('Duplicate IP snapshot service is disabled (DUPLICATE_IP_SNAPSHOT_ENABLED=false)');
     }
 
@@ -238,6 +250,13 @@ async function main(): Promise<void> {
       startDailyAggregationService();
       logger.info('Daily aggregation service started');
     } else {
+      markScheduledJobDisabled('daily-aggregation', {
+        kind: 'cron',
+        description: 'Aggregates previous-day proxy request data into daily summary records.',
+        disabledReason: 'env_flag_off',
+        cronExpression: process.env.AGGREGATION_SCHEDULE ?? '0 1 * * *',
+        timezone: process.env.CRON_TZ ?? 'UTC',
+      });
       logger.info('Daily aggregation service startup disabled (ENABLE_DAILY_AGGREGATION_ON_START=false)');
     }
 
@@ -251,12 +270,25 @@ async function main(): Promise<void> {
     // is automatically recovered on the next restart before the partition drops it.
     const startupBackfillDays = parseInt(process.env.STARTUP_DAILY_BACKFILL_DAYS || '2', 10);
     if (startupBackfillDays > 0) {
-      registerTimeoutJob('startup-daily-backfill', 60_000, async () => {
-        void aggregateRecentDays(startupBackfillDays, { skipAlreadyAggregatedDays: true }).catch((err) => {
-          logger.error({ error: err instanceof Error ? err.message : 'Unknown error' }, 'Startup backfill of daily summaries failed');
-        });
-      });
+      registerTimeoutJob(
+        'startup-daily-backfill',
+        60_000,
+        async () => {
+          void aggregateRecentDays(startupBackfillDays, { skipAlreadyAggregatedDays: true }).catch((err) => {
+            logger.error({ error: err instanceof Error ? err.message : 'Unknown error' }, 'Startup backfill of daily summaries failed');
+          });
+        },
+        {
+          description: 'Runs a one-time startup backfill for recent daily aggregation windows.',
+        }
+      );
     } else {
+      markScheduledJobDisabled('startup-daily-backfill', {
+        kind: 'timeout',
+        description: 'Runs a one-time startup backfill for recent daily aggregation windows.',
+        disabledReason: 'env_flag_off',
+        delayMs: 60_000,
+      });
       logger.info('Startup daily backfill disabled (STARTUP_DAILY_BACKFILL_DAYS=0)');
     }
 
@@ -273,6 +305,13 @@ async function main(): Promise<void> {
         },
         'Periodic data archival enabled'
       );
+    } else {
+      markScheduledJobDisabled('periodic-archival', {
+        kind: 'interval',
+        description: 'Deletes expired speed_tests rows according to retention settings.',
+        disabledReason: 'env_flag_off',
+        intervalMs: archivalIntervalMs,
+      });
     }
 
     // Set up signal handlers

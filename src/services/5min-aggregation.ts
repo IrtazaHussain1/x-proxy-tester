@@ -180,9 +180,12 @@ export function start5MinAggregationService(): void {
   isRunning = true;
 
   registerIntervalJob('5min-aggregation', 5 * 60 * 1000, aggregate5MinWindows, {
+    description: 'Aggregates previous and current 5-minute windows into summary rows.',
     runImmediately: true,
   });
-  registerIntervalJob('5min-summary-purge', 60 * 60 * 1000, purge5MinSummary);
+  registerIntervalJob('5min-summary-purge', 60 * 60 * 1000, purge5MinSummary, {
+    description: 'Purges expired 5-minute summary rows older than 2 days.',
+  });
 
   logger.info('5min aggregation service started (interval=5m, purge=1h)');
 }

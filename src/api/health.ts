@@ -11,6 +11,7 @@ import { checkDatabaseHealth } from '../lib/db';
 import { logger } from '../lib/logger';
 import { getMetrics, getSuccessRate, getContinuousSuccessRate, getSuccessRateBySource, getAverageResponseTime } from '../lib/metrics';
 import { getTestingStatus } from '../services/continuous-proxy-tester';
+import { getSchedulerHealthSnapshot, type SchedulerHealthSnapshot } from '../services/cron.service';
 import { getLastAggregationRun, type AggregationJobRun } from '../services/daily-aggregation';
 
 export interface HealthStatus {
@@ -49,6 +50,7 @@ export interface HealthStatus {
   aggregation: {
     lastRun: AggregationJobRun | null;
   };
+  scheduler: SchedulerHealthSnapshot;
 }
 
 /**
@@ -102,6 +104,7 @@ export async function getHealthStatus(): Promise<HealthStatus> {
   const metrics = getMetrics();
   const testing = getTestingStatus();
   const lastAggregation = getLastAggregationRun();
+  const scheduler = getSchedulerHealthSnapshot();
 
   // Determine overall status
   let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
@@ -140,6 +143,7 @@ export async function getHealthStatus(): Promise<HealthStatus> {
     aggregation: {
       lastRun: lastAggregation,
     },
+    scheduler,
   };
 }
 
@@ -170,4 +174,3 @@ export async function getLiveness(): Promise<boolean> {
     return false;
   }
 }
-

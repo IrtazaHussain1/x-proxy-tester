@@ -95,6 +95,8 @@ GET /ready
 GET /live
 GET /metrics
 
+`GET /health` now includes a `scheduler` block with registered job status, schedule metadata, `currently_running`, `last_run_started_at`, `last_run_ended_at`, `last_run_success_at`, and truncated `last_error` fields for cron, interval, and timeout jobs managed by `src/services/cron.service.ts`.
+
 ### Management API checks
 
 GET /api/testing/status
