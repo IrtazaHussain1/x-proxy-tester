@@ -43,8 +43,12 @@ export interface SchedulerJobStatus {
 }
 
 export interface SchedulerHealthSnapshot {
+  /** All jobs known to the scheduler (enabled, disabled, and completed). */
   total_jobs: number;
+  /** Jobs with a live timer in the registry (setInterval / setTimeout / node-cron). */
   active_jobs: number;
+  /** Names of jobs in the registry — same set as active_jobs, listed explicitly for /health readers. */
+  registered_job_ids: string[];
   running_jobs: number;
   jobs: Record<string, SchedulerJobStatus>;
 }
@@ -87,6 +91,23 @@ function timeoutDescription(delayMs: number): string {
     return seconds === 1 ? 'Runs once after 1 second' : `Runs once after ${seconds} seconds`;
   }
   return `Runs once after ${delayMs} ms`;
+}
+
+/** Past-tense label for a finished one-shot timeout job (shown after disabled_reason=completed). */
+function completedTimeoutDescription(delayMs: number): string {
+  if (delayMs % (60 * 1000) === 0) {
+    const minutes = delayMs / (60 * 1000);
+    return minutes === 1
+      ? 'Completed one-shot (ran 1 minute after startup)'
+      : `Completed one-shot (ran ${minutes} minutes after startup)`;
+  }
+  if (delayMs % 1000 === 0) {
+    const seconds = delayMs / 1000;
+    return seconds === 1
+      ? 'Completed one-shot (ran 1 second after startup)'
+      : `Completed one-shot (ran ${seconds} seconds after startup)`;
+  }
+  return `Completed one-shot (ran ${delayMs} ms after startup)`;
 }
 
 function cronDescription(cronExpression: string, timezone: string): string | null {
@@ -162,6 +183,8 @@ function instrumentHandler(
     try {
       await Promise.resolve(handler());
       const finishedAt = nowIso();
+      const currentAfterRun = schedulerState.get(name);
+      const delayMs = currentAfterRun?.delay_ms;
       upsertSchedulerState(name, {
         job_id: name,
         kind,
@@ -169,20 +192,30 @@ function instrumentHandler(
         last_run_ended_at: finishedAt,
         last_run_success_at: finishedAt,
         last_error: null,
-        run_count: (schedulerState.get(name)?.run_count ?? 0) + 1,
+        run_count: (currentAfterRun?.run_count ?? 0) + 1,
         configured_enabled: options?.disableAfterRun ? false : true,
         disabled_reason: options?.disableAfterRun ? 'completed' : null,
+        cron_description:
+          options?.disableAfterRun && delayMs != null
+            ? completedTimeoutDescription(delayMs)
+            : currentAfterRun?.cron_description ?? null,
       });
     } catch (err) {
+      const currentAfterError = schedulerState.get(name);
+      const delayMs = currentAfterError?.delay_ms;
       upsertSchedulerState(name, {
         job_id: name,
         kind,
         currently_running: false,
         last_run_ended_at: nowIso(),
         last_error: truncateError(err),
-        run_count: (schedulerState.get(name)?.run_count ?? 0) + 1,
+        run_count: (currentAfterError?.run_count ?? 0) + 1,
         configured_enabled: options?.disableAfterRun ? false : true,
         disabled_reason: options?.disableAfterRun ? 'completed_with_error' : null,
+        cron_description:
+          options?.disableAfterRun && delayMs != null
+            ? `${completedTimeoutDescription(delayMs)} — last run failed`
+            : currentAfterError?.cron_description ?? null,
       });
       throw err;
     }
@@ -348,7 +381,7 @@ export function registerIntervalJob(
     interval_ms: periodMs,
     delay_ms: null,
     timezone: null,
-    currently_running: false,
+    // Preserve currently_running when runImmediately started the handler above.
   });
   logger.info({ name, periodMs }, 'Interval job registered');
 }
@@ -421,10 +454,12 @@ export function getSchedulerHealthSnapshot(): SchedulerHealthSnapshot {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([name, status]) => [name, { ...status }])
   );
+  const registeredJobIds = [...registry.keys()].sort((left, right) => left.localeCompare(right));
   const runningJobs = Object.values(jobs).filter((job) => job.currently_running).length;
   return {
     total_jobs: Object.keys(jobs).length,
-    active_jobs: registry.size,
+    active_jobs: registeredJobIds.length,
+    registered_job_ids: registeredJobIds,
     running_jobs: runningJobs,
     jobs,
   };

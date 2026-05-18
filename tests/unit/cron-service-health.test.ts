@@ -52,6 +52,8 @@ describe('cron.service scheduler health', () => {
     });
 
     let snapshot = getSchedulerHealthSnapshot();
+    expect(snapshot.active_jobs).toBe(1);
+    expect(snapshot.registered_job_ids).toEqual(['duplicate-ip-snapshot-tick']);
     expect(snapshot.running_jobs).toBe(1);
     expect(snapshot.jobs['duplicate-ip-snapshot-tick']).toMatchObject({
       configured_enabled: true,
@@ -97,10 +99,13 @@ describe('cron.service scheduler health', () => {
     expect(snapshot.jobs['startup-daily-backfill']).toMatchObject({
       configured_enabled: false,
       disabled_reason: 'completed',
+      cron_description: 'Completed one-shot (ran 1 minute after startup)',
       currently_running: false,
       run_count: 1,
       last_error: null,
     });
+    expect(snapshot.active_jobs).toBe(0);
+    expect(snapshot.registered_job_ids).toEqual([]);
     expect(snapshot.jobs['startup-daily-backfill'].last_run_success_at).not.toBeNull();
   });
 });
