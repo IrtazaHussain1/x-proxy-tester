@@ -920,16 +920,16 @@
           "type": "mysql",
           "uid": "xproxy-tester-mysql"
         },
-        "definition": "SELECT DISTINCT server_label FROM duplicate_ip_snapshot_servers WHERE server_label <> 'UNKNOWN' ORDER BY server_label",
+        "definition": "SELECT server FROM (SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END AS server FROM proxies WHERE name IS NOT NULL) t WHERE server <> 'Unknown' ORDER BY CAST(REGEXP_SUBSTR(server, '[0-9]+') AS UNSIGNED)",
         "includeAll": true,
         "label": "Servers",
         "multi": true,
         "name": "server",
         "options": [],
-        "query": "SELECT DISTINCT server_label FROM duplicate_ip_snapshot_servers WHERE server_label <> 'UNKNOWN' ORDER BY server_label",
+        "query": "SELECT server FROM (SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END AS server FROM proxies WHERE name IS NOT NULL) t WHERE server <> 'Unknown' ORDER BY CAST(REGEXP_SUBSTR(server, '[0-9]+') AS UNSIGNED)",
         "refresh": 1,
         "regex": "",
-        "sort": 1,
+        "sort": 0,
         "type": "query"
       },
       {
@@ -965,5 +965,5 @@
   "timezone": "utc",
   "title": "Server IP Overlap",
   "uid": "server-ip-overlap",
-  "version": 16
+  "version": 17
 }
