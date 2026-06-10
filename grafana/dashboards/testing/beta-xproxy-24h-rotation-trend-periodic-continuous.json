@@ -1,0 +1,290 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 37,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__unixEpochGroupAlias(rc.cycle_timestamp, $__interval),\n  SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = true THEN 1 ELSE 0 END) AS periodic_rotated,\n  SUM(CASE WHEN rc.cycle_type = 'periodic' AND (ir.success = false OR ir.success IS NULL) THEN 1 ELSE 0 END) AS periodic_not_rotated,\n  SUM(CASE WHEN rc.cycle_type = 'inactive_proxy' AND ir.success = true THEN 1 ELSE 0 END) AS continuous_rotated,\n  SUM(CASE WHEN rc.cycle_type = 'inactive_proxy' AND (ir.success = false OR ir.success IS NULL) THEN 1 ELSE 0 END) AS continuous_not_rotated\nFROM rotation_cycles rc\nJOIN ip_rotations ir ON ir.cycle_id = rc.id\nJOIN proxies p ON p.device_id = ir.proxy_id\nWHERE $__timeFilter(rc.cycle_timestamp)\n  AND rc.cycle_timestamp >= DATE_SUB($__timeTo(), INTERVAL 24 HOUR)\n  AND rc.cycle_type IN ('periodic', 'inactive_proxy')\n  AND p.active = true\n  AND p.location IN ($location)\nGROUP BY 1\nORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "24h Rotation Trend - Periodic vs Continuous (Rotated vs Not Rotated)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__unixEpochGroupAlias(rc.cycle_timestamp, $__interval),\n  ROUND(\n    SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = true THEN 1 ELSE 0 END)\n    / NULLIF(SUM(CASE WHEN rc.cycle_type = 'periodic' THEN 1 ELSE 0 END), 0),\n    4\n  ) AS periodic_success_rate,\n  ROUND(\n    SUM(CASE WHEN rc.cycle_type = 'inactive_proxy' AND ir.success = true THEN 1 ELSE 0 END)\n    / NULLIF(SUM(CASE WHEN rc.cycle_type = 'inactive_proxy' THEN 1 ELSE 0 END), 0),\n    4\n  ) AS continuous_success_rate\nFROM rotation_cycles rc\nJOIN ip_rotations ir ON ir.cycle_id = rc.id\nJOIN proxies p ON p.device_id = ir.proxy_id\nWHERE $__timeFilter(rc.cycle_timestamp)\n  AND rc.cycle_timestamp >= DATE_SUB($__timeTo(), INTERVAL 24 HOUR)\n  AND rc.cycle_type IN ('periodic', 'inactive_proxy')\n  AND p.active = true\n  AND p.location IN ($location)\nGROUP BY 1\nORDER BY 1;",
+          "refId": "A"
+        }
+      ],
+      "title": "24h Success Rate Trend - Periodic vs Continuous",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": [
+                "sum"
+              ]
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "enablePagination": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": true
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  t.proxy_id,\n  t.device_name,\n  SUM(t.periodic_rotated) AS periodic_rotated,\n  SUM(t.periodic_not_rotated) AS periodic_not_rotated,\n  SUM(t.continuous_rotated) AS continuous_rotated,\n  SUM(t.continuous_not_rotated) AS continuous_not_rotated,\n  SUM(t.periodic_rotated + t.continuous_rotated) AS total_rotated,\n  SUM(t.periodic_not_rotated + t.continuous_not_rotated) AS total_not_rotated\nFROM (\n  SELECT\n    s.proxy_id,\n    COALESCE(s.device_name, p.name, s.proxy_id) AS device_name,\n    SUM(s.ip_rotation_periodic_success_count) AS periodic_rotated,\n    SUM(s.ip_rotation_periodic_failure_count) AS periodic_not_rotated,\n    SUM(s.ip_rotation_inactive_proxy_success_count) AS continuous_rotated,\n    SUM(s.ip_rotation_inactive_proxy_failure_count) AS continuous_not_rotated\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON p.device_id = s.proxy_id\n  WHERE s.day >= DATE($__timeFrom())\n    AND s.day < CURDATE()\n    AND p.active = true\n    AND p.location IN ($location)\n  GROUP BY s.proxy_id, COALESCE(s.device_name, p.name, s.proxy_id)\n\n  UNION ALL\n\n  SELECT\n    ir.proxy_id,\n    COALESCE(p.name, ir.proxy_id) AS device_name,\n    SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) AS periodic_rotated,\n    SUM(CASE WHEN rc.cycle_type = 'periodic' AND (ir.success = 0 OR ir.success IS NULL) THEN 1 ELSE 0 END) AS periodic_not_rotated,\n    SUM(CASE WHEN rc.cycle_type = 'inactive_proxy' AND ir.success = 1 THEN 1 ELSE 0 END) AS continuous_rotated,\n    SUM(CASE WHEN rc.cycle_type = 'inactive_proxy' AND (ir.success = 0 OR ir.success IS NULL) THEN 1 ELSE 0 END) AS continuous_not_rotated\n  FROM ip_rotations ir\n  JOIN rotation_cycles rc ON rc.id = ir.cycle_id\n  JOIN proxies p ON p.device_id = ir.proxy_id\n  WHERE ir.rotation_timestamp >= GREATEST($__timeFrom(), CURDATE())\n    AND ir.rotation_timestamp <= $__timeTo()\n    AND rc.cycle_type IN ('periodic', 'inactive_proxy')\n    AND p.active = true\n    AND p.location IN ($location)\n  GROUP BY ir.proxy_id, COALESCE(p.name, ir.proxy_id)\n) t\nGROUP BY t.proxy_id, t.device_name\nHAVING total_rotated > 0 OR total_not_rotated > 0\nORDER BY total_not_rotated DESC, total_rotated DESC\nLIMIT 200;",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-Proxy Rotation Outcomes (Aggregate History + Raw Today)",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": [
+    "x-proxy-tester",
+    "rotation",
+    "24h",
+    "trend"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BETA XProxy - 24h Rotation Trend (Periodic + Continuous)",
+  "uid": "ip-rotation-24h-trend",
+  "version": 2,
+  "weekStart": ""
+}

@@ -15,9 +15,11 @@
       }
     ]
   },
+  "description": "This dashboard combines key reliability and behavior signals for deeper operational analysis. It helps convert monitoring data into prioritized action.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "id": 7,
   "links": [
     {
       "icon": "external link",
@@ -41,7 +43,7 @@
         "y": 0
       },
       "id": 500,
-      "title": "Deep dive — heavy queries; prefer shorter time ranges (e.g. 1–3h)",
+      "title": "Deep dive \u2014 heavy queries; prefer shorter time ranges (e.g. 1\u20133h)",
       "type": "row"
     },
     {
@@ -219,12 +221,12 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
+          "interval": "5m",
           "rawSql": "SELECT\n  $__timeGroupAlias(r.timestamp, '1m'),\n  COUNT(DISTINCT r.outbound_ip) as unique_ips,\n  COUNT(DISTINCT r.proxy_id) as active_phones\nFROM proxy_requests r\nJOIN proxies p ON r.proxy_id = p.device_id\nWHERE $__timeFilter(r.timestamp)\n  AND r.outbound_ip IS NOT NULL\n  AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}'\nGROUP BY 1\nORDER BY 1",
-          "refId": "A",
-          "interval": "5m"
+          "refId": "A"
         }
       ],
-      "title": "Unique IPs & Active Phones — Trend",
+      "title": "Unique IPs & Active Phones \u2014 Trend",
       "type": "timeseries"
     },
     {
@@ -1332,12 +1334,12 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
+          "interval": "5m",
           "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '5m'), SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) as ip_rotations, ROUND(SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT r.proxy_id), 0), 2) as rotations_per_active_phone FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY 1 ORDER BY 1",
-          "refId": "A",
-          "interval": "5m"
+          "refId": "A"
         }
       ],
-      "title": "IP Rotation Velocity — Trend",
+      "title": "IP Rotation Velocity \u2014 Trend",
       "type": "timeseries"
     },
     {
@@ -1744,6 +1746,7 @@
         "type": "query"
       },
       {
+        "allValue": "%",
         "current": {
           "text": [
             "All"
@@ -1757,7 +1760,6 @@
           "uid": "xproxy-tester-mysql"
         },
         "definition": "SELECT DISTINCT CONCAT(name, ' [', device_id, ']') FROM proxies WHERE location IN ($location) ORDER BY 1",
-        "allValue": "%",
         "includeAll": true,
         "multi": false,
         "name": "phone",
@@ -1769,6 +1771,7 @@
         "type": "query"
       },
       {
+        "allValue": "%",
         "current": {
           "text": [
             "All"
@@ -1782,7 +1785,6 @@
           "uid": "xproxy-tester-mysql"
         },
         "definition": "SELECT DISTINCT CASE WHEN UPPER(name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(name, '[0-9]+')) ELSE 'Unknown' END as server FROM proxies WHERE location IN ($location) ORDER BY 1",
-        "allValue": "%",
         "includeAll": true,
         "multi": false,
         "name": "server",
@@ -1794,6 +1796,7 @@
         "type": "query"
       },
       {
+        "allValue": "%",
         "current": {
           "text": [
             "All"
@@ -1807,7 +1810,6 @@
           "uid": "xproxy-tester-mysql"
         },
         "definition": "SELECT DISTINCT status FROM proxy_requests ORDER BY 1",
-        "allValue": "%",
         "includeAll": true,
         "multi": false,
         "name": "status",
@@ -1826,8 +1828,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Proxy Analytics — Deep Dive (BETA)",
+  "title": "Proxy Analytics \u2014 Deep Dive (BETA)",
   "uid": "proxy-analytics-deep-dive-beta",
-  "version": 1,
-  "description": "This dashboard combines key reliability and behavior signals for deeper operational analysis. It helps convert monitoring data into prioritized action."
+  "version": 3
 }

@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 13,
+  "id": 16,
   "links": [],
   "panels": [
     {
@@ -26,6 +26,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the current value of proxies in montreal for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -101,14 +102,14 @@
         }
       ],
       "title": "Proxies In Montreal",
-      "type": "stat",
-      "description": "This metric shows the current value of proxies in montreal for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -213,14 +214,14 @@
         }
       ],
       "title": "Active Montreal Proxies",
-      "type": "table",
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
+      "type": "table"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -295,8 +296,7 @@
         }
       ],
       "title": "In Active Montreal Proxies",
-      "type": "table",
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
+      "type": "table"
     }
   ],
   "preload": false,
@@ -313,5 +313,5 @@
   "timezone": "browser",
   "title": "Montreal Porxies Stats",
   "uid": "adxk5d5",
-  "version": 3
+  "version": 2
 }

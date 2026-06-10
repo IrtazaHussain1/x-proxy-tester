@@ -5,11 +5,12 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 11,
   "links": [],
   "liveNow": false,
   "panels": [
     {
+      "description": "This metric shows the current value of total active proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -48,10 +49,10 @@
         }
       ],
       "title": "Total Active Proxies",
-      "type": "stat",
-      "description": "This metric shows the current value of total active proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the current value of stable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -86,10 +87,10 @@
         }
       ],
       "title": "Stable Proxies",
-      "type": "stat",
-      "description": "This metric shows the current value of stable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the current value of unstable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -132,10 +133,10 @@
         }
       ],
       "title": "Unstable Proxies",
-      "type": "stat",
-      "description": "This metric shows the current value of unstable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -180,10 +181,10 @@
         }
       ],
       "title": "Success Rate %",
-      "type": "stat",
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -228,10 +229,10 @@
         }
       ],
       "title": "Failure Rate %",
-      "type": "stat",
-      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the current value of proxies with version for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -266,10 +267,10 @@
         }
       ],
       "title": "Proxies With Version",
-      "type": "stat",
-      "description": "This metric shows the current value of proxies with version for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the current value of proxies without version for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -304,10 +305,10 @@
         }
       ],
       "title": "Proxies Without Version",
-      "type": "stat",
-      "description": "This metric shows the current value of proxies without version for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -350,10 +351,10 @@
         }
       ],
       "title": "Stability % Over Time",
-      "type": "timeseries",
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
+      "type": "timeseries"
     },
     {
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -381,14 +382,14 @@
         }
       ],
       "title": "Request Volume",
-      "type": "timeseries",
-      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel shows stability status distribution for the selected scope and period. It supports faster, evidence-based operational decisions.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -446,10 +447,10 @@
         }
       ],
       "title": "Stability Status Distribution",
-      "type": "piechart",
-      "description": "This panel shows stability status distribution for the selected scope and period. It supports faster, evidence-based operational decisions."
+      "type": "piechart"
     },
     {
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -477,14 +478,14 @@
         }
       ],
       "title": "Average Response Time Trend",
-      "type": "timeseries",
-      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This table details proxies with version (table) across entities in the selected scope. It supports targeted diagnosis and action prioritization.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -526,14 +527,14 @@
         }
       ],
       "title": "Proxies With Version (Table)",
-      "type": "table",
-      "description": "This table details proxies with version (table) across entities in the selected scope. It supports targeted diagnosis and action prioritization."
+      "type": "table"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This table details proxies without version (table) across entities in the selected scope. It supports targeted diagnosis and action prioritization.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -575,14 +576,14 @@
         }
       ],
       "title": "Proxies Without Version (Table)",
-      "type": "table",
-      "description": "This table details proxies without version (table) across entities in the selected scope. It supports targeted diagnosis and action prioritization."
+      "type": "table"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -668,9 +669,8 @@
           "rawSql": "SELECT\n  p.name,\n  p.location,\n  COALESCE(p.version, '-')                                                                    AS version,\n  SUM(s.total_requests)                                                                        AS total_requests,\n  SUM(s.success_count)                                                                         AS success_count,\n  ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2)                  AS success_rate_pct,\n  SUM(s.failure_count)                                                                         AS failure_count,\n  ROUND(SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2)                  AS failure_rate_pct,\n  ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS avg_response_ms,\n  p.stability_status,\n  p.rotation_status\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\n  AND p.active = true\nGROUP BY p.device_id, p.name, p.location, p.version, p.stability_status, p.rotation_status\nORDER BY success_rate_pct ASC, total_requests DESC"
         }
       ],
-      "title": "All Proxies – Success Rate & Overview",
-      "type": "table",
-      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
+      "title": "All Proxies \u2013 Success Rate & Overview",
+      "type": "table"
     }
   ],
   "refresh": "1m",
@@ -718,6 +718,6 @@
   "timezone": "browser",
   "title": "XProxy Tester - Overview",
   "uid": "81492e9f-1202-44be-833c-91be31b377f1",
-  "version": 1,
+  "version": 3,
   "weekStart": ""
 }

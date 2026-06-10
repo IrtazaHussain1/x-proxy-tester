@@ -31,7 +31,7 @@
       },
       "id": 100,
       "panels": [],
-      "title": "Fleet Health — last 24 hours (hardcoded thresholds: err>20%, rotation>7d, gap>60min)",
+      "title": "Fleet Health \u2014 last 24 hours (hardcoded thresholds: err>20%, rotation>7d, gap>60min)",
       "type": "row"
     },
     {
@@ -95,7 +95,7 @@
           "refId": "A"
         }
       ],
-      "title": "Proxies — Error Rate > 20% (24h)",
+      "title": "Proxies \u2014 Error Rate > 20% (24h)",
       "type": "stat"
     },
     {
@@ -159,7 +159,7 @@
           "refId": "A"
         }
       ],
-      "title": "Proxies — No Rotation in 7d",
+      "title": "Proxies \u2014 No Rotation in 7d",
       "type": "stat"
     },
     {
@@ -223,7 +223,7 @@
           "refId": "A"
         }
       ],
-      "title": "Proxies — Duplicate IP (current)",
+      "title": "Proxies \u2014 Duplicate IP (current)",
       "type": "stat"
     },
     {
@@ -287,7 +287,7 @@
           "refId": "A"
         }
       ],
-      "title": "Proxies — Inactivity Gap > 60min (24h)",
+      "title": "Proxies \u2014 Inactivity Gap > 60min (24h)",
       "type": "stat"
     },
     {
@@ -568,7 +568,7 @@
           "refId": "A"
         }
       ],
-      "title": "Proxy Triage — All Active Proxies",
+      "title": "Proxy Triage \u2014 All Active Proxies",
       "type": "table"
     }
   ],
@@ -589,7 +589,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Proxy Triage — Action Needed",
+  "title": "Proxy Triage \u2014 Action Needed",
   "uid": "proxy-triage-v1",
-  "version": 9
+  "version": 10
 }

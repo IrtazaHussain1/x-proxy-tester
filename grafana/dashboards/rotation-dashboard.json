@@ -18,11 +18,12 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 12,
   "links": [],
   "liveNow": false,
   "panels": [
     {
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -78,14 +79,14 @@
         }
       ],
       "title": "Proxies with Rotation",
-      "type": "stat",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -141,10 +142,10 @@
         }
       ],
       "title": "Proxies with No Rotation",
-      "type": "stat",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "stat"
     },
     {
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -205,10 +206,10 @@
         }
       ],
       "title": "Total Rotations (24h)",
-      "type": "stat",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "stat"
     },
     {
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -299,14 +300,14 @@
         }
       ],
       "title": "Rotation Events Over Time",
-      "type": "timeseries",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -364,10 +365,10 @@
         }
       ],
       "title": "Rotation Status Distribution",
-      "type": "piechart",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "piechart"
     },
     {
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -421,8 +422,7 @@
         }
       ],
       "title": "Proxies with High Same IP Count (Potential Rotation Issues)",
-      "type": "table",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "table"
     }
   ],
   "refresh": "",
@@ -470,5 +470,5 @@
   "timezone": "browser",
   "title": "XProxy Tester - IP Rotation Analysis",
   "uid": "742b29f3-6420-4d6d-ac43-b5ce3be1eb45",
-  "version": 1
+  "version": 2
 }

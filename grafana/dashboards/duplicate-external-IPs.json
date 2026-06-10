@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 0,
+  "id": 15,
   "links": [],
   "panels": [
     {
@@ -27,6 +27,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -93,14 +94,14 @@
         }
       ],
       "title": "Duplicate IPs (shared by 2+ phones)",
-      "type": "stat",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the current value of affected phones (sharing an ip) for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -167,14 +168,14 @@
         }
       ],
       "title": "Affected Phones (sharing an IP)",
-      "type": "stat",
-      "description": "This metric shows the current value of affected phones (sharing an ip) for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the current value of max phones sharing one ip for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -241,14 +242,14 @@
         }
       ],
       "title": "Max Phones Sharing One IP",
-      "type": "stat",
-      "description": "This metric shows the current value of max phones sharing one ip for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -315,14 +316,14 @@
         }
       ],
       "title": "Cities with Duplicate IPs",
-      "type": "stat",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -410,14 +411,14 @@
         }
       ],
       "title": "Top Duplicate IPs by Phone Count",
-      "type": "barchart",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "type": "barchart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -505,14 +506,14 @@
         }
       ],
       "title": "Cities with Most IP-Sharing Phones",
-      "type": "barchart",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "barchart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -653,14 +654,14 @@
         }
       ],
       "title": "Geographic Distribution of Duplicate IP Phones",
-      "type": "geomap",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "geomap"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -877,9 +878,8 @@
           "refId": "A"
         }
       ],
-      "title": "Duplicate IPs — Summary (one row per shared IP)",
-      "type": "table",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "title": "Duplicate IPs \u2014 Summary (one row per shared IP)",
+      "type": "table"
     },
     {
       "collapsed": false,
@@ -899,6 +899,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -986,8 +987,7 @@
         }
       ],
       "title": "Duplicate IPs Per Server",
-      "type": "barchart",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "barchart"
     },
     {
       "datasource": {
@@ -1089,6 +1089,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1176,14 +1177,14 @@
         }
       ],
       "title": "Top Server Pairs Sharing IPs",
-      "type": "barchart",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "barchart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1271,14 +1272,14 @@
         }
       ],
       "title": "Duplicate IP Impact by State",
-      "type": "barchart",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "barchart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1583,15 +1584,15 @@
           }
         }
       ],
-      "title": "Cross-Server Duplicate IP — Per-Phone Detail",
-      "type": "table",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "title": "Cross-Server Duplicate IP \u2014 Per-Phone Detail",
+      "type": "table"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1798,8 +1799,7 @@
         }
       ],
       "title": "Duplicate Devices by City + IP (Names, IDs)",
-      "type": "table",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "type": "table"
     }
   ],
   "preload": false,
@@ -1851,5 +1851,5 @@
   "timezone": "browser",
   "title": "Duplicate External IPs",
   "uid": "duplicate-ips-dashboard",
-  "version": 56
+  "version": 15
 }

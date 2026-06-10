@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 14,
+  "id": 27,
   "links": [
     {
       "icon": "external link",
@@ -38,7 +38,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This metric shows the current value of total unique ips seen for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
+      "description": "Count of distinct outbound IP addresses observed in the selected time range and location filter. Higher values indicate broader IP rotation across all phones.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -102,7 +102,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
+      "description": "Percentage of requests with status SUCCESS out of total requests in the selected range. 100% means every request succeeded.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -163,7 +163,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)",
+          "rawSql": "SELECT ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location)",
           "refId": "A"
         }
       ],
@@ -175,7 +175,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
+      "description": "Total number of proxy test requests recorded in the selected time range and location filter.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -227,7 +227,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT SUM(s.total_requests) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)",
+          "rawSql": "SELECT COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location)",
           "refId": "A"
         }
       ],
@@ -239,7 +239,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
+      "description": "Minute-level success rate over time. Each point is SUCCESS requests divided by total requests for that minute, expressed as percent.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -325,7 +325,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  s.window_start AS time,\n  ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) AS uptime_pct\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\nGROUP BY s.window_start\nORDER BY s.window_start",
+          "rawSql": "SELECT\n  $__timeGroupAlias(r.timestamp, '5m'),\n  ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as uptime_pct\nFROM proxy_requests r\nJOIN proxies p ON r.proxy_id = p.device_id\nWHERE $__timeFilter(r.timestamp)\n  AND p.location IN ($location)\nGROUP BY 1\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -337,7 +337,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
+      "description": "Minute-level percent of slow requests where response_time_ms > 2000. Helps detect latency spikes that averages hide.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -427,7 +427,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  s.window_start AS time,\n  ROUND(SUM(s.slow_request_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) AS slow_request_pct\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\nGROUP BY s.window_start\nORDER BY s.window_start",
+          "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '5m'), ROUND(SUM(CASE WHEN r.response_time_ms > 2000 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as slow_request_pct FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) GROUP BY 1 ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -439,7 +439,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This panel breaks failures into major error categories and their relative volume. It helps you identify which failure class is driving most incidents so remediation can be prioritized correctly.",
+      "description": "Failure reason trend over time. Each series is one non-success status.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -521,7 +521,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT s.window_start AS time, 'TIMEOUT' AS metric, SUM(s.timeout_count) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start) AND p.location IN ($location)\nGROUP BY s.window_start\nUNION ALL\nSELECT s.window_start, 'CONNECTION_ERROR', SUM(s.connection_error_count)\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start) AND p.location IN ($location)\nGROUP BY s.window_start\nUNION ALL\nSELECT s.window_start, 'HTTP_ERROR', SUM(s.http_error_count)\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start) AND p.location IN ($location)\nGROUP BY s.window_start\nUNION ALL\nSELECT s.window_start, 'DNS_ERROR', SUM(s.dns_error_count)\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start) AND p.location IN ($location)\nGROUP BY s.window_start\nORDER BY 1",
+          "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '5m'), r.status as metric, COUNT(*) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND r.status != 'SUCCESS' GROUP BY 1, 2 ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -533,7 +533,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "description": "Active phones vs total phones by location and server. High saturation may indicate overloaded pools.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -672,7 +672,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
+      "description": "Top unstable phones using weighted score: uptime drop + latency pressure + low IP churn.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -804,9 +804,28 @@
             "type": "mysql",
             "uid": "xproxy-tester-mysql"
           },
+          "editorMode": "code",
           "format": "table",
-          "rawSql": "WITH filtered_proxies AS (\n  SELECT p.device_id, p.name FROM proxies p WHERE p.location IN ($location)\n),\nphone_stats AS (\n  SELECT\n    s.proxy_id,\n    CONCAT(fp.name, ' [', s.proxy_id, ']')                                            AS phone,\n    SUM(s.total_requests)                                                               AS total_requests,\n    ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2)         AS uptime_pct,\n    ROUND(\n      SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0),\n    0)                                                                                  AS avg_response_ms,\n    SUM(s.ip_change_count)                                                              AS ip_rotations,\n    GREATEST(1, TIMESTAMPDIFF(HOUR, MIN(s.window_start), MAX(s.window_start)) + 1)    AS active_hours_estimated\n  FROM proxy_requests_5min_summary s\n  JOIN filtered_proxies fp ON fp.device_id = s.proxy_id\n  WHERE $__timeFilter(s.window_start)\n  GROUP BY s.proxy_id, fp.name\n)\nSELECT\n  phone,\n  total_requests,\n  uptime_pct,\n  avg_response_ms,\n  ip_rotations,\n  ROUND(ip_rotations / NULLIF(active_hours_estimated, 0), 2)                          AS rotations_per_active_hour,\n  ROUND(\n    (100 - uptime_pct) * 0.6\n    + LEAST(avg_response_ms / 100.0, 40) * 0.3\n    + GREATEST(0, 5 - (ip_rotations / NULLIF(active_hours_estimated, 1))) * 2.0,\n  2)                                                                                    AS unstable_score\nFROM phone_stats\nWHERE total_requests >= 20\nORDER BY unstable_score DESC\nLIMIT 25",
-          "refId": "A"
+          "rawQuery": true,
+          "rawSql": "WITH phone_stats AS (SELECT p.device_id, CONCAT(p.name, ' [', p.device_id, ']') as phone, COUNT(*) as total_requests, ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as uptime_pct, ROUND(AVG(r.response_time_ms), 0) as avg_response_ms, SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) as ip_rotations, GREATEST(1, TIMESTAMPDIFF(HOUR, MIN(r.timestamp), MAX(r.timestamp)) + 1) as active_hours_estimated FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) GROUP BY p.device_id, p.name) SELECT phone, total_requests, uptime_pct, avg_response_ms, ip_rotations, ROUND(ip_rotations / NULLIF(active_hours_estimated, 0), 2) as rotations_per_active_hour, ROUND((100 - uptime_pct) * 0.6 + LEAST(avg_response_ms / 100.0, 40) * 0.3 + GREATEST(0, 5 - (ip_rotations / NULLIF(active_hours_estimated, 1))) * 2.0, 2) as unstable_score FROM phone_stats WHERE total_requests >= 20 ORDER BY unstable_score DESC LIMIT 25",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
         }
       ],
       "title": "Top Unstable Phones Leaderboard",
@@ -852,7 +871,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Proxy Analytics",
-  "uid": "proxy-analytics-v1",
-  "version": 18
+  "title": "Proxy Analytics Beta",
+  "uid": "proxy-analytics-BETA",
+  "version": 3,
+  "weekStart": ""
 }

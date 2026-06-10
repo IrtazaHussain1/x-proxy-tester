@@ -2,12 +2,12 @@
   "annotations": {
     "list": []
   },
+  "description": "This dashboard summarizes fleet health, reliability, and performance in one operational view. It helps stakeholders quickly understand current state and prioritize next actions.",
   "editable": true,
   "graphTooltip": 0,
-  "id": null,
+  "id": 22,
   "links": [],
   "liveNow": true,
-  "description": "This dashboard summarizes fleet health, reliability, and performance in one operational view. It helps stakeholders quickly understand current state and prioritize next actions.",
   "panels": [
     {
       "collapsed": false,
@@ -18,10 +18,11 @@
         "y": 0
       },
       "id": 100,
-      "title": "Summary — raw requests",
+      "title": "Summary \u2014 raw requests",
       "type": "row"
     },
     {
+      "description": "This metric shows total active proxies for the selected scope and period. Use it as a quick checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -45,8 +46,6 @@
         "y": 1
       },
       "id": 1,
-      "title": "Total Active Proxies",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -57,15 +56,16 @@
           "rawSql": "SELECT COUNT(*) as value FROM proxies p WHERE p.active = true\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
       ],
-      "description": "This metric shows total active proxies for the selected scope and period. Use it as a quick checkpoint before deeper drill-down."
+      "title": "Total Active Proxies",
+      "type": "stat"
     },
     {
+      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -74,7 +74,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -84,8 +85,6 @@
         "y": 1
       },
       "id": 2,
-      "title": "Total Requests (selected range)",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -96,16 +95,17 @@
           "rawSql": "SELECT SUM(s.total_requests) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
       ],
-      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes."
+      "title": "Total Requests (selected range)",
+      "type": "stat"
     },
     {
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "decimals": 2,
-          "unit": "percent",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -122,7 +122,8 @@
                 "value": 95
               }
             ]
-          }
+          },
+          "unit": "percent"
         }
       },
       "gridPos": {
@@ -132,8 +133,6 @@
         "y": 1
       },
       "id": 3,
-      "title": "Overall Success Rate % (selected range)",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -144,16 +143,17 @@
           "rawSql": "SELECT ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
       ],
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context."
+      "title": "Overall Success Rate % (selected range)",
+      "type": "stat"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "decimals": 0,
-          "unit": "ms",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -170,7 +170,8 @@
                 "value": 3000
               }
             ]
-          }
+          },
+          "unit": "ms"
         }
       },
       "gridPos": {
@@ -180,8 +181,6 @@
         "y": 1
       },
       "id": 4,
-      "title": "Avg Response Time (selected range)",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -192,15 +191,16 @@
           "rawSql": "SELECT ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND s.avg_response_time_ms IS NOT NULL\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "Avg Response Time (selected range)",
+      "type": "stat"
     },
     {
+      "description": "This metric tracks observed outbound IP-change activity across the selected period. It validates whether rotation behavior is producing real identity movement.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -217,7 +217,8 @@
                 "value": 500
               }
             ]
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -227,8 +228,6 @@
         "y": 1
       },
       "id": 8,
-      "title": "IP Changes (selected range)",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -239,7 +238,8 @@
           "rawSql": "SELECT COALESCE(SUM(s.ip_change_count), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE s.window_start >= $__timeFrom() AND s.window_start <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n            THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}')\n            ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
       ],
-      "description": "This metric tracks observed outbound IP-change activity across the selected period. It validates whether rotation behavior is producing real identity movement."
+      "title": "IP Changes (selected range)",
+      "type": "stat"
     },
     {
       "collapsed": false,
@@ -250,21 +250,22 @@
         "y": 5
       },
       "id": 101,
-      "title": "Trends — hourly from raw",
+      "title": "Trends \u2014 hourly from raw",
       "type": "row"
     },
     {
+      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short",
           "custom": {
             "drawStyle": "bars",
             "fillOpacity": 60,
             "lineWidth": 1
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -274,8 +275,6 @@
         "y": 6
       },
       "id": 5,
-      "title": "Request Volume (hourly)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -287,20 +286,22 @@
           "refId": "A"
         }
       ],
-      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes."
+      "title": "Request Volume (hourly)",
+      "type": "timeseries"
     },
     {
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "percent",
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 2
-          }
+          },
+          "unit": "percent"
         }
       },
       "gridPos": {
@@ -310,8 +311,6 @@
         "y": 6
       },
       "id": 6,
-      "title": "Success Rate % (hourly)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -323,20 +322,22 @@
           "refId": "A"
         }
       ],
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context."
+      "title": "Success Rate % (hourly)",
+      "type": "timeseries"
     },
     {
+      "description": "This metric reflects rotation execution and outcome quality for the selected scope. It helps detect stalled, weak, or failing rotation behavior early.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short",
           "custom": {
             "drawStyle": "bars",
             "fillOpacity": 55,
             "lineWidth": 1
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -346,8 +347,6 @@
         "y": 14
       },
       "id": 9,
-      "title": "IP Rotation Outcomes (hourly)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -359,20 +358,22 @@
           "refId": "A"
         }
       ],
-      "description": "This metric reflects rotation execution and outcome quality for the selected scope. It helps detect stalled, weak, or failing rotation behavior early."
+      "title": "IP Rotation Outcomes (hourly)",
+      "type": "timeseries"
     },
     {
+      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short",
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 15,
             "lineWidth": 2
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -382,8 +383,6 @@
         "y": 14
       },
       "id": 10,
-      "title": "Unique IPs Seen (hourly)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -395,7 +394,8 @@
           "refId": "A"
         }
       ],
-      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk."
+      "title": "Unique IPs Seen (hourly)",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -410,6 +410,7 @@
       "type": "row"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -545,8 +546,6 @@
         "y": 23
       },
       "id": 7,
-      "title": "Per-Proxy Raw Summary",
-      "type": "table",
       "options": {
         "cellHeight": "sm",
         "enablePagination": true,
@@ -562,7 +561,8 @@
           "rawSql": "SELECT\n  p.device_id as proxy_id,\n  COALESCE(p.name, p.device_id) as device_name,\n  CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END as server_name,\n  COUNT(*) as total_requests,\n  COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) as success_count,\n  COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) as failure_count,\n  ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as success_rate_pct,\n  ROUND(AVG(r.response_time_ms), 0) as avg_response_ms,\n  COUNT(CASE WHEN r.status = 'TIMEOUT' THEN 1 END) as timeout_count,\n  GREATEST(COUNT(DISTINCT r.outbound_ip) - 1, 0) as ip_change_count,\n  COUNT(DISTINCT r.outbound_ip) as unique_ips_count,\n  GROUP_CONCAT(DISTINCT r.outbound_ip ORDER BY r.outbound_ip SEPARATOR ', ') as ip_history\nFROM proxy_requests r\nJOIN proxies p ON r.proxy_id = p.device_id\nWHERE r.timestamp >= $__timeFrom() AND r.timestamp <= $__timeTo()\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)\nGROUP BY p.device_id, p.name\nORDER BY total_requests DESC"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "Per-Proxy Raw Summary",
+      "type": "table"
     }
   ],
   "refresh": "30s",
@@ -634,5 +634,5 @@
   "timezone": "browser",
   "title": "BETA - Overview (Realtime)",
   "uid": "beta-overview-realtime-v1",
-  "version": 1
+  "version": 3
 }
