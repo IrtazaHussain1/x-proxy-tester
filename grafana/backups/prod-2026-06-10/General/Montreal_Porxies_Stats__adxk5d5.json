@@ -1,0 +1,317 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 16,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the current value of proxies in montreal for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT 'Total Proxies' as metric, COUNT(*) as value FROM proxies WHERE  state = 'Quebec'\nUNION ALL\nSELECT 'Active Proxies' as metric, COUNT(*) as value FROM proxies WHERE active = true and  state = 'Quebec'\nUNION ALL\nSELECT 'Inactive Proxies' as metric, COUNT(*) as value FROM proxies WHERE active = false and  state = 'Quebec'",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Proxies In Montreal",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rotation_success_percentage"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 244
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "request_success_rate"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 258
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "total_rotation_attempts"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ProxyStats AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) AS avg_download,\n      MIN(download_speed_mbps) AS min_download,\n      MAX(download_speed_mbps) AS max_download,\n      AVG(upload_speed_mbps) AS avg_upload,\n      MIN(upload_speed_mbps) AS min_upload,\n      MAX(upload_speed_mbps) AS max_upload,\n      MAX(timestamp) AS last_test,\n      COUNT(*) AS test_count\n    FROM speed_tests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id\n),\nMedianDL AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) AS median_download\n    FROM (\n      SELECT\n        proxy_id,\n        download_speed_mbps,\n        ROW_NUMBER() OVER (\n          PARTITION BY proxy_id\n          ORDER BY download_speed_mbps\n        ) AS row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) AS total_count\n      FROM (\n        SELECT DISTINCT\n          proxy_id,\n          download_speed_mbps\n        FROM speed_tests\n        WHERE $__timeFilter(timestamp)\n          AND download_speed_mbps IS NOT NULL\n      ) d\n    ) t\n    WHERE row_num IN (\n      (total_count + 1) / 2,\n      (total_count + 2) / 2\n    )\n    GROUP BY proxy_id\n),\nMedianUL AS (\n    SELECT\n      proxy_id,\n      AVG(upload_speed_mbps) AS median_upload\n    FROM (\n      SELECT\n        proxy_id,\n        upload_speed_mbps,\n        ROW_NUMBER() OVER (\n          PARTITION BY proxy_id\n          ORDER BY upload_speed_mbps\n        ) AS row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) AS total_count\n      FROM (\n        SELECT DISTINCT\n          proxy_id,\n          upload_speed_mbps\n        FROM speed_tests\n        WHERE $__timeFilter(timestamp)\n          AND upload_speed_mbps IS NOT NULL\n      ) d\n    ) t\n    WHERE row_num IN (\n      (total_count + 1) / 2,\n      (total_count + 2) / 2\n    )\n    GROUP BY proxy_id\n),\nRequestStats AS (\n    SELECT\n      proxy_id,\n      COUNT(*) AS total_requests,\n      COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) AS success_count,\n      COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) AS error_count,\n      COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) AS request_success_rate\n    FROM proxy_requests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id\n),\nRotationStats AS (\n    SELECT\n      proxy_id,\n      COUNT(DISTINCT cycle_id) AS rotation_cycles_count,\n      COUNT(*) AS total_rotation_attempts,\n      SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) AS successful_rotations,\n      SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS failed_rotations,\n      SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0) AS rotation_success_percentage,\n      MAX(rotation_timestamp) AS last_rotation_attempt\n    FROM ip_rotations\n    WHERE $__timeFilter(rotation_timestamp)\n    GROUP BY proxy_id\n)\nSELECT\n  p.name,\n  p.device_id,\n  p.city,\n  p.ws_status,\n  p.proxy_status,\n  p.version,\n  ps.last_test,\n  ps.avg_download,\n  md.median_download,\n  ps.min_download,\n  ps.max_download,\n  ps.avg_upload,\n  mu.median_upload,\n  ps.min_upload,\n  ps.max_upload,\n  COALESCE(rs.total_requests, 0) AS total_requests,\n  -- COALESCE(rs.success_count, 0) AS success_count,\n  -- COALESCE(rs.error_count, 0) AS error_count,\n  COALESCE(rs.request_success_rate, 0) AS request_success_rate,\n  -- COALESCE(rot.rotation_cycles_count, 0) AS rotation_cycles_count,\n  COALESCE(rot.total_rotation_attempts, 0) AS total_rotation_attempts,\n  -- COALESCE(rot.successful_rotations, 0) AS successful_rotations,\n  -- COALESCE(rot.failed_rotations, 0) AS failed_rotations,\n  COALESCE(rot.rotation_success_percentage, 0) AS rotation_success_percentage,\n  rot.last_rotation_attempt\nFROM proxies p\nLEFT JOIN ProxyStats ps ON p.device_id = ps.proxy_id\nLEFT JOIN MedianDL md ON p.device_id = md.proxy_id\nLEFT JOIN MedianUL mu ON p.device_id = mu.proxy_id\nLEFT JOIN RequestStats rs ON p.device_id = rs.proxy_id\nLEFT JOIN RotationStats rot ON p.device_id = rot.proxy_id\nWHERE LOWER(p.city) = 'montreal'\n  AND p.active = TRUE\nORDER BY ps.avg_download DESC;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Active Montreal Proxies",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ProxyStats AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) AS avg_download,\n      MIN(download_speed_mbps) AS min_download,\n      MAX(download_speed_mbps) AS max_download,\n      AVG(upload_speed_mbps) AS avg_upload,\n      MIN(upload_speed_mbps) AS min_upload,\n      MAX(upload_speed_mbps) AS max_upload,\n      MAX(timestamp) AS last_test,\n      COUNT(*) AS test_count\n    FROM speed_tests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id\n),\nMedianDL AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) AS median_download\n    FROM (\n      SELECT\n        proxy_id,\n        download_speed_mbps,\n        ROW_NUMBER() OVER (\n          PARTITION BY proxy_id\n          ORDER BY download_speed_mbps\n        ) AS row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) AS total_count\n      FROM (\n        SELECT DISTINCT\n          proxy_id,\n          download_speed_mbps\n        FROM speed_tests\n        WHERE $__timeFilter(timestamp)\n          AND download_speed_mbps IS NOT NULL\n      ) d\n    ) t\n    WHERE row_num IN (\n      (total_count + 1) / 2,\n      (total_count + 2) / 2\n    )\n    GROUP BY proxy_id\n),\nMedianUL AS (\n    SELECT\n      proxy_id,\n      AVG(upload_speed_mbps) AS median_upload\n    FROM (\n      SELECT\n        proxy_id,\n        upload_speed_mbps,\n        ROW_NUMBER() OVER (\n          PARTITION BY proxy_id\n          ORDER BY upload_speed_mbps\n        ) AS row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) AS total_count\n      FROM (\n        SELECT DISTINCT\n          proxy_id,\n          upload_speed_mbps\n        FROM speed_tests\n        WHERE $__timeFilter(timestamp)\n          AND upload_speed_mbps IS NOT NULL\n      ) d\n    ) t\n    WHERE row_num IN (\n      (total_count + 1) / 2,\n      (total_count + 2) / 2\n    )\n    GROUP BY proxy_id\n),\nRequestStats AS (\n    SELECT\n      proxy_id,\n      COUNT(*) AS total_requests,\n      COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) AS success_count,\n      COUNT(CASE WHEN status != 'SUCCESS' THEN 1 END) AS error_count,\n      COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) AS request_success_rate\n    FROM proxy_requests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id\n),\nRotationStats AS (\n    SELECT\n      proxy_id,\n      COUNT(DISTINCT cycle_id) AS rotation_cycles_count,\n      COUNT(*) AS total_rotation_attempts,\n      SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) AS successful_rotations,\n      SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS failed_rotations,\n      SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0) AS rotation_success_percentage,\n      MAX(rotation_timestamp) AS last_rotation_attempt\n    FROM ip_rotations\n    WHERE $__timeFilter(rotation_timestamp)\n    GROUP BY proxy_id\n)\nSELECT\n  p.name,\n  p.device_id,\n  p.country,\n  p.city,\n  p.ws_status,\n  p.proxy_status,\n  p.version,\n  ps.last_test,\n  ps.avg_download,\n  md.median_download,\n  ps.min_download,\n  ps.max_download,\n  ps.avg_upload,\n  mu.median_upload,\n  ps.min_upload,\n  ps.max_upload,\n  COALESCE(rs.total_requests, 0) AS total_requests,\n  -- COALESCE(rs.success_count, 0) AS success_count,\n  -- COALESCE(rs.error_count, 0) AS error_count,\n  COALESCE(rs.request_success_rate, 0) AS request_success_rate,\n  -- COALESCE(rot.rotation_cycles_count, 0) AS rotation_cycles_count,\n  COALESCE(rot.total_rotation_attempts, 0) AS total_rotation_attempts,\n  -- COALESCE(rot.successful_rotations, 0) AS successful_rotations,\n  -- COALESCE(rot.failed_rotations, 0) AS failed_rotations,\n  COALESCE(rot.rotation_success_percentage, 0) AS rotation_success_percentage,\n  rot.last_rotation_attempt\nFROM proxies p\nLEFT JOIN ProxyStats ps ON p.device_id = ps.proxy_id\nLEFT JOIN MedianDL md ON p.device_id = md.proxy_id\nLEFT JOIN MedianUL mu ON p.device_id = mu.proxy_id\nLEFT JOIN RequestStats rs ON p.device_id = rs.proxy_id\nLEFT JOIN RotationStats rot ON p.device_id = rot.proxy_id\nWHERE LOWER(p.city) = 'montreal'\n  AND p.active = FALSE\nORDER BY ps.avg_download DESC;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "In Active Montreal Proxies",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 42,
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Montreal Porxies Stats",
+  "uid": "adxk5d5",
+  "version": 2
+}

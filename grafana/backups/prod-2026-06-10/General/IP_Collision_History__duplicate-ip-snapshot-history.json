@@ -1,0 +1,712 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Tracks IP collision history across the fleet over time. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and identifies any IPs shared by 2 or more phones. Each data point in this dashboard represents one such scan. Use this dashboard to spot trends, size worst-case exposure, and identify IPs that persistently stay shared across scans.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": 9,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "IP Collision Summary (selected time range)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Counts from the most recent scan in the selected time range. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and finds any IPs shared by 2 or more phones. Shows how many IPs are currently shared and how many phones are caught in those collisions.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS value\nFROM duplicate_ip_snapshot_rows x\nWHERE x.proxy_status_scope = '${proxy_scope}'\n  AND $__timeFilter(x.captured_at)\n  AND x.last_ip != '__snapshot_empty__'\n  AND x.captured_at = (\n    SELECT MAX(x2.captured_at)\n    FROM duplicate_ip_snapshot_rows x2\n    WHERE x2.proxy_status_scope = '${proxy_scope}'\n      AND $__timeFilter(x2.captured_at)\n  )",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest Scan — Shared IP Detail",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "How many IP scans completed during the selected period. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and identifies IPs shared by 2 or more phones. Expected: ~12 scans per hour. Gaps indicate the scan service was down or delayed during that window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT x.captured_at) AS value\nFROM duplicate_ip_snapshot_rows x\nWHERE x.proxy_status_scope = '${proxy_scope}'\n  AND $__timeFilter(x.captured_at)",
+          "refId": "A"
+        }
+      ],
+      "title": "IP Scans in Range",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "The highest number of shared IPs recorded in any single scan during the selected period. A scan = an automated check run every 5 minutes recording each phone's outbound IP. This is the worst-case collision count observed — use it to size risk exposure and set alert thresholds.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(MAX(t.cnt), 0) AS value\nFROM (\n  SELECT x.captured_at,\n    SUM(CASE WHEN x.last_ip != '__snapshot_empty__' THEN 1 ELSE 0 END) AS cnt\n  FROM duplicate_ip_snapshot_rows x\n  WHERE x.proxy_status_scope = '${proxy_scope}'\n    AND $__timeFilter(x.captured_at)\n  GROUP BY x.captured_at\n) t",
+          "refId": "A"
+        }
+      ],
+      "title": "Peak Shared IPs (single scan)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT x.last_ip) AS value\nFROM duplicate_ip_snapshot_rows x\nWHERE x.proxy_status_scope = '${proxy_scope}'\n  AND $__timeFilter(x.captured_at)\n  AND x.last_ip != '__snapshot_empty__'",
+          "refId": "A"
+        }
+      ],
+      "title": "Distinct duplicate IPs seen (range)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Each data point = one scan. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and counts IPs shared by 2 or more phones. Y-axis = number of shared IPs detected in that scan. A rising trend means more IPs are entering collision. A flat line at zero means full isolation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 25,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "min",
+            "max",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(x.captured_at) AS time_sec,\n  SUM(CASE WHEN x.last_ip != '__snapshot_empty__' THEN 1 ELSE 0 END) AS duplicate_ip_rows\nFROM duplicate_ip_snapshot_rows x\nWHERE x.proxy_status_scope = '${proxy_scope}'\n  AND $__timeFilter(x.captured_at)\nGROUP BY x.captured_at\nORDER BY x.captured_at",
+          "refId": "A"
+        }
+      ],
+      "title": "Shared IP Count Over Time (per scan)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Observations",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 6,
+      "options": {
+        "barRadius": 0.05,
+        "barWidth": 0.65,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  s.server_label AS metric,\n  COUNT(*) AS value\nFROM duplicate_ip_snapshot_servers s\nWHERE s.proxy_status_scope = '${proxy_scope}'\n  AND $__timeFilter(s.captured_at)\nGROUP BY s.server_label\nORDER BY value DESC",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Server labels — how often a server appears on duplicate-IP rows (historical)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "IPs ranked by how many scans they appeared as shared during the selected period. scan_appearances = number of 5-minute scans where this IP was found on 2 or more phones. High count = IP has been in collision for a long time and is not resolving. These are the IPs most likely to be causing sustained isolation failures.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "enablePagination": true,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "scan_appearances"
+          }
+        ]
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  x.last_ip,\n  COUNT(DISTINCT x.captured_at) AS snapshot_appearances,\n  MAX(x.phones_on_same_ip) AS max_phones_sharing,\n  MIN(x.captured_at) AS first_seen,\n  MAX(x.captured_at) AS last_seen\nFROM duplicate_ip_snapshot_rows x\nWHERE x.proxy_status_scope = '${proxy_scope}'\n  AND $__timeFilter(x.captured_at)\n  AND x.last_ip != '__snapshot_empty__'\nGROUP BY x.last_ip\nORDER BY snapshot_appearances DESC, max_phones_sharing DESC\nLIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "title": "Most Persistent Shared IPs (by scan count)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Row-level detail from the most recent scan within the selected time range. A scan = an automated check run every 5 minutes recording each phone's current outbound IP. Each row = one IP that was shared by 2 or more phones at the time of that scan. Shows which phones are on each IP, which servers they belong to, and how many phones are in the collision.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "enablePagination": true,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "phones_on_same_ip"
+          }
+        ]
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  row_tbl.last_ip,\n  row_tbl.location,\n  row_tbl.all_servers_on_ip,\n  row_tbl.phones_on_same_ip,\n  row_tbl.sibling_phones,\n  row_tbl.device_ids,\n  row_tbl.captured_at\nFROM duplicate_ip_snapshot_rows row_tbl\nWHERE row_tbl.proxy_status_scope = '${proxy_scope}'\n  AND $__timeFilter(row_tbl.captured_at)\n  AND row_tbl.last_ip != '__snapshot_empty__'\n  AND row_tbl.captured_at = (\n    SELECT MAX(x2.captured_at)\n    FROM duplicate_ip_snapshot_rows x2\n    WHERE x2.proxy_status_scope = '${proxy_scope}'\n      AND $__timeFilter(x2.captured_at)\n  )\nORDER BY row_tbl.phones_on_same_ip DESC, row_tbl.last_ip\nLIMIT 300",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest Scan in Range — Per-IP Detail",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "5m",
+  "schemaVersion": 42,
+  "tags": [
+    "proxies",
+    "duplicates",
+    "history",
+    "snapshots"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "active",
+          "value": "active"
+        },
+        "includeAll": false,
+        "label": "Proxy scope",
+        "name": "proxy_scope",
+        "options": [
+          {
+            "selected": true,
+            "text": "active",
+            "value": "active"
+          },
+          {
+            "selected": false,
+            "text": "all",
+            "value": "all"
+          }
+        ],
+        "query": "active : active, all : all",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "IP Collision History",
+  "uid": "duplicate-ip-snapshot-history",
+  "version": 2
+}

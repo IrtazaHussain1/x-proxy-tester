@@ -1,0 +1,414 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 19,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "description": "This metric shows the current value of stable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'Stable' AND location IN ($location)",
+          "refId": "A"
+        }
+      ],
+      "title": "Stable Proxies",
+      "type": "stat"
+    },
+    {
+      "description": "This metric shows the current value of unstable hourly for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableHourly' AND location IN ($location)",
+          "refId": "A"
+        }
+      ],
+      "title": "Unstable Hourly",
+      "type": "stat"
+    },
+    {
+      "description": "This metric shows the current value of unstable daily for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND stability_status = 'UnstableDaily' AND location IN ($location)",
+          "refId": "A"
+        }
+      ],
+      "title": "Unstable Daily",
+      "type": "stat"
+    },
+    {
+      "description": "Per-hour count of active proxies classified as Stable vs UnstableHourly. Derived from 5-minute aggregates using the original stability threshold (>120 failures/hour ≈ >10min downtime at 5s test interval). The underlying 5-minute aggregates retain roughly 2 days, so longer time ranges show empty buckets for older periods.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(hour_bucket) AS time_sec,\n  SUM(CASE WHEN failures_in_hour > 120 THEN 1 ELSE 0 END) AS unstable_hourly,\n  SUM(CASE WHEN failures_in_hour <= 120 AND total_in_hour > 0 THEN 1 ELSE 0 END) AS stable\nFROM (\n  SELECT\n    DATE_FORMAT(s.window_start, '%Y-%m-%d %H:00:00') AS hour_bucket,\n    s.proxy_id,\n    SUM(s.failure_count)  AS failures_in_hour,\n    SUM(s.total_requests) AS total_in_hour\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON p.device_id = s.proxy_id\n  WHERE s.window_start >= FROM_UNIXTIME($__unixEpochFrom())\n    AND s.window_start <= FROM_UNIXTIME($__unixEpochTo())\n    AND p.active = true\n    AND p.location IN ($location)\n  GROUP BY DATE_FORMAT(s.window_start, '%Y-%m-%d %H:00:00'), s.proxy_id\n) hourly\nGROUP BY hour_bucket\nORDER BY hour_bucket",
+          "refId": "A"
+        }
+      ],
+      "title": "Stability Trend Over Time",
+      "type": "timeseries"
+    },
+    {
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  name,\n  location,\n  version,\n  stability_status,\n  last_ip,\n  same_ip_count,\n  rotation_count,\n  updated_at\nFROM proxies\nWHERE active = true AND stability_status IN ('UnstableHourly', 'UnstableDaily') AND location IN ($location)\nORDER BY updated_at DESC\nLIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Unstable Proxies",
+      "type": "table"
+    },
+    {
+      "description": "This panel shows stability status by location for the selected scope and period. It supports faster, evidence-based operational decisions.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 6,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  location,\n  stability_status,\n  COUNT(*) as count\nFROM proxies\nWHERE active = true AND location IN ($location)\nGROUP BY location, stability_status\nORDER BY location, stability_status",
+          "refId": "A"
+        }
+      ],
+      "title": "Stability Status by Location",
+      "type": "bargauge"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 42,
+  "tags": [
+    "x-proxy-tester",
+    "stability"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XProxy Tester - Stability Analysis",
+  "uid": "6f1557bf-b3a6-4300-be5e-0f7364fc5f01",
+  "version": 2
+}

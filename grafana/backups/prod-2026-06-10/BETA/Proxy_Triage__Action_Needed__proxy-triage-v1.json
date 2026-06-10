@@ -1,0 +1,595 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 29,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Fleet Health — last 24 hours (hardcoded thresholds: err>20%, rotation>7d, gap>60min)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel provides proxy-level detail for performance and reliability diagnosis. It helps isolate exactly which proxies require immediate action.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT proxy_id) as value\nFROM (\n  SELECT proxy_id,\n    SUM(failed) * 100.0 / NULLIF(SUM(total), 0) as err_rate\n  FROM (\n    SELECT proxy_id,\n      COUNT(*) as total,\n      SUM(CASE WHEN status != 'SUCCESS' THEN 1 ELSE 0 END) as failed\n    FROM proxy_requests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id, FLOOR(UNIX_TIMESTAMP(timestamp) / 300)\n  ) b\n  GROUP BY proxy_id\n  HAVING err_rate > 20\n) t",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxies — Error Rate > 20% (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric reflects rotation execution and outcome quality for the selected scope. It helps detect stalled, weak, or failing rotation behavior early.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as value\nFROM proxies\nWHERE active = true\n  AND (last_rotation_at IS NULL OR last_rotation_at < DATE_SUB(NOW(), INTERVAL 7 DAY))",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxies — No Rotation in 7d",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as value\nFROM proxies p\nINNER JOIN (\n  SELECT last_ip FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  GROUP BY last_ip HAVING COUNT(*) > 1\n) dups ON p.last_ip = dups.last_ip\nWHERE p.active = true",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxies — Duplicate IP (current)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel provides proxy-level detail for performance and reliability diagnosis. It helps isolate exactly which proxies require immediate action.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT proxy_id) as value\nFROM (\n  SELECT proxy_id,\n    TIMESTAMPDIFF(MINUTE,\n      LAG(bucket_ts) OVER (PARTITION BY proxy_id ORDER BY bucket_ts),\n      bucket_ts\n    ) as gap_min\n  FROM (\n    SELECT proxy_id,\n      FLOOR(UNIX_TIMESTAMP(timestamp) / 300) as bucket,\n      MIN(timestamp) as bucket_ts\n    FROM proxy_requests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id, FLOOR(UNIX_TIMESTAMP(timestamp) / 300)\n  ) buckets\n) gaps\nWHERE gap_min > 60",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxies — Inactivity Gap > 60min (24h)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Per-Proxy Triage Table",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel provides proxy-level detail for performance and reliability diagnosis. It helps isolate exactly which proxies require immediate action.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error_rate_24h_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 10
+                    },
+                    {
+                      "color": "red",
+                      "value": 30
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_ip"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "YES": {
+                        "color": "red",
+                        "index": 0
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "days_since_rotation"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 3
+                    },
+                    {
+                      "color": "red",
+                      "value": 7
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_gap_min_24h"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 30
+                    },
+                    {
+                      "color": "red",
+                      "value": 60
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "requests_24h"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device_name"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "server"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "stability_status"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rotation_status"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_ip"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_seen"
+            },
+            "properties": []
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "enablePagination": false,
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH bucketed AS (\n  SELECT\n    proxy_id,\n    FLOOR(UNIX_TIMESTAMP(timestamp) / 300) AS bucket,\n    MIN(timestamp) AS bucket_ts,\n    COUNT(*) AS bucket_total,\n    SUM(CASE WHEN status != 'SUCCESS' THEN 1 ELSE 0 END) AS bucket_failed\n  FROM proxy_requests\n  WHERE $__timeFilter(timestamp)\n  GROUP BY proxy_id, FLOOR(UNIX_TIMESTAMP(timestamp) / 300)\n),\nrecent AS (\n  SELECT\n    proxy_id,\n    SUM(bucket_total) AS total_req,\n    SUM(bucket_failed) AS failed_req,\n    MAX(bucket_ts) AS last_seen\n  FROM bucketed\n  GROUP BY proxy_id\n),\ngaps AS (\n  SELECT proxy_id, MAX(gap_min) AS max_gap_min\n  FROM (\n    SELECT proxy_id,\n      TIMESTAMPDIFF(MINUTE,\n        LAG(bucket_ts) OVER (PARTITION BY proxy_id ORDER BY bucket_ts),\n        bucket_ts\n      ) AS gap_min\n    FROM bucketed\n  ) g\n  WHERE gap_min IS NOT NULL\n  GROUP BY proxy_id\n),\ndup_ips AS (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n)\nSELECT\n  COALESCE(p.name, p.device_id) as device_name,\n  CASE\n    WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)$'\n      THEN CONCAT('S', REGEXP_SUBSTR(UPPER(TRIM(p.name)), '[0-9]+'))\n    ELSE 'Unknown'\n  END as server,\n  p.stability_status,\n  p.rotation_status,\n  p.last_ip,\n  CASE WHEN p.last_ip IN (SELECT last_ip FROM dup_ips) THEN 'YES' ELSE '' END as duplicate_ip,\n  COALESCE(ROUND(r.failed_req * 100.0 / NULLIF(r.total_req, 0), 1), 0) as error_rate_24h_pct,\n  COALESCE(r.total_req, 0) as requests_24h,\n  COALESCE(DATEDIFF(NOW(), p.last_rotation_at), 999) as days_since_rotation,\n  COALESCE(g.max_gap_min, 0) as max_gap_min_24h,\n  r.last_seen\nFROM proxies p\nLEFT JOIN recent r ON p.device_id = r.proxy_id\nLEFT JOIN gaps g ON p.device_id = g.proxy_id\nWHERE p.active = true\nORDER BY error_rate_24h_pct DESC, days_since_rotation DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxy Triage — All Active Proxies",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "5m",
+  "schemaVersion": 42,
+  "tags": [
+    "triage",
+    "proxies",
+    "decisions"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Proxy Triage — Action Needed",
+  "uid": "proxy-triage-v1",
+  "version": 10
+}

@@ -1,0 +1,928 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Rotation cycle reporting: last cycle outcomes, cycles over the selected time range, phones that always fail rotation in that window, and phones with low success rate but occasional successes. Counts and percentages are scoped to active proxies in the selected location(s); the latest cycle is the most recent rotation cycle that includes at least one scoped proxy.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": 47,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "code": {
+          "language": "markdown",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "## Last rotation cycle (location-scoped)\nThe four stats and the detail row use the **most recent** `rotation_cycles` row that has at least one `ip_rotations` row for an **active** proxy in the selected **location(s)**. Percentages are `successes / attempts` within that scope (not the raw `rotation_cycles.successful_count` totals, which cover all proxies in the cycle).",
+        "mode": "markdown"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Successful rotation attempts in the latest scoped cycle.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 2
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) AS value\nFROM ip_rotations ir\nJOIN rotation_cycles rc ON rc.id = ir.cycle_id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE rc.id = (\n  SELECT rc2.id\n  FROM rotation_cycles rc2\n  JOIN ip_rotations ir2 ON ir2.cycle_id = rc2.id\n  JOIN proxies p2 ON p2.device_id = ir2.proxy_id AND p2.active = TRUE AND p2.location IN ($location)\n  ORDER BY rc2.cycle_timestamp DESC\n  LIMIT 1\n)",
+          "refId": "A"
+        }
+      ],
+      "title": "Last cycle – successes (scoped)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Failed rotation attempts in the latest scoped cycle.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 2
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(CASE WHEN NOT ir.success THEN 1 ELSE 0 END) AS value\nFROM ip_rotations ir\nJOIN rotation_cycles rc ON rc.id = ir.cycle_id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE rc.id = (\n  SELECT rc2.id\n  FROM rotation_cycles rc2\n  JOIN ip_rotations ir2 ON ir2.cycle_id = rc2.id\n  JOIN proxies p2 ON p2.device_id = ir2.proxy_id AND p2.active = TRUE AND p2.location IN ($location)\n  ORDER BY rc2.cycle_timestamp DESC\n  LIMIT 1\n)",
+          "refId": "A"
+        }
+      ],
+      "title": "Last cycle – failures (scoped)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Success percentage for scoped attempts in the latest cycle.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 2
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100 * SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS value\nFROM ip_rotations ir\nJOIN rotation_cycles rc ON rc.id = ir.cycle_id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE rc.id = (\n  SELECT rc2.id\n  FROM rotation_cycles rc2\n  JOIN ip_rotations ir2 ON ir2.cycle_id = rc2.id\n  JOIN proxies p2 ON p2.device_id = ir2.proxy_id AND p2.active = TRUE AND p2.location IN ($location)\n  ORDER BY rc2.cycle_timestamp DESC\n  LIMIT 1\n)",
+          "refId": "A"
+        }
+      ],
+      "title": "Last cycle – success % (scoped)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Total rotation attempts in the latest scoped cycle.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 2
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS value\nFROM ip_rotations ir\nJOIN rotation_cycles rc ON rc.id = ir.cycle_id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE rc.id = (\n  SELECT rc2.id\n  FROM rotation_cycles rc2\n  JOIN ip_rotations ir2 ON ir2.cycle_id = rc2.id\n  JOIN proxies p2 ON p2.device_id = ir2.proxy_id AND p2.active = TRUE AND p2.location IN ($location)\n  ORDER BY rc2.cycle_timestamp DESC\n  LIMIT 1\n)",
+          "refId": "A"
+        }
+      ],
+      "title": "Last cycle – attempts (scoped)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Scoped metrics vs global counters stored on the cycle row (all proxies in that cycle).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  rc.id AS cycle_id,\n  rc.cycle_type,\n  rc.cycle_timestamp,\n  rc.status AS cycle_status,\n  COUNT(ir.id) AS attempts_scoped,\n  SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) AS successes_scoped,\n  SUM(CASE WHEN NOT ir.success THEN 1 ELSE 0 END) AS failures_scoped,\n  ROUND(100 * SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) / NULLIF(COUNT(ir.id), 0), 2) AS success_pct_scoped,\n  rc.total_proxies AS cycle_total_proxies_global,\n  rc.successful_count AS cycle_successful_global,\n  rc.failed_count AS cycle_failed_global\nFROM rotation_cycles rc\nJOIN ip_rotations ir ON ir.cycle_id = rc.id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE rc.id = (\n  SELECT rc2.id\n  FROM rotation_cycles rc2\n  JOIN ip_rotations ir2 ON ir2.cycle_id = rc2.id\n  JOIN proxies p2 ON p2.device_id = ir2.proxy_id AND p2.active = TRUE AND p2.location IN ($location)\n  ORDER BY rc2.cycle_timestamp DESC\n  LIMIT 1\n)\nGROUP BY rc.id, rc.cycle_type, rc.cycle_timestamp, rc.status, rc.total_proxies, rc.successful_count, rc.failed_count",
+          "refId": "A"
+        }
+      ],
+      "title": "Last rotation cycle – full detail",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 7,
+      "options": {
+        "code": {
+          "language": "markdown",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "## Cycles in the selected time range\nUses the dashboard time picker on `rotation_cycles.cycle_timestamp`. Each point is one cycle; values are recomputed from `ip_rotations` for proxies in the selected location(s).",
+        "mode": "markdown"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Per-cycle scoped success count, failure count, and success rate.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_pct"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(rc.cycle_timestamp) AS time_sec,\n  SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) AS successes,\n  SUM(CASE WHEN NOT ir.success THEN 1 ELSE 0 END) AS failures,\n  ROUND(100 * SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) / NULLIF(COUNT(ir.id), 0), 2) AS success_pct\nFROM rotation_cycles rc\nJOIN ip_rotations ir ON ir.cycle_id = rc.id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE $__timeFilter(rc.cycle_timestamp)\nGROUP BY rc.id, rc.cycle_timestamp\nORDER BY time_sec",
+          "refId": "A"
+        }
+      ],
+      "title": "Rotation cycles over time (scoped successes, failures, success %)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "One row per cycle in the time range with location-scoped attempt stats.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  rc.id AS cycle_id,\n  rc.cycle_type,\n  rc.cycle_timestamp,\n  rc.status AS cycle_status,\n  COUNT(ir.id) AS attempts_scoped,\n  SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) AS successes_scoped,\n  SUM(CASE WHEN NOT ir.success THEN 1 ELSE 0 END) AS failures_scoped,\n  ROUND(100 * SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) / NULLIF(COUNT(ir.id), 0), 2) AS success_pct_scoped,\n  rc.total_proxies AS cycle_total_global,\n  rc.successful_count AS successes_global,\n  rc.failed_count AS failures_global\nFROM rotation_cycles rc\nJOIN ip_rotations ir ON ir.cycle_id = rc.id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE $__timeFilter(rc.cycle_timestamp)\nGROUP BY rc.id, rc.cycle_type, rc.cycle_timestamp, rc.status, rc.total_proxies, rc.successful_count, rc.failed_count\nORDER BY rc.cycle_timestamp DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "All rotation cycles in range (scoped vs global counts)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "id": 10,
+      "options": {
+        "code": {
+          "language": "markdown",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "## Phones that never succeeded in the window\nProxies with at least one rotation attempt in the time range (on `rotation_cycles.cycle_timestamp`) and **zero** successes. Includes sample errors (truncated).",
+        "mode": "markdown"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Distinct proxies with only failures in the selected window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 38
+      },
+      "id": 11,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS value\nFROM (\n  SELECT ir.proxy_id\n  FROM ip_rotations ir\n  JOIN rotation_cycles rc ON rc.id = ir.cycle_id\n  JOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\n  WHERE $__timeFilter(rc.cycle_timestamp)\n  GROUP BY ir.proxy_id\n  HAVING SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) = 0 AND COUNT(*) >= 1\n) t",
+          "refId": "A"
+        }
+      ],
+      "title": "Phones – always failed (count)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Device IDs and metadata for proxies that failed every rotation in the window.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 18,
+        "x": 6,
+        "y": 38
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  ir.proxy_id AS device_id,\n  p.name AS device_name,\n  p.location,\n  p.model,\n  p.relay_server_ip_address,\n  p.rotation_status,\n  p.last_ip,\n  COUNT(*) AS rotation_attempts,\n  SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) AS successes,\n  MAX(ir.rotation_timestamp) AS last_attempt_at,\n  SUBSTRING(\n    GROUP_CONCAT(DISTINCT NULLIF(ir.error_message, '') ORDER BY ir.rotation_timestamp DESC SEPARATOR ' | '),\n    1,\n    800\n  ) AS sample_errors\nFROM ip_rotations ir\nJOIN rotation_cycles rc ON rc.id = ir.cycle_id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE $__timeFilter(rc.cycle_timestamp)\nGROUP BY ir.proxy_id, p.name, p.location, p.model, p.relay_server_ip_address, p.rotation_status, p.last_ip\nHAVING successes = 0 AND rotation_attempts >= 1\nORDER BY rotation_attempts DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Phones – always failed (details)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "id": 13,
+      "options": {
+        "code": {
+          "language": "markdown",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "## Low success rate but some successes\nProxies with **≥ 2** attempts, **≥ 1** success, and scoped success **under 50%** (majority failing). Adjust the threshold in the query if you want a different definition.",
+        "mode": "markdown"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Devices that rotated sometimes but failed most attempts in the window.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_pct"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 25
+                    },
+                    {
+                      "color": "green",
+                      "value": 50
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "id": 14,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  ir.proxy_id AS device_id,\n  p.name AS device_name,\n  p.location,\n  p.model,\n  p.rotation_status,\n  p.last_ip,\n  COUNT(*) AS rotation_attempts,\n  SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) AS successes,\n  SUM(CASE WHEN NOT ir.success THEN 1 ELSE 0 END) AS failures,\n  ROUND(100 * SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS success_pct,\n  MAX(ir.rotation_timestamp) AS last_attempt_at\nFROM ip_rotations ir\nJOIN rotation_cycles rc ON rc.id = ir.cycle_id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE $__timeFilter(rc.cycle_timestamp)\nGROUP BY ir.proxy_id, p.name, p.location, p.model, p.rotation_status, p.last_ip\nHAVING rotation_attempts >= 2\n  AND successes >= 1\n  AND success_pct < 50\nORDER BY success_pct ASC, rotation_attempts DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Phones – majority failing (under 50% success, at least one success)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "id": 15,
+      "options": {
+        "code": {
+          "language": "markdown",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "## All phones with rotation activity in the window\nPer-device rotation counts and success **%** for every proxy that had at least one attempt. Sort by **success_pct** in Grafana to find weak devices.",
+        "mode": "markdown"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Rotation attempt count and success percentage per device in the selected range.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 62
+      },
+      "id": 16,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  ir.proxy_id AS device_id,\n  p.name AS device_name,\n  p.location,\n  p.model,\n  p.rotation_status,\n  p.last_ip,\n  COUNT(*) AS rotation_attempts,\n  SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) AS successes,\n  SUM(CASE WHEN NOT ir.success THEN 1 ELSE 0 END) AS failures,\n  ROUND(100 * SUM(CASE WHEN ir.success THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS success_pct,\n  MIN(ir.rotation_timestamp) AS first_attempt_at,\n  MAX(ir.rotation_timestamp) AS last_attempt_at\nFROM ip_rotations ir\nJOIN rotation_cycles rc ON rc.id = ir.cycle_id\nJOIN proxies p ON p.device_id = ir.proxy_id AND p.active = TRUE AND p.location IN ($location)\nWHERE $__timeFilter(rc.cycle_timestamp)\nGROUP BY ir.proxy_id, p.name, p.location, p.model, p.rotation_status, p.last_ip\nHAVING rotation_attempts >= 1\nORDER BY success_pct ASC, rotation_attempts DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-phone rotation summary (entire window)",
+      "type": "table"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "tags": [
+    "x-proxy-tester",
+    "rotation",
+    "reporting"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location FROM xproxy_tester.proxies WHERE location IS NOT NULL",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM xproxy_tester.proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XProxy Tester – Rotation cycle reporting",
+  "uid": "rotation-cycle-reporting-testing",
+  "version": 1,
+  "weekStart": ""
+}

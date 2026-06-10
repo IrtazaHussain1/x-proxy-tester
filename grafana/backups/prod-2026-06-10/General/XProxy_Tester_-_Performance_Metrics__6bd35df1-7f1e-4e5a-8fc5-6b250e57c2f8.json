@@ -1,0 +1,312 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 5,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "description": "This metric shows the typical response-time level experienced by requests in the selected period. It is best used to track baseline performance and detect broad slowdown trends.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 3000
+              }
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND s.avg_response_time_ms IS NOT NULL\n  AND p.location IN ($location)"
+        }
+      ],
+      "title": "Avg Response Time (P50)",
+      "type": "stat"
+    },
+    {
+      "description": "This metric shows tail-latency performance for slower requests rather than the average case. Rising values indicate growing risk of user-visible slowness and degraded service quality.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 2000
+              },
+              {
+                "color": "red",
+                "value": 5000
+              }
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  response_time_ms as value\nFROM (\n  SELECT\n    r.response_time_ms,\n    ROW_NUMBER() OVER (ORDER BY r.response_time_ms) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE $__timeFilter(r.timestamp)\n    AND r.response_time_ms IS NOT NULL\n    AND p.location IN ($location)\n) ranked\nWHERE row_num = FLOOR(total_count * 0.95) + 1\nLIMIT 1"
+        }
+      ],
+      "title": "P95 Response Time",
+      "type": "stat"
+    },
+    {
+      "description": "This metric shows tail-latency performance for slower requests rather than the average case. Rising values indicate growing risk of user-visible slowness and degraded service quality.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3000
+              },
+              {
+                "color": "red",
+                "value": 10000
+              }
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  response_time_ms as value\nFROM (\n  SELECT\n    r.response_time_ms,\n    ROW_NUMBER() OVER (ORDER BY r.response_time_ms) as row_num,\n    COUNT(*) OVER () as total_count\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE $__timeFilter(r.timestamp)\n    AND r.response_time_ms IS NOT NULL\n    AND p.location IN ($location)\n) ranked\nWHERE row_num = FLOOR(total_count * 0.99) + 1\nLIMIT 1"
+        }
+      ],
+      "title": "P99 Response Time",
+      "type": "stat"
+    },
+    {
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(s.total_requests) / NULLIF(COUNT(DISTINCT s.window_start) * 5.0, 0), 1) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)"
+        }
+      ],
+      "title": "Requests per Minute",
+      "type": "stat"
+    },
+    {
+      "description": "This metric shows the typical response-time level experienced by requests in the selected period. It is best used to track baseline performance and detect broad slowdown trends.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(s.window_start) AS time_sec,\n  ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS p50,\n  MAX(s.max_response_time_ms)                                                                   AS p99\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND s.avg_response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY s.window_start\nORDER BY s.window_start",
+          "refId": "A"
+        }
+      ],
+      "title": "Response Time Distribution (P50, P95, P99)",
+      "type": "timeseries"
+    },
+    {
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 6,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  CASE\n    WHEN r.response_time_ms < 500 THEN '< 500ms'\n    WHEN r.response_time_ms < 1000 THEN '500-1000ms'\n    WHEN r.response_time_ms < 2000 THEN '1000-2000ms'\n    WHEN r.response_time_ms < 5000 THEN '2000-5000ms'\n    ELSE '> 5000ms'\n  END as bucket,\n  COUNT(*) as count\nFROM proxy_requests r\nJOIN proxies p ON r.proxy_id = p.device_id\nWHERE $__timeFilter(r.timestamp)\n  AND r.response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY bucket\nORDER BY bucket",
+          "refId": "A"
+        }
+      ],
+      "title": "Response Time Histogram",
+      "type": "histogram"
+    },
+    {
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 7,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  p.name,\n  p.location,\n  p.version,\n  ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS avg_response_time,\n  SUM(s.total_requests)                                                                         AS request_count,\n  ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2)                   AS success_rate\nFROM proxies p\nJOIN proxy_requests_5min_summary s ON p.device_id = s.proxy_id\nWHERE $__timeFilter(s.window_start)\n  AND s.avg_response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY p.device_id, p.name, p.location, p.version\nORDER BY avg_response_time DESC\nLIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Top 20 Proxies by Average Response Time",
+      "type": "table"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 38,
+  "tags": [
+    "x-proxy-tester",
+    "performance"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XProxy Tester - Performance Metrics",
+  "uid": "6bd35df1-7f1e-4e5a-8fc5-6b250e57c2f8",
+  "version": 3,
+  "weekStart": ""
+}

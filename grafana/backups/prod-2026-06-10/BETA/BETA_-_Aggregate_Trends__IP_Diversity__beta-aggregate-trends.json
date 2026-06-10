@@ -1,0 +1,1441 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 34,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Trend Charts",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily count of active phones versus phones that delivered at least one successful request. A widening gap means phones are online but not reliably producing successful outcomes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT UNIX_TIMESTAMP(s.day) AS time_sec, COUNT(DISTINCT CASE WHEN s.total_requests > 0 THEN s.proxy_id END) AS active_proxies, COUNT(DISTINCT CASE WHEN s.success_count > 0 THEN s.proxy_id END) AS working_proxies, ROUND(COUNT(DISTINCT CASE WHEN s.success_count > 0 THEN s.proxy_id END) * 100.0 / NULLIF(COUNT(DISTINCT CASE WHEN s.total_requests > 0 THEN s.proxy_id END), 0), 2) AS working_ratio_pct FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone) GROUP BY s.day ORDER BY s.day",
+          "refId": "A"
+        }
+      ],
+      "title": "Active vs Working Proxies Trend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily breakdown of rotation attempts, successful rotations, failed rotations, and confirmed IP changes. Use it to separate command success from actual identity change so rotation quality is measured correctly.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "periodic_rotation_success_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT UNIX_TIMESTAMP(s.day) AS time_sec, SUM(s.ip_rotation_periodic_success_count + s.ip_rotation_inactive_proxy_success_count + s.ip_rotation_continuous_success_count + s.ip_rotation_periodic_failure_count + s.ip_rotation_inactive_proxy_failure_count + s.ip_rotation_continuous_failure_count) AS rotation_attempts_per_day, SUM(s.ip_rotation_periodic_success_count + s.ip_rotation_inactive_proxy_success_count + s.ip_rotation_continuous_success_count) AS rotation_success_count, SUM(s.ip_rotation_periodic_failure_count + s.ip_rotation_inactive_proxy_failure_count + s.ip_rotation_continuous_failure_count) AS rotation_failure_count, SUM(s.ip_change_count) AS ip_changes_per_day, ROUND(SUM(s.ip_rotation_periodic_success_count + s.ip_rotation_inactive_proxy_success_count + s.ip_rotation_continuous_success_count) * 100.0 / NULLIF(SUM(s.ip_rotation_periodic_success_count + s.ip_rotation_inactive_proxy_success_count + s.ip_rotation_continuous_success_count + s.ip_rotation_periodic_failure_count + s.ip_rotation_inactive_proxy_failure_count + s.ip_rotation_continuous_failure_count), 0), 2) AS rotation_success_pct, ROUND(SUM(s.ip_rotation_periodic_success_count) * 100.0 / NULLIF(SUM(s.ip_rotation_periodic_success_count + s.ip_rotation_periodic_failure_count), 0), 2) AS periodic_rotation_success_pct, ROUND(SUM(s.ip_change_count) * 100.0 / NULLIF(SUM(s.ip_rotation_periodic_success_count + s.ip_rotation_inactive_proxy_success_count + s.ip_rotation_continuous_success_count + s.ip_rotation_periodic_failure_count + s.ip_rotation_inactive_proxy_failure_count + s.ip_rotation_continuous_failure_count), 0), 2) AS change_per_attempt_pct FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.location IN (${location:sqlstring}) AND COALESCE(s.server_name, 'UNKNOWN') IN (${server:sqlstring}) AND s.proxy_id IN (${phone:sqlstring}) GROUP BY s.day ORDER BY s.day",
+          "refId": "A"
+        }
+      ],
+      "title": "IP Rotation Attempts, Successes & IP Changes per Day",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily cross-server overlap trend based on periodic IP collision captures (captured roughly every 5 minutes). Metrics are cross_server_dup_ips, unique_server_combos, and avg_dup_ips_per_combo to show spread and concentration of overlap.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "WITH daily_combos AS (SELECT DATE(captured_at) AS day, last_ip, GROUP_CONCAT(DISTINCT server_label ORDER BY server_label SEPARATOR ' + ') AS combo FROM duplicate_ip_snapshot_servers WHERE $__timeFilter(captured_at) AND TRIM(server_label) IN (${server:sqlstring}) GROUP BY DATE(captured_at), last_ip HAVING COUNT(DISTINCT server_label) > 1) SELECT UNIX_TIMESTAMP(day) AS time_sec, COUNT(DISTINCT last_ip) AS cross_server_dup_ips, COUNT(DISTINCT combo) AS unique_server_combos, ROUND(COUNT(DISTINCT last_ip) * 1.0 / NULLIF(COUNT(DISTINCT combo), 0), 2) AS avg_dup_ips_per_combo FROM daily_combos GROUP BY day ORDER BY day",
+          "refId": "A"
+        }
+      ],
+      "title": "Daily Count of Cross-Server Duplicate IPs & Unique Server Combos",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily fleet collision severity built from periodic collision captures (captured roughly every 5 minutes), using each day's final capture as the day state. Metrics include duplicate_ips, impacted_phones, affected_servers, and impacted_phones_per_dup_ip.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "WITH last_capture_per_day AS (SELECT DATE(captured_at) AS day, MAX(captured_at) AS last_capture FROM duplicate_ip_snapshot_rows WHERE $__timeFilter(captured_at) GROUP BY DATE(captured_at)), daily_rows AS (SELECT DATE(r.captured_at) AS day, SUM(r.phones_on_same_ip) AS impacted_phones, COUNT(DISTINCT r.last_ip) AS duplicate_ips FROM duplicate_ip_snapshot_rows r INNER JOIN last_capture_per_day ls ON ls.last_capture = r.captured_at INNER JOIN duplicate_ip_snapshot_servers s ON s.captured_at = r.captured_at AND s.proxy_status_scope = r.proxy_status_scope AND s.last_ip = r.last_ip WHERE $__timeFilter(r.captured_at) AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY DATE(r.captured_at)), daily_servers AS (SELECT DATE(s.captured_at) AS day, COUNT(DISTINCT s.server_label) AS affected_servers FROM duplicate_ip_snapshot_servers s INNER JOIN last_capture_per_day ls ON ls.last_capture = s.captured_at WHERE $__timeFilter(s.captured_at) AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY DATE(s.captured_at)) SELECT UNIX_TIMESTAMP(dr.day) AS time_sec, dr.duplicate_ips, dr.impacted_phones, COALESCE(ds.affected_servers, 0) AS affected_servers, ROUND(dr.impacted_phones * 1.0 / NULLIF(dr.duplicate_ips, 0), 2) AS impacted_phones_per_dup_ip FROM daily_rows dr LEFT JOIN daily_servers ds ON ds.day = dr.day ORDER BY dr.day",
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet-Wide Duplicate IPs, Affected Phones & Servers per Day",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily server-level overlap trend derived from periodic collision captures (captured roughly every 5 minutes). It measures how many distinct shared IPs each server has with other servers, showing where isolation is degrading.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": true,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT DATE(captured_at) AS time, server_label, COUNT(DISTINCT last_ip) AS duplicate_ips FROM duplicate_ip_snapshot_servers WHERE $__timeFilter(captured_at) AND TRIM(server_label) IN (${server:sqlstring}) GROUP BY DATE(captured_at), server_label ORDER BY DATE(captured_at), server_label",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-Server: Daily Count of Duplicate IPs That Server Shares with Others",
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "server_label"
+            ],
+            "keepFields": false
+          }
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily overlap trend for each server pair based on periodic collision captures (captured roughly every 5 minutes). It counts distinct shared IPs per pair to highlight which server relationships are persistently coupled.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [
+            "max",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": true,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH daily AS (SELECT DATE(captured_at) AS day, last_ip, TRIM(server_label) AS server_label FROM duplicate_ip_snapshot_servers WHERE $__timeFilter(captured_at) AND TRIM(server_label) IN (${server:sqlstring}) GROUP BY DATE(captured_at), last_ip, TRIM(server_label)), pairs AS (SELECT a.day, LEAST(a.server_label, b.server_label) AS server_a, GREATEST(a.server_label, b.server_label) AS server_b, a.last_ip FROM daily a JOIN daily b ON a.day = b.day AND a.last_ip = b.last_ip AND a.server_label <> b.server_label) SELECT p.day AS time, CONCAT(p.server_a, ' + ', p.server_b) AS server_pair, COUNT(DISTINCT p.last_ip) AS shared_ips FROM pairs p GROUP BY p.day, p.server_a, p.server_b ORDER BY p.day",
+          "refId": "A"
+        }
+      ],
+      "title": "Per Server Pair: Daily Count of IPs Shared Between Them",
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "server_pair"
+            ],
+            "keepFields": false
+          }
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 200,
+      "panels": [],
+      "title": "IP Diversity",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Total number of outbound IP change events (rotations) detected during the selected period. Compare with Distinct End-of-Day IPs (period) to separate frequent IP flipping from broader pool usage — a large ratio of changes vs distinct end-of-day IPs means rotations are cycling through the same small set of exits.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 38
+      },
+      "id": 202,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT SUM(ip_change_count) AS value FROM proxy_requests_daily_summary WHERE day >= DATE($__timeFrom()) AND day <= DATE($__timeTo()) AND location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) AND proxy_id IN ($phone)",
+          "refId": "A"
+        }
+      ],
+      "title": "IP Changes (period)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Current number of distinct IP addresses shared by two or more phones, based on the latest collision capture. This stat refreshes with each new capture (typically about every 5 minutes).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "orange",
+                "value": 8
+              },
+              {
+                "color": "red",
+                "value": 15
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 38
+      },
+      "id": 203,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT r.last_ip) AS value FROM duplicate_ip_snapshot_rows r INNER JOIN duplicate_ip_snapshot_servers s ON s.captured_at = r.captured_at AND s.proxy_status_scope = r.proxy_status_scope AND s.last_ip = r.last_ip WHERE r.proxy_status_scope = 'all' AND TRIM(s.server_label) IN (${server:sqlstring}) AND r.captured_at = (SELECT MAX(captured_at) FROM duplicate_ip_snapshot_rows WHERE proxy_status_scope = 'all')",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicate IPs",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Current number of phones involved in shared-IP collisions, based on the latest collision capture. This stat refreshes with each new capture (typically about every 5 minutes) and indicates immediate impact size.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "orange",
+                "value": 15
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 38
+      },
+      "id": 204,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT SUM(r.phones_on_same_ip) AS value FROM duplicate_ip_snapshot_rows r INNER JOIN duplicate_ip_snapshot_servers s ON s.captured_at = r.captured_at AND s.proxy_status_scope = r.proxy_status_scope AND s.last_ip = r.last_ip WHERE r.proxy_status_scope = 'all' AND TRIM(s.server_label) IN (${server:sqlstring}) AND r.captured_at = (SELECT MAX(captured_at) FROM duplicate_ip_snapshot_rows WHERE proxy_status_scope = 'all')",
+          "refId": "A"
+        }
+      ],
+      "title": "Affected Phones",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Distinct end-of-day exit IPs across all phones × days in the selected period (one count per IP no matter how many phones or days used it). Each (phone, day) bucket contributes only its final outbound IP for that day, so mid-day rotations a phone moved away from are not counted. Treat this as a conservative floor on real exit-pool diversity. The cumulative trend chart below ends at exactly this number on its final point. Compare with IP Changes (period): IP Changes ≫ this number means rotations are cycling through the same small set of exits; IP Changes ≈ this number means rotations are landing on fresh exits.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 38
+      },
+      "id": 209,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT last_ip) AS value FROM proxy_requests_daily_summary WHERE day >= DATE($__timeFrom()) AND day <= DATE($__timeTo()) AND last_ip IS NOT NULL AND last_ip != '' AND location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) AND proxy_id IN ($phone)",
+          "refId": "A"
+        }
+      ],
+      "title": "Distinct End-of-Day IPs (period)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Left axis: running total of distinct end-of-day exit IPs the filtered fleet has seen from the start of the window through each day, deduplicated across the whole window. The final point on the chart matches the Distinct End-of-Day IPs (period) stat exactly. A flat tail means the fleet has hit its exit pool ceiling; a still-rising line means new exits keep appearing. Right axis: number of rotation events on each individual day (not cumulative); the sum across all days matches the IP Changes (period) stat.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ip_changes"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "IP Rotation Events"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cumulative_distinct_end_of_day_ips"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "Cumulative distinct end-of-day exit IPs"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "id": 205,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "WITH first_seen AS (SELECT last_ip, MIN(day) AS first_day FROM proxy_requests_daily_summary WHERE day >= DATE($__timeFrom()) AND day <= DATE($__timeTo()) AND last_ip IS NOT NULL AND last_ip != '' AND location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) AND proxy_id IN ($phone) GROUP BY last_ip), new_per_day AS (SELECT first_day AS day, COUNT(*) AS new_ips FROM first_seen GROUP BY first_day), per_day AS (SELECT day, SUM(ip_change_count) AS ip_changes FROM proxy_requests_daily_summary WHERE day >= DATE($__timeFrom()) AND day <= DATE($__timeTo()) AND location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) AND proxy_id IN ($phone) GROUP BY day) SELECT UNIX_TIMESTAMP(p.day) AS time_sec, SUM(COALESCE(n.new_ips, 0)) OVER (ORDER BY p.day) AS cumulative_distinct_end_of_day_ips, p.ip_changes AS ip_changes FROM per_day p LEFT JOIN new_per_day n ON n.day = p.day ORDER BY p.day",
+          "refId": "A"
+        }
+      ],
+      "title": "Cumulative Distinct End-of-Day IPs vs IP Rotation Events per Day",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily collision trend from periodic captures (captured roughly every 5 minutes), showing duplicate IP groups and affected phones over time. Rising affected phones with flat duplicate IPs indicates larger clusters on the same collision set.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 42
+      },
+      "id": 206,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT UNIX_TIMESTAMP(day) AS time_sec, affected_phones, duplicate_ips FROM (SELECT DATE(r.captured_at) AS day, SUM(r.phones_on_same_ip) AS affected_phones, COUNT(DISTINCT r.last_ip) AS duplicate_ips FROM duplicate_ip_snapshot_rows r INNER JOIN duplicate_ip_snapshot_servers s ON s.captured_at = r.captured_at AND s.proxy_status_scope = r.proxy_status_scope AND s.last_ip = r.last_ip WHERE $__timeFilter(r.captured_at) AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY DATE(r.captured_at) UNION ALL SELECT CURDATE(), 0, 0 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM duplicate_ip_snapshot_rows r INNER JOIN duplicate_ip_snapshot_servers s ON s.captured_at = r.captured_at AND s.proxy_status_scope = r.proxy_status_scope AND s.last_ip = r.last_ip WHERE $__timeFilter(r.captured_at) AND TRIM(s.server_label) IN (${server:sqlstring}))) AS combined ORDER BY day",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicate Phones & IPs per Day",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Server ranking by collision exposure across the selected period, derived from periodic captures (roughly every 5 minutes). Columns are deduplicated phone counts so they read as real fleet impact: 'Own Phones Affected' = how many of *this server's* phones ever sat on an IP shared with another phone; 'Cross-Server Phone Reach' = total distinct phones (any server) those shared IPs were colliding with — the contact graph this server leaks into. 'Duplicate IPs' is distinct shared IPs the server was on, and 'Max Phones / IP' is the worst single-moment cluster size on any one of those IPs. None of these counts is inflated by capture frequency.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "orange",
+                "value": 8
+              },
+              {
+                "color": "red",
+                "value": 15
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "own_phones_affected"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Own Phones Affected"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cross_server_phone_reach"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Cross-Server Phone Reach"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "server_label"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Server"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_ips"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Duplicate IPs"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_on_one_ip"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Max Phones / IP"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      },
+      "id": 207,
+      "options": {
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Own Phones Affected"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH numbers AS (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15 UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19 UNION ALL SELECT 20 UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23 UNION ALL SELECT 24 UNION ALL SELECT 25 UNION ALL SELECT 26 UNION ALL SELECT 27 UNION ALL SELECT 28 UNION ALL SELECT 29 UNION ALL SELECT 30 UNION ALL SELECT 31 UNION ALL SELECT 32), exploded AS (SELECT TRIM(s.server_label) AS server_label, TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(r.sibling_phones, ' | ', n.n), ' | ', -1)) AS phone_name FROM duplicate_ip_snapshot_servers s JOIN duplicate_ip_snapshot_rows r ON r.captured_at = s.captured_at AND r.proxy_status_scope = s.proxy_status_scope AND r.last_ip = s.last_ip JOIN numbers n ON n.n <= 1 + (CHAR_LENGTH(r.sibling_phones) - CHAR_LENGTH(REPLACE(r.sibling_phones, ' | ', ''))) / 3 WHERE $__timeFilter(s.captured_at) AND s.proxy_status_scope = 'all' AND TRIM(s.server_label) IN (${server:sqlstring}) AND r.sibling_phones IS NOT NULL AND r.sibling_phones <> ''), base AS (SELECT TRIM(s.server_label) AS server_label, COUNT(DISTINCT s.last_ip) AS duplicate_ips, MAX(r.phones_on_same_ip) AS max_on_one_ip FROM duplicate_ip_snapshot_servers s INNER JOIN duplicate_ip_snapshot_rows r ON r.captured_at = s.captured_at AND r.proxy_status_scope = s.proxy_status_scope AND r.last_ip = s.last_ip WHERE $__timeFilter(s.captured_at) AND s.proxy_status_scope = 'all' AND TRIM(s.server_label) IN (${server:sqlstring}) GROUP BY TRIM(s.server_label)), phones AS (SELECT server_label, COUNT(DISTINCT IF((server_label <> 'Unknown' AND UPPER(phone_name) REGEXP CONCAT('^', server_label, '([^0-9]|$)')) OR (server_label = 'Unknown' AND UPPER(phone_name) NOT REGEXP '^S[0-9]+'), phone_name, NULL)) AS own_phones_affected, COUNT(DISTINCT NULLIF(phone_name, '')) AS cross_server_phone_reach FROM exploded GROUP BY server_label) SELECT b.server_label, b.duplicate_ips, COALESCE(p.own_phones_affected, 0) AS own_phones_affected, COALESCE(p.cross_server_phone_reach, 0) AS cross_server_phone_reach, b.max_on_one_ip FROM base b LEFT JOIN phones p ON p.server_label = b.server_label ORDER BY own_phones_affected DESC, b.duplicate_ips DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Servers Ranked by Phones on Duplicate IPs — Across Selected Period",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Top shared IPs by number of phones impacted during the selected period. History fields show which phones/devices used each shared IP and the date range of observed overlap.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "id": 208,
+      "options": {
+        "barRadius": 0.1,
+        "barWidth": 0.7,
+        "fillOpacity": 80,
+        "gradientMode": "none",
+        "groupWidth": 0.7,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT base.last_ip, COUNT(DISTINCT base.proxy_id) AS phones_on_ip, GROUP_CONCAT(CONCAT(base.device_name, ' [', CASE WHEN base.first_day = base.last_day THEN base.first_day ELSE CONCAT(base.first_day, ' to ', base.last_day) END, ']') ORDER BY base.device_name SEPARATOR ' | ') AS phone_ip_history, GROUP_CONCAT(CONCAT(base.proxy_id, ' [', CASE WHEN base.first_day = base.last_day THEN base.first_day ELSE CONCAT(base.first_day, ' to ', base.last_day) END, ']') ORDER BY base.device_name SEPARATOR ' | ') AS device_ip_history, MAX(base.last_day) AS last_seen_date FROM (SELECT s.last_ip, s.proxy_id, MIN(s.device_name) AS device_name, MIN(s.day) AS first_day, MAX(s.day) AS last_day FROM proxy_requests_daily_summary s WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND s.last_ip IS NOT NULL AND s.last_ip != '' AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone) GROUP BY s.last_ip, s.proxy_id) AS base GROUP BY base.last_ip HAVING COUNT(DISTINCT base.proxy_id) > 1 ORDER BY phones_on_ip DESC LIMIT 15",
+          "refId": "A"
+        }
+      ],
+      "title": "Top 15 IPs Shared by Most Phones — Selected Period",
+      "type": "barchart"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 42,
+  "tags": [
+    "x-proxy-tester",
+    "analytics",
+    "beta",
+    "trends"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location FROM proxy_requests_daily_summary WHERE location IS NOT NULL ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxy_requests_daily_summary WHERE location IS NOT NULL ORDER BY 1",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT COALESCE(server_name, 'UNKNOWN') FROM proxy_requests_daily_summary WHERE location IN ($location) ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "name": "server",
+        "options": [],
+        "query": "SELECT DISTINCT COALESCE(server_name, 'UNKNOWN') FROM proxy_requests_daily_summary WHERE location IN ($location) ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT proxy_id FROM proxy_requests_daily_summary WHERE location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "name": "phone",
+        "options": [],
+        "query": "SELECT DISTINCT proxy_id FROM proxy_requests_daily_summary WHERE location IN ($location) AND COALESCE(server_name, 'UNKNOWN') IN ($server) ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BETA - Aggregate Trends & IP Diversity",
+  "uid": "beta-aggregate-trends",
+  "version": 7
+}

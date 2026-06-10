@@ -1,0 +1,1470 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Per-city duplicate-IP frequency. Shows how often each city has phones sharing an IP, and how serious the problem is. Compares cities of different sizes by normalizing to a chosen sample size. Every rate is paired with the raw counts behind it.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": 43,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "options": {
+        "content": "**Question this answers:** taking the same number of phones in any two cities, how often do they end up sharing IPs?\n\n### What a snapshot is\n\nA **snapshot** (also called a **check**) is an automatic scan that runs every few minutes. It looks across the whole fleet at that moment and writes down every IP that is currently being used by two or more phones at the same time, along with the phones and servers on each shared IP.\n\nThink of it as a regular photo of the fleet's IP-sharing state. Every panel below is built from many of these photos taken across the selected time range.\n\n### What a duplicate IP is\n\nA **duplicate IP** is an IP address that, at the moment of a snapshot, has two or more phones on it. One phone reusing the same IP over time on its own is NOT a duplicate — duplication only counts when two or more phones overlap on the same IP at the same moment.\n\n### What you'll find below\n\n1. **Per-City Window Summary** — one row per city across the entire selected time range. The headline panel. Sort by Duplicate Phone Rate (%) to rank cities worst-first.\n2. **Per-City Per-Day Breakdown** — same metrics split by day. Spot whether a city was bad on one day or every day.\n3. **Devices on Duplicate IPs — Per Day** — one row per (day, city, device). Names exactly which phones landed on duplicate IPs and how often.\n4. **Per-Snapshot Per-City Detail** — raw rows from each individual check, before any aggregation. Use to verify any number on the summary panels.\n5. **Latest Snapshot — Duplicate IP Detail** — drills into the most recent check: which IPs, which phones, which servers.\n6. **Top Servers Contributing to Duplicates** — server-level view. Distinguishes same-server clustering from carrier/IP-pool spread.\n\n### Core concepts used everywhere\n\n- **Active devices** — the phones in a city that were actually online and making requests during the time period being measured. Used as the denominator for every rate.\n- **Phones on duplicate IPs** — at a given check, the number of phones in this city that were sitting on a shared IP.\n- **Duplicate Phone Rate (%)** — phones on duplicate IPs divided by active devices, weighted across all checks in the window. No smoothing — tiny cities can read 100% if all their phones are on a shared IP. Use the Min Active Devices filter to hide them.\n- **Per N devices** — normalization. If this city had exactly N active phones at the same intensity, this is how many would be on duplicate IPs on an average check. Lets you compare cities of very different sizes directly.\n- **Like-to-like timing** — each check is matched to the activity numbers from the same 5-minute window it ran in. Numerator and denominator always come from the same moment.\n- **Occurrences vs distinct** — words like \"occurrences,\" \"appearances,\" or \"pairings\" multiply by time: the same IP gets counted again on every check it persisted through. Words like \"distinct\" or \"unique\" deduplicate by IP or device. Use distinct columns when comparing to fleet size.\n\n### Filters\n\n- **Proxy Status** — Active (default), Inactive, or All. Filters both the checks and the active-device denominator.\n- **Sample Devices** — the N used for the per-N-devices columns (100 / 200 / 300 / 500 / 1000). Default 200.\n- **Min Active Devices** — hides cities with fewer than this many active phones from the summary panels. Avoids 1-phone cities flashing 100%. Default 5.\n- **City** — multi-select, default All.\n- **Time picker** — dashboard-global, applies to every panel.",
+        "mode": "markdown"
+      },
+      "title": "How to read this dashboard",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 1,
+      "title": "Per-City Window Summary",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "One row per city across the entire selected time range. Sort by Duplicate Phone Rate (%) to see which cities have the worst duplication.\n\n**Column reference:**\n\n- **City** — the city assigned to the phones and to the checks.\n- **Active Devices** — distinct phones from this city that were online and making requests anywhere in the time range. Approximate city fleet size.\n- **Checks** — number of checks during which this city had at least one phone online. Cities with no activity in some checks won't be counted there.\n- **Checks w/ Dups** — of those checks, how many had at least one duplicate IP for this city.\n- **% Checks w/ Dups** — share of this city's checks that had a duplicate IP. The 'how often' answer. Color thresholds: green <25%, yellow 25–60%, orange 60–90%, red >90%.\n- **Duplicate Phone Rate (%)** — across all checks, the share of this city's active phones that ended up on shared IPs. No smoothing. Color thresholds: green <5%, yellow 5–15%, orange 15–25%, red >25%.\n- **Phones on Dup IPs / N devices** — apples-to-apples per-N-devices view. If this city had exactly N active phones at the same intensity, this is the average phones-on-duplicate count per check.\n- **Dup IPs / N devices** — same per-N-devices view for distinct duplicate IPs.\n- **Dup IP Occurrences** — total times a duplicate IP was seen across all this city's checks. **Time-inflated**: the same IP counted again every check it persisted through. Use for trend, not for fleet comparison.\n- **Phone-on-Dup-IP Occurrences** — total phone-counts on duplicate IPs across all this city's checks. A 2-phone IP seen by 288 checks over 24h = 576 here. **NOT a phone count.**\n- **Active Device Snapshots** — total active-phone-counts summed across this city's checks. The denominator for the rate columns.\n- **Peak Dup IPs in One Check** — highest number of distinct shared IPs this city had in a single check. Max, not average.\n- **Peak Phones on Dups in One Check** — highest number of phones from this city on shared IPs in a single check. Max, not average.\n- **Peak Single IP Load** — largest number of phones ever observed sharing a single IP, across all checks.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "city"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "City"
+              },
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "active_devices_in_window"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Active Devices"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "snapshot_count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Checks"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "snapshots_with_duplicates"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Checks w/ Dups"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pct_snapshots_with_duplicates"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "% Checks w/ Dups"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 25
+                    },
+                    {
+                      "color": "orange",
+                      "value": 60
+                    },
+                    {
+                      "color": "red",
+                      "value": 90
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_phone_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Duplicate Phone Rate (%)"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 5
+                    },
+                    {
+                      "color": "orange",
+                      "value": 15
+                    },
+                    {
+                      "color": "red",
+                      "value": 25
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones_on_dup_ips_per_sample_devices"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phones on Dup IPs / ${sample_devices} devices"
+              },
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_ips_per_sample_devices"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Dup IPs / ${sample_devices} devices"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_ip_occurrences"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Dup IP Occurrences"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones_on_dup_ip_occurrences"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phone-on-Dup-IP Occurrences"
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "active_device_snapshots"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Active Device Snapshots"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "worst_duplicate_ips_in_snapshot"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Peak Dup IPs in One Check"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              },
+              {
+                "id": "description",
+                "value": "Highest number of distinct shared IPs this city ever had in a single check during the window. Maximum, not average."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "worst_phones_on_dup_ips_in_snapshot"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Peak Phones on Dups in One Check"
+              },
+              {
+                "id": "custom.width",
+                "value": 210
+              },
+              {
+                "id": "description",
+                "value": "Highest number of phones from this city ever on shared IPs at the same time, across the window. Maximum, not average."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "worst_single_ip_phone_count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Peak Single IP Load"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              },
+              {
+                "id": "description",
+                "value": "Largest number of phones ever observed sharing a single IP in this city, across all checks in the window."
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Duplicate Phone Rate (%)"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH window_active AS (\n  SELECT TRIM(p.city) AS city, COUNT(DISTINCT sm.proxy_id) AS active_devices_in_window\n  FROM proxy_requests_5min_summary sm\n  JOIN proxies p ON p.device_id = sm.proxy_id\n  WHERE sm.window_start BETWEEN $__timeFrom() AND $__timeTo()\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n    AND TRIM(p.city) != ''\n    AND LOWER(TRIM(p.city)) NOT IN ('n/a','na')\n  GROUP BY TRIM(p.city)\n  HAVING active_devices_in_window >= ${min_active_devices}\n     AND ('${city:raw}' = '$__all' OR city IN (${city:sqlstring}))\n),\nsnaps AS (\n  SELECT DISTINCT captured_at AS snapshot_at,\n         FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(captured_at)/300)*300) AS bucket_start\n  FROM duplicate_ip_snapshot_rows\n  WHERE captured_at BETWEEN $__timeFrom() AND $__timeTo()\n    AND proxy_status_scope = '${proxy_status}'\n),\nsnap_dup AS (\n  SELECT s.snapshot_at,\n         SUBSTRING_INDEX(r.location, ',', 1) AS city,\n         COUNT(DISTINCT r.last_ip) AS duplicate_ips,\n         SUM(r.phones_on_same_ip) AS phones_on_dup_ips,\n         MAX(r.phones_on_same_ip) AS max_phones_per_ip\n  FROM snaps s\n  JOIN duplicate_ip_snapshot_rows r ON r.captured_at = s.snapshot_at\n  JOIN window_active w ON w.city = SUBSTRING_INDEX(r.location, ',', 1)\n  WHERE r.proxy_status_scope = '${proxy_status}'\n    AND r.last_ip != '__snapshot_empty__'\n  GROUP BY s.snapshot_at, SUBSTRING_INDEX(r.location, ',', 1)\n),\nbucket_active AS (\n  SELECT sm.window_start AS bucket_start,\n         TRIM(p.city) AS city,\n         COUNT(DISTINCT sm.proxy_id) AS active_devices\n  FROM proxy_requests_5min_summary sm\n  JOIN proxies p ON p.device_id = sm.proxy_id\n  JOIN window_active w ON w.city = TRIM(p.city)\n  WHERE sm.window_start BETWEEN $__timeFrom() - INTERVAL 5 MINUTE AND $__timeTo()\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n  GROUP BY sm.window_start, TRIM(p.city)\n),\nsnap_active AS (\n  SELECT s.snapshot_at, b.city, b.active_devices\n  FROM snaps s\n  JOIN bucket_active b ON b.bucket_start = s.bucket_start\n),\njoined AS (\n  SELECT sa.snapshot_at, sa.city, sa.active_devices,\n         COALESCE(d.duplicate_ips, 0) AS duplicate_ips,\n         COALESCE(d.phones_on_dup_ips, 0) AS phones_on_dup_ips,\n         COALESCE(d.max_phones_per_ip, 0) AS max_phones_per_ip\n  FROM snap_active sa\n  LEFT JOIN snap_dup d ON d.snapshot_at = sa.snapshot_at AND d.city = sa.city\n)\nSELECT\n  w.city,\n  w.active_devices_in_window,\n  COUNT(j.snapshot_at) AS snapshot_count,\n  SUM(CASE WHEN j.duplicate_ips > 0 THEN 1 ELSE 0 END) AS snapshots_with_duplicates,\n  SUM(j.duplicate_ips) AS duplicate_ip_occurrences,\n  SUM(j.phones_on_dup_ips) AS phones_on_dup_ip_occurrences,\n  SUM(j.active_devices) AS active_device_snapshots,\n  MAX(j.duplicate_ips) AS worst_duplicate_ips_in_snapshot,\n  MAX(j.phones_on_dup_ips) AS worst_phones_on_dup_ips_in_snapshot,\n  MAX(j.max_phones_per_ip) AS worst_single_ip_phone_count,\n  ROUND(100.0 * SUM(CASE WHEN j.duplicate_ips > 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(j.snapshot_at), 0), 2) AS pct_snapshots_with_duplicates,\n  ROUND(100.0 * SUM(j.phones_on_dup_ips) / NULLIF(SUM(j.active_devices), 0), 2) AS duplicate_phone_rate_pct,\n  ROUND(${sample_devices} * SUM(j.phones_on_dup_ips) / NULLIF(SUM(j.active_devices), 0), 2) AS phones_on_dup_ips_per_sample_devices,\n  ROUND(${sample_devices} * SUM(j.duplicate_ips) / NULLIF(SUM(j.active_devices), 0), 2) AS duplicate_ips_per_sample_devices\nFROM window_active w\nLEFT JOIN joined j ON j.city = w.city\nGROUP BY w.city, w.active_devices_in_window\nORDER BY duplicate_phone_rate_pct DESC, phones_on_dup_ip_occurrences DESC, w.city",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-City Window Summary",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 3,
+      "title": "Per-City Per-Day Breakdown",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Same metrics as the window summary, split by day. Useful to spot whether a city's duplicate issue is a one-bad-day spike or a sustained pattern across the window.\n\n**Column reference:**\n\n- **Day** — calendar date in your browser's timezone.\n- **City** — same as the window summary.\n- **Snapshots in Day** — number of checks during which this city had at least one phone online on this date.\n- **Snapshots w/ Duplicates** — of those checks, how many had at least one duplicate IP for this city.\n- **% Checks w/ Dups** — share of this city's checks that had a duplicate IP, for this day only.\n- **Duplicate Phone Rate (%)** — share of this city's active phones on shared IPs, for this day only. Color thresholds match the window summary.\n- **Phones on Dup IPs / N devices** — per-N-devices view for this day.\n- **Dup IPs / N devices** — per-N-devices view for distinct duplicate IPs, for this day.\n- **Duplicate IP Occurrences** — total times a duplicate IP was seen in this city's checks this day. Time-inflated.\n- **Phones on Dup IP Occurrences** — total phone-counts on duplicate IPs for this day. **NOT a phone count.**\n- **Active Device Snapshots** — total active-phone-counts summed across this day's checks. The denominator for the rate columns.\n- **Worst Dup IPs in Snapshot** — peak per-check duplicate IPs this day.\n- **Worst Phones on Dup IPs in Snapshot** — peak per-check phones on duplicate IPs this day.\n- **Worst Single IP Phone Count** — peak phones sharing one IP this day.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "day"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Day"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "city"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "City"
+              },
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_phone_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Duplicate Phone Rate (%)"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 5
+                    },
+                    {
+                      "color": "orange",
+                      "value": 15
+                    },
+                    {
+                      "color": "red",
+                      "value": 25
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pct_snapshots_with_duplicates"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "% Checks w/ Dups"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones_on_dup_ips_per_sample_devices"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phones on Dup IPs / ${sample_devices} devices"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_ips_per_sample_devices"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Dup IPs / ${sample_devices} devices"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": [
+            "snapshots_in_day",
+            "snapshots_with_duplicates",
+            "duplicate_ip_occurrences",
+            "phones_on_dup_ip_occurrences",
+            "active_device_snapshots"
+          ],
+          "reducer": [
+            "sum"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Day"
+          },
+          {
+            "desc": true,
+            "displayName": "Duplicate Phone Rate (%)"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH window_active AS (\n  SELECT TRIM(p.city) AS city, COUNT(DISTINCT sm.proxy_id) AS active_devices_in_window\n  FROM proxy_requests_5min_summary sm\n  JOIN proxies p ON p.device_id = sm.proxy_id\n  WHERE sm.window_start BETWEEN $__timeFrom() AND $__timeTo()\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n    AND TRIM(p.city) != ''\n    AND LOWER(TRIM(p.city)) NOT IN ('n/a','na')\n  GROUP BY TRIM(p.city)\n  HAVING active_devices_in_window >= ${min_active_devices}\n     AND ('${city:raw}' = '$__all' OR city IN (${city:sqlstring}))\n),\nsnaps AS (\n  SELECT DISTINCT captured_at AS snapshot_at,\n         FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(captured_at)/300)*300) AS bucket_start\n  FROM duplicate_ip_snapshot_rows\n  WHERE captured_at BETWEEN $__timeFrom() AND $__timeTo()\n    AND proxy_status_scope = '${proxy_status}'\n),\nsnap_dup AS (\n  SELECT s.snapshot_at,\n         SUBSTRING_INDEX(r.location, ',', 1) AS city,\n         COUNT(DISTINCT r.last_ip) AS duplicate_ips,\n         SUM(r.phones_on_same_ip) AS phones_on_dup_ips,\n         MAX(r.phones_on_same_ip) AS max_phones_per_ip\n  FROM snaps s\n  JOIN duplicate_ip_snapshot_rows r ON r.captured_at = s.snapshot_at\n  JOIN window_active w ON w.city = SUBSTRING_INDEX(r.location, ',', 1)\n  WHERE r.proxy_status_scope = '${proxy_status}'\n    AND r.last_ip != '__snapshot_empty__'\n  GROUP BY s.snapshot_at, SUBSTRING_INDEX(r.location, ',', 1)\n),\nbucket_active AS (\n  SELECT sm.window_start AS bucket_start,\n         TRIM(p.city) AS city,\n         COUNT(DISTINCT sm.proxy_id) AS active_devices\n  FROM proxy_requests_5min_summary sm\n  JOIN proxies p ON p.device_id = sm.proxy_id\n  JOIN window_active w ON w.city = TRIM(p.city)\n  WHERE sm.window_start BETWEEN $__timeFrom() - INTERVAL 5 MINUTE AND $__timeTo()\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n  GROUP BY sm.window_start, TRIM(p.city)\n),\nsnap_active AS (\n  SELECT s.snapshot_at, b.city, b.active_devices\n  FROM snaps s\n  JOIN bucket_active b ON b.bucket_start = s.bucket_start\n),\njoined AS (\n  SELECT sa.snapshot_at, sa.city, sa.active_devices,\n         COALESCE(d.duplicate_ips, 0) AS duplicate_ips,\n         COALESCE(d.phones_on_dup_ips, 0) AS phones_on_dup_ips,\n         COALESCE(d.max_phones_per_ip, 0) AS max_phones_per_ip\n  FROM snap_active sa\n  LEFT JOIN snap_dup d ON d.snapshot_at = sa.snapshot_at AND d.city = sa.city\n)\nSELECT\n  DATE(j.snapshot_at) AS day,\n  j.city,\n  COUNT(*) AS snapshots_in_day,\n  SUM(CASE WHEN j.duplicate_ips > 0 THEN 1 ELSE 0 END) AS snapshots_with_duplicates,\n  SUM(j.duplicate_ips) AS duplicate_ip_occurrences,\n  SUM(j.phones_on_dup_ips) AS phones_on_dup_ip_occurrences,\n  SUM(j.active_devices) AS active_device_snapshots,\n  MAX(j.duplicate_ips) AS worst_duplicate_ips_in_snapshot,\n  MAX(j.phones_on_dup_ips) AS worst_phones_on_dup_ips_in_snapshot,\n  MAX(j.max_phones_per_ip) AS worst_single_ip_phone_count,\n  ROUND(100.0 * SUM(CASE WHEN j.duplicate_ips > 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS pct_snapshots_with_duplicates,\n  ROUND(100.0 * SUM(j.phones_on_dup_ips) / NULLIF(SUM(j.active_devices), 0), 2) AS duplicate_phone_rate_pct,\n  ROUND(${sample_devices} * SUM(j.phones_on_dup_ips) / NULLIF(SUM(j.active_devices), 0), 2) AS phones_on_dup_ips_per_sample_devices,\n  ROUND(${sample_devices} * SUM(j.duplicate_ips) / NULLIF(SUM(j.active_devices), 0), 2) AS duplicate_ips_per_sample_devices\nFROM joined j\nGROUP BY DATE(j.snapshot_at), j.city\nORDER BY day DESC, duplicate_phone_rate_pct DESC, j.city",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-City Per-Day Breakdown",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 11,
+      "title": "Devices on Duplicate IPs — Per Day",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Every phone that landed on a duplicate IP, broken down by day and city. One row per (day, city, phone).\n\n**Column reference:**\n\n- **Day** — calendar date the phone was observed on a duplicate IP.\n- **City** — city the phone was attributed to in that check.\n- **Device ID** — stable identifier of the physical phone.\n- **Phone Name** — phone label (e.g. `S14P3`). Useful to see which server bank the phone lives on.\n- **Snapshots on Dup IP** — number of checks during the day in which this phone was on a duplicate IP. High = stuck on a shared IP. Low = brief overlap.\n- **Distinct Dup IPs** — number of different IPs this phone moved through while still landing on duplicates that day. Multiple distinct IPs = phone rotating but the new IPs are also shared (carrier-pool problem). One IP = phone is stuck.\n- **First Seen** — earliest check time this phone was caught on a duplicate IP that day.\n- **Last Seen** — latest check time this phone was caught on a duplicate IP that day. (Last Seen − First Seen) ≈ the duration the phone was in the duplicate-IP problem on that day.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "day"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Day"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "city"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "City"
+              },
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device_id"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Device ID"
+              },
+              {
+                "id": "custom.width",
+                "value": 320
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phone_name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phone Name"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "snapshots_on_dup_ip"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Snapshots on Dup IP"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "distinct_dup_ips"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Distinct Dup IPs"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "first_seen"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "First Seen"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_seen"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Last Seen"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Day"
+          },
+          {
+            "desc": false,
+            "displayName": "City"
+          },
+          {
+            "desc": true,
+            "displayName": "Snapshots on Dup IP"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE rows_in_window AS (\n  SELECT\n    r.captured_at,\n    SUBSTRING_INDEX(r.location, ',', 1) AS city,\n    r.last_ip,\n    1 AS pos,\n    CAST(TRIM(SUBSTRING_INDEX(COALESCE(r.device_ids, ''), ' | ', 1)) AS CHAR(255)) AS device_id,\n    CAST(TRIM(SUBSTRING_INDEX(COALESCE(r.sibling_phones, ''), ' | ', 1)) AS CHAR(255)) AS phone_name,\n    CASE\n      WHEN COALESCE(r.device_ids, '') LIKE '% | %'\n      THEN CAST(SUBSTRING(COALESCE(r.device_ids, ''), LENGTH(SUBSTRING_INDEX(COALESCE(r.device_ids, ''), ' | ', 1)) + 4) AS CHAR(10000))\n      ELSE CAST('' AS CHAR(10000))\n    END AS rest_devices,\n    CASE\n      WHEN COALESCE(r.sibling_phones, '') LIKE '% | %'\n      THEN CAST(SUBSTRING(COALESCE(r.sibling_phones, ''), LENGTH(SUBSTRING_INDEX(COALESCE(r.sibling_phones, ''), ' | ', 1)) + 4) AS CHAR(10000))\n      ELSE CAST('' AS CHAR(10000))\n    END AS rest_phones\n  FROM duplicate_ip_snapshot_rows r\n  WHERE r.captured_at BETWEEN $__timeFrom() AND $__timeTo()\n    AND r.proxy_status_scope = '${proxy_status}'\n    AND r.last_ip != '__snapshot_empty__'\n    AND SUBSTRING_INDEX(r.location, ',', 1) != ''\n    AND LOWER(SUBSTRING_INDEX(r.location, ',', 1)) NOT IN ('n/a','na')\n\n  UNION ALL\n\n  SELECT\n    captured_at, city, last_ip, pos + 1,\n    CAST(TRIM(SUBSTRING_INDEX(rest_devices, ' | ', 1)) AS CHAR(255)),\n    CAST(TRIM(SUBSTRING_INDEX(rest_phones, ' | ', 1)) AS CHAR(255)),\n    CASE\n      WHEN rest_devices LIKE '% | %'\n      THEN CAST(SUBSTRING(rest_devices, LENGTH(SUBSTRING_INDEX(rest_devices, ' | ', 1)) + 4) AS CHAR(10000))\n      ELSE CAST('' AS CHAR(10000))\n    END,\n    CASE\n      WHEN rest_phones LIKE '% | %'\n      THEN CAST(SUBSTRING(rest_phones, LENGTH(SUBSTRING_INDEX(rest_phones, ' | ', 1)) + 4) AS CHAR(10000))\n      ELSE CAST('' AS CHAR(10000))\n    END\n  FROM rows_in_window\n  WHERE rest_devices != '' OR rest_phones != ''\n)\nSELECT\n  DATE(captured_at) AS day,\n  city,\n  device_id,\n  MAX(phone_name) AS phone_name,\n  COUNT(DISTINCT captured_at) AS snapshots_on_dup_ip,\n  COUNT(DISTINCT last_ip) AS distinct_dup_ips,\n  MIN(captured_at) AS first_seen,\n  MAX(captured_at) AS last_seen\nFROM rows_in_window\nWHERE device_id != ''\n  AND ('${city:raw}' = '$__all' OR city IN (${city:sqlstring}))\nGROUP BY DATE(captured_at), city, device_id\nORDER BY day DESC, city, snapshots_on_dup_ip DESC, device_id",
+          "refId": "A"
+        }
+      ],
+      "title": "Devices on Duplicate IPs — Per Day",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "id": 5,
+      "title": "Per-Snapshot Per-City Detail (raw)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Raw rows from individual checks. One row per (check, city) — no aggregation across time. Use to verify any number from the summary panels, or to export to Excel for custom analysis. Row count grows linearly with the time range; can be very large.\n\n**Column reference:**\n\n- **Snapshot** — exact moment the check ran.\n- **City** — city assigned to the phones/the duplicate IPs in this check.\n- **active_devices** — number of phones from this city that were online during the 5-minute window containing the check.\n- **duplicate_ips** — number of distinct duplicate IPs touching this city in this check.\n- **phones_on_dup_ips** — number of phones from this city sitting on those duplicate IPs.\n- **max_phones_per_ip** — largest number of phones found on a single shared IP in this check for this city.\n- **Duplicate Phone Rate (%)** — share of this city's active phones that were on a duplicate IP in this single check.\n- **Dup IPs / N devices** — per-N-devices view of distinct duplicate IPs for this single check.\n- **Phones on Dup IPs / N devices** — per-N-devices view of phones on duplicate IPs for this single check.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "snapshot_at"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Snapshot"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "city"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "City"
+              },
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_phone_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Duplicate Phone Rate (%)"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Snapshot"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH snaps AS (\n  SELECT DISTINCT captured_at AS snapshot_at,\n         FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(captured_at)/300)*300) AS bucket_start\n  FROM duplicate_ip_snapshot_rows\n  WHERE captured_at BETWEEN $__timeFrom() AND $__timeTo()\n    AND proxy_status_scope = '${proxy_status}'\n),\nbucket_active AS (\n  SELECT sm.window_start AS bucket_start,\n         TRIM(p.city) AS city,\n         COUNT(DISTINCT sm.proxy_id) AS active_devices\n  FROM proxy_requests_5min_summary sm\n  JOIN proxies p ON p.device_id = sm.proxy_id\n  WHERE sm.window_start BETWEEN $__timeFrom() - INTERVAL 5 MINUTE AND $__timeTo()\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n    AND TRIM(p.city) != ''\n  GROUP BY sm.window_start, TRIM(p.city)\n),\nsnap_dup AS (\n  SELECT s.snapshot_at,\n         SUBSTRING_INDEX(r.location, ',', 1) AS city,\n         COUNT(DISTINCT r.last_ip) AS duplicate_ips,\n         SUM(r.phones_on_same_ip) AS phones_on_dup_ips,\n         MAX(r.phones_on_same_ip) AS max_phones_per_ip\n  FROM snaps s\n  JOIN duplicate_ip_snapshot_rows r ON r.captured_at = s.snapshot_at\n  WHERE r.proxy_status_scope = '${proxy_status}'\n    AND r.last_ip != '__snapshot_empty__'\n    AND SUBSTRING_INDEX(r.location, ',', 1) != ''\n  GROUP BY s.snapshot_at, SUBSTRING_INDEX(r.location, ',', 1)\n),\nsnap_active AS (\n  SELECT s.snapshot_at, b.city, b.active_devices\n  FROM snaps s\n  JOIN bucket_active b ON b.bucket_start = s.bucket_start\n)\nSELECT\n  s.snapshot_at,\n  COALESCE(d.city, a.city) AS city,\n  COALESCE(a.active_devices, 0) AS active_devices,\n  COALESCE(d.duplicate_ips, 0) AS duplicate_ips,\n  COALESCE(d.phones_on_dup_ips, 0) AS phones_on_dup_ips,\n  COALESCE(d.max_phones_per_ip, 0) AS max_phones_per_ip,\n  ROUND(100.0 * COALESCE(d.phones_on_dup_ips, 0) / NULLIF(a.active_devices, 0), 2) AS duplicate_phone_rate_pct,\n  ROUND(${sample_devices} * COALESCE(d.duplicate_ips, 0) / NULLIF(a.active_devices, 0), 2) AS duplicate_ips_per_sample_devices,\n  ROUND(${sample_devices} * COALESCE(d.phones_on_dup_ips, 0) / NULLIF(a.active_devices, 0), 2) AS phones_on_dup_ips_per_sample_devices\nFROM snaps s\nJOIN snap_active a ON a.snapshot_at = s.snapshot_at\nLEFT JOIN snap_dup d ON d.snapshot_at = s.snapshot_at AND d.city = a.city\nWHERE ('${city:raw}' = '$__all' OR a.city IN (${city:sqlstring}))\n  AND a.active_devices >= 1\nORDER BY s.snapshot_at DESC, a.city",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-Snapshot Per-City Detail",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 59
+      },
+      "id": 7,
+      "title": "Latest Snapshot — Duplicate IP Detail",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Every duplicate IP from the most recent check inside the selected time range. Drills from the city/server summaries down to the exact IPs and phones currently sharing them. One row per (city, duplicate IP).\n\n**Column reference:**\n\n- **City** — city the shared IP was observed in.\n- **Check Time** — exact moment this duplicate state was observed. Same for every row in this panel (it's the latest check).\n- **Shared IP** — the IP address that two or more phones are simultaneously on.\n- **Phones on IP** — number of phones currently sharing this IP.\n- **Servers on IP** — comma-separated list of distinct server labels (e.g. `S1, S14, S20`) that have at least one phone on this IP. Multiple servers = cross-server duplicate.\n- **Phone Names** — pipe-separated list of phone names on this IP (e.g. `S14P1 | S14P2`).\n- **Device IDs** — pipe-separated list of device IDs in the same order as Phone Names. The N-th device ID belongs to the N-th phone name.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "city"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "City"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "check_time"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Check Time"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_ip"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Shared IP"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones_on_ip"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phones on IP"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "servers_on_ip"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Servers on IP"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones_on_ip_list"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phone Names"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device_ids"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Device IDs"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Phones on IP"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest_in_window AS (\n  SELECT MAX(captured_at) AS latest_ts\n  FROM duplicate_ip_snapshot_rows\n  WHERE captured_at BETWEEN $__timeFrom() AND $__timeTo()\n    AND proxy_status_scope = '${proxy_status}'\n)\nSELECT\n  SUBSTRING_INDEX(r.location, ',', 1) AS city,\n  r.captured_at AS check_time,\n  r.last_ip AS duplicate_ip,\n  r.phones_on_same_ip AS phones_on_ip,\n  r.all_servers_on_ip AS servers_on_ip,\n  r.sibling_phones AS phones_on_ip_list,\n  r.device_ids\nFROM duplicate_ip_snapshot_rows r\nJOIN latest_in_window l ON l.latest_ts = r.captured_at\nWHERE r.proxy_status_scope = '${proxy_status}'\n  AND r.last_ip != '__snapshot_empty__'\n  AND SUBSTRING_INDEX(r.location, ',', 1) != ''\n  AND ('${city:raw}' = '$__all' OR SUBSTRING_INDEX(r.location, ',', 1) IN (${city:sqlstring}))\nORDER BY SUBSTRING_INDEX(r.location, ',', 1), r.phones_on_same_ip DESC, r.last_ip",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest Snapshot — Duplicate IP Detail",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 74
+      },
+      "id": 9,
+      "title": "Top Servers Contributing to Duplicates",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Which servers appear inside duplicate-IP shares per city.\n\nRead from left to right:\n- **Distinct Dup IPs (window)** — number of unique IP addresses on this server that were ever caught as duplicates during the time range. This is the count you want when asking 'how big is the IP problem on this server.'\n- **Snapshots Involving Server** — number of separate checks in which this server was on at least one duplicate IP.\n- **IP×Snapshot Pairings** — raw count of (check, duplicate IP) pairings touching this server. Same IP gets counted again every check it persisted through. **NOT a phone count.**\n- **Phone-Snapshot Pairings** — total phones-on-shared-IP counts summed across all those pairings. A 2-phone IP seen by 288 checks over 24h = 576 here. **NOT a distinct phone count.**\n\nHigh distinct-IP count on a single server = same-server clustering. Counts spread across many servers = carrier/IP-pool collision.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "city"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "City"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "server_label"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Server"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "distinct_duplicate_ips"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Distinct Dup IPs (window)"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              },
+              {
+                "id": "description",
+                "value": "Number of distinct IP addresses on this server that were ever flagged as duplicate during the window."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "snapshots_involving_server"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Snapshots Involving Server"
+              },
+              {
+                "id": "custom.width",
+                "value": 190
+              },
+              {
+                "id": "description",
+                "value": "Number of distinct snapshots in which this server appeared on a duplicate IP."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ip_snapshot_pairings"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "IP×Snapshot Pairings"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              },
+              {
+                "id": "description",
+                "value": "Raw count of (check, duplicate IP) pairings this server appeared in. Inflated by time — a long-lived duplicate IP counts again every check it persisted. Use Distinct Dup IPs for a phone-intuition comparison."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phone_snapshot_pairings"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phone-Snapshot Pairings"
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              },
+              {
+                "id": "description",
+                "value": "Total phones-on-shared-IP counts summed across all (check, duplicate IP, server) pairings. NOT distinct phones. A 2-phone IP captured across 288 checks over 24h = 576 here."
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 75
+      },
+      "id": 10,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "City"
+          },
+          {
+            "desc": true,
+            "displayName": "Distinct Dup IPs (window)"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  SUBSTRING_INDEX(r.location, ',', 1) AS city,\n  ss.server_label,\n  COUNT(DISTINCT r.last_ip) AS distinct_duplicate_ips,\n  COUNT(DISTINCT r.captured_at) AS snapshots_involving_server,\n  COUNT(*) AS ip_snapshot_pairings,\n  SUM(r.phones_on_same_ip) AS phone_snapshot_pairings\nFROM duplicate_ip_snapshot_servers ss\nJOIN duplicate_ip_snapshot_rows r\n  ON r.captured_at = ss.captured_at\n AND r.proxy_status_scope = ss.proxy_status_scope\n AND r.last_ip = ss.last_ip\nWHERE ss.captured_at BETWEEN $__timeFrom() AND $__timeTo()\n  AND ss.proxy_status_scope = '${proxy_status}'\n  AND r.last_ip != '__snapshot_empty__'\n  AND SUBSTRING_INDEX(r.location, ',', 1) != ''\n  AND ('${city:raw}' = '$__all' OR SUBSTRING_INDEX(r.location, ',', 1) IN (${city:sqlstring}))\nGROUP BY SUBSTRING_INDEX(r.location, ',', 1), ss.server_label\nORDER BY city, distinct_duplicate_ips DESC, ss.server_label",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Servers Contributing to Duplicates",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "5m",
+  "schemaVersion": 42,
+  "tags": [
+    "proxies",
+    "ip",
+    "duplicates",
+    "city-comparison",
+    "frequency"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "active",
+          "value": "active"
+        },
+        "includeAll": false,
+        "label": "Proxy Status",
+        "name": "proxy_status",
+        "options": [
+          {
+            "selected": false,
+            "text": "All",
+            "value": "all"
+          },
+          {
+            "selected": true,
+            "text": "Active",
+            "value": "active"
+          },
+          {
+            "selected": false,
+            "text": "Inactive",
+            "value": "inactive"
+          }
+        ],
+        "query": "All : all, Active : active, Inactive : inactive",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "200",
+          "value": "200"
+        },
+        "includeAll": false,
+        "label": "Sample Devices",
+        "name": "sample_devices",
+        "options": [
+          {
+            "selected": false,
+            "text": "100",
+            "value": "100"
+          },
+          {
+            "selected": true,
+            "text": "200",
+            "value": "200"
+          },
+          {
+            "selected": false,
+            "text": "300",
+            "value": "300"
+          },
+          {
+            "selected": false,
+            "text": "500",
+            "value": "500"
+          },
+          {
+            "selected": false,
+            "text": "1000",
+            "value": "1000"
+          }
+        ],
+        "query": "100, 200, 300, 500, 1000",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "5",
+          "value": "5"
+        },
+        "includeAll": false,
+        "label": "Min Active Devices",
+        "name": "min_active_devices",
+        "options": [
+          {
+            "selected": false,
+            "text": "0",
+            "value": "0"
+          },
+          {
+            "selected": true,
+            "text": "5",
+            "value": "5"
+          },
+          {
+            "selected": false,
+            "text": "10",
+            "value": "10"
+          },
+          {
+            "selected": false,
+            "text": "20",
+            "value": "20"
+          },
+          {
+            "selected": false,
+            "text": "50",
+            "value": "50"
+          }
+        ],
+        "query": "0, 5, 10, 20, 50",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT TRIM(city) FROM proxies WHERE city IS NOT NULL AND city != '' AND LOWER(TRIM(city)) NOT IN ('n/a','na') ORDER BY 1",
+        "includeAll": true,
+        "label": "City",
+        "multi": true,
+        "name": "city",
+        "options": [],
+        "query": "SELECT DISTINCT TRIM(city) FROM proxies WHERE city IS NOT NULL AND city != '' AND LOWER(TRIM(city)) NOT IN ('n/a','na') ORDER BY 1",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Cities Duplicate-IP Frequency",
+  "uid": "cities-duplicate-frequency",
+  "version": 8,
+  "weekStart": ""
+}
