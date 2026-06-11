@@ -87,6 +87,9 @@ interface ProxyStats {
   ipCounts: Map<string, number>;
   ipAssignments: string[];
   ipChanges: Array<{ from: string; to: string; at: string }>;
+  inactiveRequestCount: number;
+  wsDisconnectedCount: number;
+  lastInactiveAt: Date | null;
 }
 
 function emptyStats(): ProxyStats {
@@ -108,6 +111,9 @@ function emptyStats(): ProxyStats {
     ipCounts: new Map(),
     ipAssignments: [],
     ipChanges: [],
+    inactiveRequestCount: 0,
+    wsDisconnectedCount: 0,
+    lastInactiveAt: null,
   };
 }
 
@@ -120,9 +126,18 @@ function accumulateRow(
     uploadSpeedMbps: number | null;
     outboundIp: string | null;
     timestamp: Date;
+    proxyStatus: string | null;
+    wsStatus: string | null;
   }
 ): void {
   stats.total++;
+  if (row.proxyStatus !== null && row.proxyStatus !== 'active') {
+    stats.inactiveRequestCount++;
+    stats.lastInactiveAt = row.timestamp;
+  }
+  if (row.wsStatus !== null && row.wsStatus !== 'connected') {
+    stats.wsDisconnectedCount++;
+  }
   if (row.status === 'SUCCESS') {
     stats.success++;
   } else if (row.status === 'TIMEOUT') {
@@ -417,6 +432,13 @@ function buildSummaryUpsertOp(input: {
     lastIp: stats.lastIp,
     mostUsedIp: mostUsedIp.ip,
     mostUsedIpCount: mostUsedIp.count,
+    inactiveRequestCount: stats.inactiveRequestCount,
+    inactiveRequestPct: decimalOrNull(
+      stats.total > 0 ? (stats.inactiveRequestCount * 100) / stats.total : null,
+      2
+    ),
+    lastInactiveAt: stats.lastInactiveAt,
+    wsDisconnectedCount: stats.wsDisconnectedCount,
   } satisfies Prisma.ProxyRequestsDailySummaryUncheckedUpdateInput;
 
   const create: Prisma.ProxyRequestsDailySummaryUncheckedCreateInput = {
@@ -735,6 +757,8 @@ export async function aggregateDayInApp(
               uploadSpeedMbps: true,
               outboundIp: true,
               timestamp: true,
+              proxyStatus: true,
+              wsStatus: true,
             },
           })
         );
@@ -749,6 +773,8 @@ export async function aggregateDayInApp(
             uploadSpeedMbps: row.uploadSpeedMbps,
             outboundIp: row.outboundIp,
             timestamp: row.timestamp,
+            proxyStatus: row.proxyStatus ?? null,
+            wsStatus: row.wsStatus ?? null,
           });
         }
 

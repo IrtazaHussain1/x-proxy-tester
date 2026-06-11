@@ -8,6 +8,7 @@ import { startContinuousTesting, stopContinuousTesting } from './services/contin
 import { startSpeedTestService, stopSpeedTestService } from './services/speed-test-service';
 import { stopIpRotationTesting } from './services/ip-rotation-testing';
 import { startDailyAggregationService, stopDailyAggregationService, aggregateRecentDays } from './services/daily-aggregation';
+import { startIpRotationAggregationService, stopIpRotationAggregationService } from './services/ip-rotation-aggregation';
 import { start5MinAggregationService, stop5MinAggregationService } from './services/5min-aggregation';
 import { startPeriodicArchival, stopPeriodicArchival } from './services/archival';
 import { batchWriter } from './lib/batch-writer';
@@ -51,6 +52,7 @@ async function gracefulShutdown(reason: string): Promise<void> {
     stopContinuousTesting();
     stopSpeedTestService();
     stopDailyAggregationService();
+    stopIpRotationAggregationService();
     stop5MinAggregationService();
     stopPeriodicArchival();
     stopDuplicateIpSnapshotService();
@@ -248,6 +250,7 @@ async function main(): Promise<void> {
     const enableDailyAggregationOnStart = process.env.ENABLE_DAILY_AGGREGATION_ON_START !== 'false';
     if (enableDailyAggregationOnStart) {
       startDailyAggregationService();
+      startIpRotationAggregationService();
       logger.info('Daily aggregation service started');
     } else {
       markScheduledJobDisabled('daily-aggregation', {
