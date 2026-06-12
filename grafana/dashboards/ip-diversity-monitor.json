@@ -315,7 +315,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk.",
+      "description": "Per-phone IP sessions per day: SUM(unique_ips_count) — each phone's distinct IPs per day, summed across phones. A shared IP is counted once PER PHONE, so this is NOT a fleet-deduplicated unique-IP count. Read as rotation/usage intensity, not distinct IP pool size.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -364,7 +364,7 @@
         }
       ],
       "timeFrom": "30d",
-      "title": "Unique IP Sessions per Day (30d)",
+      "title": "Per-Phone IP Sessions per Day (30d)",
       "type": "timeseries"
     },
     {

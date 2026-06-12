@@ -394,7 +394,8 @@
           "refId": "A"
         }
       ],
-      "title": "Unique IPs Seen (daily)",
+      "description": "Per-phone IP sessions per day: SUM(unique_ips_count) — each phone's distinct IPs per day, summed across all phones. A shared IP is counted once PER PHONE, so this is NOT a fleet-deduplicated unique-IP count. Read it as rotation/usage intensity, not the size of the distinct IP pool.",
+      "title": "Per-Phone IP Sessions Seen (daily)",
       "type": "timeseries"
     },
     {
