@@ -1,0 +1,1197 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "panels": [],
+      "title": "A — Fleet Pulse",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Fleet success rate recomputed from raw counts (SUM successes / SUM attempts). Only complete 6h buckets unless filter overridden.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 85
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(success_count) * 100.0 / NULLIF(SUM(attempts), 0), 2) AS value FROM ip_rotation_6h_summary WHERE $__timeFilter(bucket_start) AND is_complete >= ${completeness} AND server_name IN (${server:sqlstring}) AND cycle_type IN (${cycle_type:sqlstring})",
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet Success Rate %",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Fleet rotation-driven IP-change rate: SUM(commanded + failed_but_ip_changed) / SUM(attempts). Counts only IP changes attributable to a rotation attempt. Excludes auto (cross-row drift) which is an overlapping signal and would push the rate over 100%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "green",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(commanded_ip_change_count + failed_but_ip_changed_count) * 100.0 / NULLIF(SUM(attempts), 0), 2) AS value FROM ip_rotation_6h_summary WHERE $__timeFilter(bucket_start) AND is_complete >= ${completeness} AND server_name IN (${server:sqlstring}) AND cycle_type IN (${cycle_type:sqlstring})",
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet Rotation-Driven IP-Change Rate %",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Fleet wasted rotation %: SUM(same_ip_count) / SUM(attempts). Fraction of rotation attempts where the IP did not change. Recomputed from raw counts so large and small buckets are weighted by volume.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "percent",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(same_ip_count) * 100.0 / NULLIF(SUM(attempts), 0), 2) AS value FROM ip_rotation_6h_summary WHERE $__timeFilter(bucket_start) AND is_complete >= ${completeness} AND server_name IN (${server:sqlstring}) AND cycle_type IN (${cycle_type:sqlstring})",
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet Wasted Rotation %",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Fleet anomaly rate: SUM(pre_rotation_anomaly_count) / SUM(attempts). Pre-rotation signals that something was wrong before the rotation was issued.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 15
+              }
+            ]
+          },
+          "unit": "percent",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(pre_rotation_anomaly_count) * 100.0 / NULLIF(SUM(attempts), 0), 2) AS value FROM ip_rotation_6h_summary WHERE $__timeFilter(bucket_start) AND is_complete >= ${completeness} AND server_name IN (${server:sqlstring}) AND cycle_type IN (${cycle_type:sqlstring})",
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet Anomaly Rate %",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "4-metric trend over time: success%, rotation-driven ip-change%, wasted%, and anomaly%. All recomputed from raw counts (SUM numerator / SUM attempts) per bucket — no AVG(%) — so each point is volume-weighted. ip-change% excludes auto cross-row drift.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT UNIX_TIMESTAMP(bucket_start) AS time_sec, ROUND(SUM(success_count) * 100.0 / NULLIF(SUM(attempts), 0), 2) AS success_pct, ROUND(SUM(commanded_ip_change_count + failed_but_ip_changed_count) * 100.0 / NULLIF(SUM(attempts), 0), 2) AS ip_change_pct, ROUND(SUM(same_ip_count) * 100.0 / NULLIF(SUM(attempts), 0), 2) AS wasted_pct, ROUND(SUM(pre_rotation_anomaly_count) * 100.0 / NULLIF(SUM(attempts), 0), 2) AS anomaly_pct FROM ip_rotation_6h_summary WHERE $__timeFilter(bucket_start) AND is_complete >= ${completeness} AND server_name IN (${server:sqlstring}) AND cycle_type IN (${cycle_type:sqlstring}) GROUP BY bucket_start ORDER BY bucket_start",
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet Health Metrics Over Time (success%, rotation-driven ip-change%, wasted%, anomaly%)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 10,
+      "panels": [],
+      "title": "B — Rotation Attribution & Success by Cycle Type",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Per-6h-bucket counts: commanded, failed-but-changed, auto, same-IP. NOT a partition — commanded/failed/same are mutually exclusive per row, but auto is an overlapping cross-row drift signal counted on the same rows, so stack HEIGHT double-counts and is meaningless. Read each series on its own; do not interpret the total.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Count",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 0,
+        "y": 14
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT UNIX_TIMESTAMP(bucket_start) AS time_sec, SUM(commanded_ip_change_count) AS commanded, SUM(failed_but_ip_changed_count) AS failed_but_changed, SUM(auto_ip_change_count) AS auto_changed, SUM(same_ip_count) AS same_ip FROM ip_rotation_6h_summary WHERE $__timeFilter(bucket_start) AND is_complete >= ${completeness} AND server_name IN (${server:sqlstring}) AND cycle_type IN (${cycle_type:sqlstring}) GROUP BY bucket_start ORDER BY bucket_start",
+          "refId": "A"
+        }
+      ],
+      "title": "Rotation Attribution — Overlaid Counts (commanded / failed_but_changed / auto / same_ip)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Success rate broken out by cycle_type (periodic / inactive_proxy / continuous). Identifies which rotation trigger type has the worst success rate in the selected window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 85
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 14,
+        "y": 14
+      },
+      "id": 12,
+      "options": {
+        "barRadius": 0.05,
+        "barWidth": 0.7,
+        "fillOpacity": 80,
+        "gradientMode": "none",
+        "groupWidth": 0.7,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "vertical",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT cycle_type, ROUND(SUM(success_count) * 100.0 / NULLIF(SUM(attempts), 0), 2) AS success_pct FROM ip_rotation_6h_summary WHERE $__timeFilter(bucket_start) AND is_complete >= ${completeness} AND server_name IN (${server:sqlstring}) AND cycle_type IN (${cycle_type:sqlstring}) GROUP BY cycle_type ORDER BY cycle_type",
+          "refId": "A"
+        }
+      ],
+      "title": "Success Rate by Cycle Type",
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 20,
+      "panels": [],
+      "title": "E — Outliers (Drill Table)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Per (server, device, cycle_type) rollup over selected window. success%, wasted%, anomaly% recomputed from raw counts (SUM/SUM, volume-weighted). Pool Class is computed from the TRUE distinct-IP count over the whole window — union of every bucket's ip_pool_snapshot, not a single bucket — so Stuck = exactly 1 distinct IP for the entire window. Distinct IPs (window) shows that count. Sorted fewest-IPs first (worst rotation on top). Max Distinct Errors = worst single bucket. Latest Error = chronologically last by bucket.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "server_name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Server"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "proxy_id"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Device ID"
+              },
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device_name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Device"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "location"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Location"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cycle_type"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Cycle Type"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Success %"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 85
+                    },
+                    {
+                      "color": "green",
+                      "value": 95
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "wasted_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Wasted %"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 10
+                    },
+                    {
+                      "color": "red",
+                      "value": 20
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "anomaly_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Anomaly %"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 5
+                    },
+                    {
+                      "color": "red",
+                      "value": 15
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "distinct_ips_window"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Distinct IPs (window)"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 2
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 6
+                    },
+                    {
+                      "color": "green",
+                      "value": 21
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_ip_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Duplicate IP %"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 30
+                    },
+                    {
+                      "color": "red",
+                      "value": 60
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rotation_pool_class"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Pool Class"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pool_description"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Pool Status"
+              },
+              {
+                "id": "custom.width",
+                "value": 320
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_consecutive_same_ip"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Max Consec. Same IP"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 3
+                    },
+                    {
+                      "color": "red",
+                      "value": 6
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "distinct_error_count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Max Distinct Errors / Bucket"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_error"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Latest Error"
+              },
+              {
+                "id": "custom.width",
+                "value": 260
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 21,
+      "options": {
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Distinct IPs (window)"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ANY_VALUE(s.server_name) AS server_name, s.proxy_id, ANY_VALUE(s.device_name) AS device_name, ANY_VALUE(s.location) AS location, s.cycle_type, ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.attempts), 0), 2) AS success_pct, ROUND(SUM(s.same_ip_count) * 100.0 / NULLIF(SUM(s.attempts), 0), 2) AS wasted_pct, ROUND(SUM(s.pre_rotation_anomaly_count) * 100.0 / NULLIF(SUM(s.attempts), 0), 2) AS anomaly_pct, ipw.distinct_ips_window, ipw.duplicate_ip_pct, CASE WHEN ipw.distinct_ips_window <= 1 THEN 'Stuck' WHEN ipw.distinct_ips_window <= 5 THEN 'Cycling' WHEN ipw.distinct_ips_window <= 20 THEN 'Medium' ELSE 'Healthy' END AS rotation_pool_class, CASE WHEN ipw.distinct_ips_window <= 1 THEN 'Stuck — only 1 distinct IP seen across the entire window (rotation not changing the IP)' WHEN ipw.distinct_ips_window <= 5 THEN CONCAT('Cycling — small pool of ', ipw.distinct_ips_window, ' distinct IPs recycled over the window') WHEN ipw.distinct_ips_window <= 20 THEN CONCAT('Medium — ', ipw.distinct_ips_window, ' distinct IPs over the window') ELSE CONCAT('Healthy — ', ipw.distinct_ips_window, ' distinct IPs over the window') END AS pool_description, MAX(s.max_consecutive_same_ip) AS max_consecutive_same_ip, MAX(s.distinct_error_count) AS distinct_error_count, SUBSTRING_INDEX(GROUP_CONCAT(s.last_error ORDER BY s.bucket_start DESC SEPARATOR 0x1e), 0x1e, 1) AS last_error FROM ip_rotation_6h_summary s JOIN (SELECT proxy_id, cycle_type, COUNT(*) AS distinct_ips_window, ROUND(SUM(times_seen > 1) * 100.0 / NULLIF(COUNT(*), 0), 2) AS duplicate_ip_pct FROM (SELECT s2.proxy_id AS proxy_id, s2.cycle_type AS cycle_type, j.ip AS ip, SUM(j.cnt) AS times_seen FROM ip_rotation_6h_summary s2, JSON_TABLE(s2.ip_pool_snapshot, '$[*]' COLUMNS (ip VARCHAR(45) PATH '$.ip', cnt INT PATH '$.count')) j WHERE $__timeFilter(s2.bucket_start) AND s2.is_complete >= ${completeness} AND s2.server_name IN (${server:sqlstring}) AND s2.cycle_type IN (${cycle_type:sqlstring}) GROUP BY s2.proxy_id, s2.cycle_type, j.ip) per_ip GROUP BY proxy_id, cycle_type) ipw ON ipw.proxy_id = s.proxy_id AND ipw.cycle_type = s.cycle_type WHERE $__timeFilter(s.bucket_start) AND s.is_complete >= ${completeness} AND s.server_name IN (${server:sqlstring}) AND s.cycle_type IN (${cycle_type:sqlstring}) GROUP BY s.proxy_id, s.cycle_type, ipw.distinct_ips_window, ipw.duplicate_ip_pct ORDER BY ipw.distinct_ips_window ASC, wasted_pct DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Outliers — Per Device / Cycle Type (sorted by Wasted % then Anomaly %)",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": [
+    "x-proxy-tester",
+    "rotation",
+    "testing",
+    "6h"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT server_name FROM ip_rotation_6h_summary WHERE server_name IS NOT NULL ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "name": "server",
+        "options": [],
+        "query": "SELECT DISTINCT server_name FROM ip_rotation_6h_summary WHERE server_name IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "periodic",
+          "value": [
+            "periodic"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT cycle_type FROM ip_rotation_6h_summary WHERE cycle_type IS NOT NULL ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "name": "cycle_type",
+        "options": [],
+        "query": "SELECT DISTINCT cycle_type FROM ip_rotation_6h_summary WHERE cycle_type IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "Complete only",
+          "value": "1"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "completeness",
+        "options": [
+          {
+            "selected": true,
+            "text": "Complete only",
+            "value": "1"
+          },
+          {
+            "selected": false,
+            "text": "Include partial",
+            "value": "0"
+          }
+        ],
+        "query": "Complete only : 1, Include partial : 0",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "IP Rotation Health — Aggregated (6h)",
+  "uid": "ip-rotation-health-6h",
+  "version": 1
+}
