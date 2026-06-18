@@ -11,6 +11,7 @@ describe('computeServerLabelFromDeviceName', () => {
     expect(computeServerLabelFromDeviceName('S35_P09_montreal')).toBe('S35');
     expect(computeServerLabelFromDeviceName('S17 p1')).toBe('S17');
     expect(computeServerLabelFromDeviceName('S213 P1')).toBe('S213');
+    expect(computeServerLabelFromDeviceName('S100-P99')).toBe('S100');
   });
 
   it('recovers the rack token when it is glued onto a phone model (P## suffix present)', () => {
@@ -24,6 +25,7 @@ describe('computeServerLabelFromDeviceName', () => {
 
   it('recovers a leading rack token that dropped its P (e.g. typo S39 29)', () => {
     expect(computeServerLabelFromDeviceName('S39 29')).toBe('S39');
+    expect(computeServerLabelFromDeviceName('S4 1')).toBe('S4');
   });
 
   it('does NOT mistake a model number for a server (no P## suffix)', () => {
@@ -41,6 +43,8 @@ describe('computeServerLabelFromDeviceName', () => {
     expect(computeServerLabelFromDeviceName('_Test_Simulator_jam')).toBe('UNKNOWN');
     expect(computeServerLabelFromDeviceName('S16')).toBe('UNKNOWN');
     expect(computeServerLabelFromDeviceName(null)).toBe('UNKNOWN');
+    expect(computeServerLabelFromDeviceName(undefined)).toBe('UNKNOWN');
+    expect(computeServerLabelFromDeviceName('')).toBe('UNKNOWN');
     expect(computeServerLabelFromDeviceName('   ')).toBe('UNKNOWN');
   });
 });

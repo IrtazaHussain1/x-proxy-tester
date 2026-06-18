@@ -394,7 +394,8 @@
           "refId": "A"
         }
       ],
-      "title": "Unique IPs Seen (daily summary + today hourly)",
+      "description": "Mixed series — read the two segments differently. Past days: SUM(unique_ips_count), i.e. per-phone distinct IPs summed across phones (a shared IP counts once PER PHONE, NOT fleet-deduplicated). Today: COUNT(DISTINCT outbound_ip) per hour (true distinct). The historical and today segments are therefore not directly comparable; treat the daily part as rotation/usage intensity, not distinct IP pool size.",
+      "title": "Per-Phone IP Sessions Seen (daily) + today hourly distinct",
       "type": "timeseries"
     },
     {

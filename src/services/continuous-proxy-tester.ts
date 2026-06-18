@@ -13,6 +13,7 @@
  */
 
 import { getAllDevices, updateDevices } from '../helpers/devices';
+import { computeServerLabelFromDeviceName } from '../helpers/server-name';
 import { testProxyWithStats } from '../helpers/test-proxy';
 import { logger } from '../lib/logger';
 import { extractAppVersion } from '../helpers/extra-parser';
@@ -235,6 +236,7 @@ export async function processProxyTestWriteJob(
       lastIpRotation: device.last_ip_rotation || null,
       extra: device.extra || null,
       version: extractAppVersion(device.extra),
+      serverName: computeServerLabelFromDeviceName(device.name) || null,
     };
 
     if (!proxy) {
@@ -410,6 +412,9 @@ export async function processProxyTestWriteJob(
         source: source,
         downloadSpeedMbps: null,
         uploadSpeedMbps: null,
+        serverName: computeServerLabelFromDeviceName(device.name) || null,
+        proxyStatus: device.proxy_status || null,
+        wsStatus: device.ws_status || null,
       },
     });
 

@@ -682,7 +682,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 4,
         "x": 0,
         "y": 38
       },
@@ -754,8 +754,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 6,
+        "w": 4,
+        "x": 4,
         "y": 38
       },
       "id": 203,
@@ -826,8 +826,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
+        "w": 4,
+        "x": 8,
         "y": 38
       },
       "id": 204,
@@ -858,6 +858,66 @@
         }
       ],
       "title": "Affected Phones",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "True count of distinct IP addresses the fleet used in the selected period, deduplicated across all phones and days. Counts EVERY IP each phone touched (from ip_history_json.uniqueIps), not just the end-of-day IP, so it reflects the full unique-IP pool. A repeated IP \u2014 same phone, another day, or another phone \u2014 is counted once. Compare with \"Distinct End-of-Day IPs\": the gap shows how much phones rotate within a day before settling.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 38
+      },
+      "id": 210,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT jt.ip) AS value FROM proxy_requests_daily_summary s JOIN JSON_TABLE(s.ip_history_json, '$.uniqueIps[*]' COLUMNS (ip VARCHAR(45) PATH '$')) jt WHERE s.day >= DATE($__timeFrom()) AND s.day <= DATE($__timeTo()) AND jt.ip IS NOT NULL AND jt.ip != '' AND s.location IN ($location) AND COALESCE(s.server_name, 'UNKNOWN') IN ($server) AND s.proxy_id IN ($phone)",
+          "refId": "A"
+        }
+      ],
+      "title": "Fleet Unique IPs \u2014 Full Pool (period)",
       "type": "stat"
     },
     {

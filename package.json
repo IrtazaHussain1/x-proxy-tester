@@ -25,7 +25,9 @@
     "db:status:dev": "dotenv -e .env.dev -- prisma migrate status",
     "db:status:prod": "dotenv -e .env.prod -- prisma migrate status",
     "db:aggregate:dev": "dotenv -e .env.dev -- tsx scripts/run-aggregation.ts",
-    "db:aggregate:prod": "dotenv -e .env.prod -- tsx scripts/run-aggregation.ts"
+    "db:aggregate:prod": "dotenv -e .env.prod -- tsx scripts/run-aggregation.ts",
+    "backfill:rotation:dev": "dotenv -e .env.dev -- tsx scripts/backfill-ip-rotation-aggregation.ts",
+    "backfill:rotation:prod": "dotenv -e .env.prod -- tsx scripts/backfill-ip-rotation-aggregation.ts"
   },
   "keywords": [
     "proxy",
@@ -52,7 +54,9 @@
     "@typescript-eslint/eslint-plugin": "^8.53.0",
     "@typescript-eslint/parser": "^8.53.0",
     "@vitest/coverage-v8": "^2.1.9",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9.39.2",
+    "playwright": "^1.60.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"

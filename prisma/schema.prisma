@@ -11,6 +11,7 @@ model Proxy {
   deviceId          String   @id @map("device_id") @db.VarChar(255)
   deviceApiId       Int?     @map("device_api_id")
   name              String
+  serverName        String?  @map("server_name") @db.VarChar(32)
   model             String?
   location          String?
   host              String
@@ -138,6 +139,9 @@ model ProxyRequest {
   updatedAt      DateTime @updatedAt @map("updated_at")
   downloadSpeedMbps Float?   @map("download_speed_mbps")
   uploadSpeedMbps   Float?   @map("upload_speed_mbps")
+  serverName        String?  @map("server_name") @db.VarChar(16)
+  proxyStatus       String?  @map("proxy_status")
+  wsStatus          String?  @map("ws_status")
 
   proxy Proxy @relation(fields: [proxyId], references: [deviceId], onDelete: Cascade)
 
@@ -226,6 +230,11 @@ model ProxyRequestsDailySummary {
   mostUsedIp           String?  @map("most_used_ip") @db.VarChar(45)
   mostUsedIpCount      Int      @default(0) @map("most_used_ip_count")
 
+  inactiveRequestCount Int      @default(0) @map("inactive_request_count")
+  inactiveRequestPct   Decimal? @map("inactive_request_pct") @db.Decimal(5, 2)
+  lastInactiveAt       DateTime? @map("last_inactive_at")
+  wsDisconnectedCount  Int      @default(0) @map("ws_disconnected_count")
+
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
@@ -289,6 +298,82 @@ model ProxyRequests5MinSummary {
   @@index([proxyId, windowStart])
   @@index([windowStart])
   @@map("proxy_requests_5min_summary")
+}
+
+/// Pre-aggregated 6-hour buckets for IP rotation behavior.
+/// One row per (bucketStart, proxyId, cycleType). bucketEnd is exclusive: covers [bucketStart, bucketEnd).
+/// Retained long-term; survives purge of raw ip_rotations rows.
+/// Populated by the ip-rotation-aggregation service on a 6h schedule.
+model IpRotationSixHourSummary {
+  bucketStart               DateTime  @db.DateTime(0) @map("bucket_start")
+  proxyId                   String    @db.VarChar(255) @map("proxy_id")
+  cycleType                 String    @db.VarChar(50) @map("cycle_type")
+  bucketEnd                 DateTime  @db.DateTime(0) @map("bucket_end")
+
+  // Volume / success
+  attempts                  Int       @default(0)
+  successCount              Int       @default(0) @map("success_count")
+  failedCount               Int       @default(0) @map("failed_count")
+  successRatePct            Decimal?  @db.Decimal(5, 2) @map("success_rate_pct")
+
+  // IP-change attribution (locked definitions from ticket)
+  commandedIpChangeCount    Int       @default(0) @map("commanded_ip_change_count")
+  sameIpCount               Int       @default(0) @map("same_ip_count")
+  failedButIpChangedCount   Int       @default(0) @map("failed_but_ip_changed_count")
+  autoIpChangeCount         Int       @default(0) @map("auto_ip_change_count")
+
+  // Boundary tracking (validated in Phase 0)
+  firstIpBefore             String?   @db.VarChar(45) @map("first_ip_before")
+  lastIpAfter               String?   @db.VarChar(45) @map("last_ip_after")
+
+  // Convenience rates
+  ipChangeTotal             Int       @default(0) @map("ip_change_total")
+  ipChangeRatePct           Decimal?  @db.Decimal(5, 2) @map("ip_change_rate_pct")
+  wastedRotationPct         Decimal?  @db.Decimal(5, 2) @map("wasted_rotation_pct")
+  anomalyRatePct            Decimal?  @db.Decimal(5, 2) @map("anomaly_rate_pct")
+
+  // IP diversity
+  distinctIpsBefore         Int       @default(0) @map("distinct_ips_before")
+  distinctIpsTotal          Int       @default(0) @map("distinct_ips_total")
+  rotationPoolClass         String?   @db.VarChar(16) @map("rotation_pool_class")
+  maxConsecutiveSameIp      Int       @default(0) @map("max_consecutive_same_ip")
+
+  // Timing
+  avgRotationDurationMs     Decimal?  @db.Decimal(10, 2) @map("avg_rotation_duration_ms")
+  p95RotationDurationMs     Int?      @map("p95_rotation_duration_ms")
+  maxRotationDurationMs     Int?      @map("max_rotation_duration_ms")
+  avgWaitTimeMs             Decimal?  @db.Decimal(10, 2) @map("avg_wait_time_ms")
+  totalRetryCount           Int       @default(0) @map("total_retry_count")
+
+  // Pre-rotation health signals
+  preRotationAnomalyCount   Int       @default(0) @map("pre_rotation_anomaly_count")
+  distinctErrorCount        Int       @default(0) @map("distinct_error_count")
+  lastError                 String?   @db.Text @map("last_error")
+
+  // Dimensions (denormalized for query convenience)
+  serverName                String?   @db.VarChar(32) @map("server_name")
+  deviceName                String?   @db.VarChar(255) @map("device_name")
+  location                  String?   @db.VarChar(255)
+  state                     String?   @db.VarChar(255)
+  city                      String?   @db.VarChar(255)
+
+  // Window metadata
+  firstRotationAt           DateTime? @map("first_rotation_at")
+  lastRotationAt            DateTime? @map("last_rotation_at")
+  isComplete                Boolean   @default(false) @map("is_complete")
+  aggregationVersion        Int       @default(1) @map("aggregation_version")
+  ipPoolSnapshot            Json?     @map("ip_pool_snapshot")
+
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  @@id([bucketStart, proxyId, cycleType])
+  @@index([bucketStart])
+  @@index([proxyId, bucketStart])
+  @@index([serverName])
+  @@index([location])
+  @@index([bucketStart, cycleType])
+  @@map("ip_rotation_6h_summary")
 }
 
 /// Normalized server labels for one capture (same captured_at / scope as sibling rows).
