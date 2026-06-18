@@ -18,11 +18,12 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 19,
   "links": [],
   "liveNow": false,
   "panels": [
     {
+      "description": "This metric shows the current value of stable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -78,10 +79,10 @@
         }
       ],
       "title": "Stable Proxies",
-      "type": "stat",
-      "description": "This metric shows the current value of stable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the current value of unstable hourly for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -145,10 +146,10 @@
         }
       ],
       "title": "Unstable Hourly",
-      "type": "stat",
-      "description": "This metric shows the current value of unstable hourly for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the current value of unstable daily for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -212,10 +213,10 @@
         }
       ],
       "title": "Unstable Daily",
-      "type": "stat",
-      "description": "This metric shows the current value of unstable daily for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "Per-hour count of active proxies classified as Stable vs UnstableHourly. Derived from 5-minute aggregates using the original stability threshold (>120 failures/hour \u2248 >10min downtime at 5s test interval). The underlying 5-minute aggregates retain roughly 2 days, so longer time ranges show empty buckets for older periods.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -258,10 +259,10 @@
         }
       ],
       "title": "Stability Trend Over Time",
-      "type": "timeseries",
-      "description": "Per-hour count of active proxies classified as Stable vs UnstableHourly. Derived from 5-minute aggregates using the original stability threshold (>120 failures/hour ≈ >10min downtime at 5s test interval). The underlying 5-minute aggregates retain roughly 2 days, so longer time ranges show empty buckets for older periods."
+      "type": "timeseries"
     },
     {
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -315,10 +316,10 @@
         }
       ],
       "title": "Top Unstable Proxies",
-      "type": "table",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "table"
     },
     {
+      "description": "This panel shows stability status by location for the selected scope and period. It supports faster, evidence-based operational decisions.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -361,8 +362,7 @@
         }
       ],
       "title": "Stability Status by Location",
-      "type": "bargauge",
-      "description": "This panel shows stability status by location for the selected scope and period. It supports faster, evidence-based operational decisions."
+      "type": "bargauge"
     }
   ],
   "refresh": "",
@@ -410,5 +410,5 @@
   "timezone": "browser",
   "title": "XProxy Tester - Stability Analysis",
   "uid": "6f1557bf-b3a6-4300-be5e-0f7364fc5f01",
-  "version": 1
+  "version": 2
 }

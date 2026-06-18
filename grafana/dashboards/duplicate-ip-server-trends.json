@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 8,
   "links": [],
   "panels": [
     {
@@ -163,7 +163,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "This panel shows ip ↔ server (latest update) for the selected scope and period. It supports faster, evidence-based operational decisions.",
+      "description": "This panel shows ip \u2194 server (latest update) for the selected scope and period. It supports faster, evidence-based operational decisions.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -225,7 +225,7 @@
           "refId": "nodes"
         }
       ],
-      "title": "IP ↔ server (latest update)",
+      "title": "IP \u2194 server (latest update)",
       "transformations": [],
       "type": "nodeGraph"
     }
@@ -298,6 +298,7 @@
         "type": "query"
       },
       {
+        "allValue": null,
         "current": {
           "selected": true,
           "text": [
@@ -323,8 +324,7 @@
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
-        "type": "query",
-        "allValue": null
+        "type": "query"
       }
     ]
   },
@@ -334,7 +334,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Duplicate IP — Server count trends",
+  "title": "Duplicate IP \u2014 Server count trends",
   "uid": "duplicate-ip-server-trends",
-  "version": 19
+  "version": 2
 }

@@ -1,0 +1,969 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Shows IP addresses shared by phones across two or more servers at the same time. Pick the servers to watch. 'Live now' is real-time; the rest is recorded every 5 minutes so you can look back over time.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 90,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "**What this shows:** IP addresses that are being used by phones on **two or more different servers at the same time** \u2014 one of which is a server you picked in the **Servers** box (top-left). When two servers share the same IP address, their phones look like they're coming from the same place.\n\n**Live now** = the situation this minute (updates every minute). **Recorded history** = the same check stored every 5 minutes, so you can look back over time using the time range (top-right).",
+        "mode": "markdown"
+      },
+      "pluginVersion": "12.2.0",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 200,
+      "panels": [],
+      "title": "Live now \u2014 current situation",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "How many IP addresses are, right now, used at the same time by phones on two or more different servers (at least one of them selected). 0 = no overlap right now. Lower is better.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
+      "id": 201,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS value FROM (\n  SELECT last_ip FROM (\n    SELECT p.last_ip,\n      CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'Unknown' END AS server_label\n    FROM proxies p\n    WHERE p.last_ip IS NOT NULL AND p.last_ip <> ''\n      AND ('${proxy_scope}' = 'all' OR p.proxy_status = '${proxy_scope}')\n  ) d\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1 AND COUNT(DISTINCT server_label) >= 2\n     AND SUM(CASE WHEN server_label IN (${server:sqlstring}) THEN 1 ELSE 0 END) >= 1\n) t",
+          "refId": "A"
+        }
+      ],
+      "title": "Shared IPs across servers (now)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "How many phones are currently sitting on one of those shared IPs.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 5
+      },
+      "id": 202,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH dev AS (\n  SELECT p.last_ip, p.name, p.device_id,\n    CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'Unknown' END AS server_label,\n    CONCAT_WS(', ', NULLIF(TRIM(p.city),''), NULLIF(TRIM(p.state),''), NULLIF(TRIM(p.country),'')) AS location\n  FROM proxies p\n  WHERE p.last_ip IS NOT NULL AND p.last_ip <> ''\n    AND ('${proxy_scope}' = 'all' OR p.proxy_status = '${proxy_scope}')\n),\nip_qual AS (\n  SELECT last_ip FROM dev GROUP BY last_ip\n  HAVING COUNT(*) > 1 AND COUNT(DISTINCT server_label) >= 2\n     AND SUM(CASE WHEN server_label IN (${server:sqlstring}) THEN 1 ELSE 0 END) >= 1\n)\nSELECT COUNT(*) AS value FROM dev d JOIN ip_qual q ON q.last_ip = d.last_ip",
+          "refId": "A"
+        }
+      ],
+      "title": "Phones affected (now)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Every IP currently shared across servers: the servers involved, how many phones are on it, the phone names, their device IDs, and location. Straight from live data, no delay.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 203,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Phones on IP",
+            "desc": true
+          }
+        ]
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH dev AS (\n  SELECT p.last_ip, p.name, p.device_id,\n    CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'Unknown' END AS server_label,\n    CONCAT_WS(', ', NULLIF(TRIM(p.city),''), NULLIF(TRIM(p.state),''), NULLIF(TRIM(p.country),'')) AS location\n  FROM proxies p\n  WHERE p.last_ip IS NOT NULL AND p.last_ip <> ''\n    AND ('${proxy_scope}' = 'all' OR p.proxy_status = '${proxy_scope}')\n),\nip_qual AS (\n  SELECT last_ip FROM dev GROUP BY last_ip\n  HAVING COUNT(*) > 1 AND COUNT(DISTINCT server_label) >= 2\n     AND SUM(CASE WHEN server_label IN (${server:sqlstring}) THEN 1 ELSE 0 END) >= 1\n)\nSELECT d.last_ip AS `Shared IP`,\n  GROUP_CONCAT(DISTINCT d.server_label ORDER BY d.server_label SEPARATOR ', ') AS `Servers sharing it`,\n  COUNT(*) AS `Phones on IP`,\n  GROUP_CONCAT(d.name ORDER BY d.name SEPARATOR ' | ') AS `Phones`,\n  GROUP_CONCAT(d.device_id ORDER BY d.name SEPARATOR ' | ') AS `Device IDs`,\n  GROUP_CONCAT(DISTINCT d.location ORDER BY d.location SEPARATOR ' | ') AS `Location`\nFROM dev d JOIN ip_qual q ON q.last_ip = d.last_ip\nGROUP BY d.last_ip\nORDER BY `Phones on IP` DESC, d.last_ip",
+          "refId": "A"
+        }
+      ],
+      "title": "Which IPs are shared right now \u2014 phones & devices",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Most recent check in the selected time range",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "The 5-minute window (UTC) of the most recent recorded check WITHIN the time range you picked (top-right). Change the time range and this changes too. For the always-current picture use the 'Live now' panels at the top.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 20
+      },
+      "id": 101,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT DATE_FORMAT(MAX(captured_at), '%Y-%m-%d %H:%i') AS `Latest check (UTC)`,\n  TIMESTAMPDIFF(MINUTE, MAX(captured_at), UTC_TIMESTAMP()) AS `Minutes ago`\nFROM duplicate_ip_snapshot_servers\nWHERE $__timeFilter(captured_at)",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest check in range",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Number of IPs shared across servers in the most recent recorded check. Should match 'Live now' when the data is fresh.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 20
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (\n  SELECT MAX(captured_at) AS captured_at\n  FROM duplicate_ip_snapshot_servers\n  WHERE proxy_status_scope = '${proxy_scope}' AND $__timeFilter(captured_at)\n), xips AS (\n  SELECT s.last_ip\n  FROM duplicate_ip_snapshot_servers s\n  JOIN latest l ON l.captured_at = s.captured_at\n  WHERE s.proxy_status_scope = '${proxy_scope}' AND s.last_ip <> '__snapshot_empty__'\n  GROUP BY s.last_ip\n  HAVING COUNT(DISTINCT s.server_label) >= 2\n     AND SUM(CASE WHEN s.server_label IN (${server:sqlstring}) THEN 1 ELSE 0 END) >= 1\n)\nSELECT COUNT(*) AS value FROM xips",
+          "refId": "A"
+        }
+      ],
+      "title": "Shared IPs across servers (last check)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "How many phones were on those shared IPs at the last recorded check.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 20
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (\n  SELECT MAX(captured_at) AS captured_at\n  FROM duplicate_ip_snapshot_servers\n  WHERE proxy_status_scope = '${proxy_scope}' AND $__timeFilter(captured_at)\n), xips AS (\n  SELECT s.last_ip\n  FROM duplicate_ip_snapshot_servers s\n  JOIN latest l ON l.captured_at = s.captured_at\n  WHERE s.proxy_status_scope = '${proxy_scope}' AND s.last_ip <> '__snapshot_empty__'\n  GROUP BY s.last_ip\n  HAVING COUNT(DISTINCT s.server_label) >= 2\n     AND SUM(CASE WHEN s.server_label IN (${server:sqlstring}) THEN 1 ELSE 0 END) >= 1\n)\nSELECT COALESCE(SUM(r.phones_on_same_ip),0) AS value\nFROM duplicate_ip_snapshot_rows r JOIN latest l ON l.captured_at=r.captured_at\nJOIN xips x ON x.last_ip=r.last_ip WHERE r.proxy_status_scope='${proxy_scope}'",
+          "refId": "A"
+        }
+      ],
+      "title": "Phones affected (last check)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Totals & trends across the selected time range",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "How many distinct IP addresses were shared across servers at any point during the selected time period.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 25
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 25
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT last_ip) AS value FROM (\n  SELECT s.captured_at, s.last_ip\n  FROM duplicate_ip_snapshot_servers s\n  WHERE s.proxy_status_scope = '${proxy_scope}' AND $__timeFilter(s.captured_at)\n    AND s.last_ip <> '__snapshot_empty__'\n  GROUP BY s.captured_at, s.last_ip\n  HAVING COUNT(DISTINCT s.server_label) >= 2\n     AND SUM(CASE WHEN s.server_label IN (${server:sqlstring}) THEN 1 ELSE 0 END) >= 1\n) t",
+          "refId": "A"
+        }
+      ],
+      "title": "Different shared IPs seen (whole period)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Number of IPs shared across servers at each 5-minute check. Spikes = moments when more servers were overlapping.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [
+            "max",
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT t.captured_at AS time, COUNT(*) AS \"Shared IPs across servers\"\nFROM (\n  SELECT s.captured_at, s.last_ip\n  FROM duplicate_ip_snapshot_servers s\n  WHERE s.proxy_status_scope = '${proxy_scope}' AND $__timeFilter(s.captured_at)\n    AND s.last_ip <> '__snapshot_empty__'\n  GROUP BY s.captured_at, s.last_ip\n  HAVING COUNT(DISTINCT s.server_label) >= 2\n     AND SUM(CASE WHEN s.server_label IN (${server:sqlstring}) THEN 1 ELSE 0 END) >= 1\n) t\nGROUP BY t.captured_at\nORDER BY t.captured_at",
+          "refId": "A"
+        }
+      ],
+      "title": "Shared IPs across servers \u2014 over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Each IP that was shared across servers during the period: which servers, how many times it was seen, the most phones on it, the phone names and device IDs, and when it was last seen.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Times seen",
+            "desc": true
+          }
+        ]
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH q AS (\n  SELECT s.captured_at, s.last_ip\n  FROM duplicate_ip_snapshot_servers s\n  WHERE s.proxy_status_scope = '${proxy_scope}' AND $__timeFilter(s.captured_at)\n    AND s.last_ip <> '__snapshot_empty__'\n  GROUP BY s.captured_at, s.last_ip\n  HAVING COUNT(DISTINCT s.server_label) >= 2\n     AND SUM(CASE WHEN s.server_label IN (${server:sqlstring}) THEN 1 ELSE 0 END) >= 1\n)\nSELECT q.last_ip AS `Shared IP`,\n  GROUP_CONCAT(DISTINCT srv.server_label ORDER BY srv.server_label SEPARATOR ', ') AS `Servers sharing it`,\n  COUNT(DISTINCT q.captured_at) AS `Times seen`,\n  MAX(r.phones_on_same_ip) AS `Max phones on IP`,\n  SUBSTRING_INDEX(GROUP_CONCAT(r.sibling_phones ORDER BY q.captured_at DESC SEPARATOR '||'), '||', 1) AS `Phones`,\n  SUBSTRING_INDEX(GROUP_CONCAT(r.device_ids ORDER BY q.captured_at DESC SEPARATOR '||'), '||', 1) AS `Device IDs`,\n  MAX(q.captured_at) AS `Last seen`\nFROM q\nJOIN duplicate_ip_snapshot_servers srv\n  ON srv.captured_at=q.captured_at AND srv.proxy_status_scope='${proxy_scope}' AND srv.last_ip=q.last_ip\nLEFT JOIN duplicate_ip_snapshot_rows r\n  ON r.captured_at=q.captured_at AND r.proxy_status_scope='${proxy_scope}' AND r.last_ip=q.last_ip\nGROUP BY q.last_ip\nORDER BY `Times seen` DESC, `Last seen` DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Shared IPs over the period \u2014 who shared, phones & devices",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Each pair of servers that shared at least one IP during the period, and how many IPs they had in common. 'Unknown' = phones whose names don't follow the S##P## format.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 47
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Shared IPs",
+            "desc": true
+          }
+        ]
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  CONCAT(LEAST(a.server_label,b.server_label),' \u2194 ',GREATEST(a.server_label,b.server_label)) AS `Server pair`,\n  COUNT(DISTINCT a.last_ip) AS `Shared IPs`\nFROM duplicate_ip_snapshot_servers a\nJOIN duplicate_ip_snapshot_servers b\n  ON a.captured_at=b.captured_at AND a.proxy_status_scope=b.proxy_status_scope\n AND a.last_ip=b.last_ip AND a.server_label < b.server_label\nWHERE a.proxy_status_scope='${proxy_scope}' AND $__timeFilter(a.captured_at)\n  AND a.last_ip <> '__snapshot_empty__'\n  AND (a.server_label IN (${server:sqlstring}) OR b.server_label IN (${server:sqlstring}))\nGROUP BY `Server pair`\nORDER BY `Shared IPs` DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Which servers overlapped \u2014 and how much",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "IPs that kept showing up as shared across the period. A high 'Times shared' means a persistent problem IP, not a one-off.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 47
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Times shared",
+            "desc": true
+          }
+        ]
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT last_ip AS `Shared IP`,\n  COUNT(*) AS `Times shared`,\n  GROUP_CONCAT(DISTINCT DATE_FORMAT(captured_at, '%Y-%m-%d %H:%i') ORDER BY captured_at SEPARATOR ' | ') AS `Shared at`,\n  MAX(captured_at) AS `Last seen`\nFROM (\n  SELECT s.captured_at, s.last_ip\n  FROM duplicate_ip_snapshot_servers s\n  WHERE s.proxy_status_scope = '${proxy_scope}' AND $__timeFilter(s.captured_at)\n    AND s.last_ip <> '__snapshot_empty__'\n  GROUP BY s.captured_at, s.last_ip\n  HAVING COUNT(DISTINCT s.server_label) >= 2\n     AND SUM(CASE WHEN s.server_label IN (${server:sqlstring}) THEN 1 ELSE 0 END) >= 1\n) t\nGROUP BY last_ip\nORDER BY `Times shared` DESC, `Last seen` DESC\nLIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "title": "IPs that stay shared the longest",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "1m",
+  "schemaVersion": 42,
+  "tags": [
+    "proxies",
+    "duplicates",
+    "servers",
+    "overlap"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": [
+            "S21",
+            "S22",
+            "S53"
+          ],
+          "value": [
+            "S21",
+            "S22",
+            "S53"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT server FROM (SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END AS server FROM proxies WHERE name IS NOT NULL) t WHERE server <> 'Unknown' ORDER BY CAST(REGEXP_SUBSTR(server, '[0-9]+') AS UNSIGNED)",
+        "includeAll": true,
+        "label": "Servers",
+        "multi": true,
+        "name": "server",
+        "options": [],
+        "query": "SELECT server FROM (SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END AS server FROM proxies WHERE name IS NOT NULL) t WHERE server <> 'Unknown' ORDER BY CAST(REGEXP_SUBSTR(server, '[0-9]+') AS UNSIGNED)",
+        "refresh": 1,
+        "regex": "",
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "Active phones",
+          "value": "active"
+        },
+        "includeAll": false,
+        "label": "Phones",
+        "name": "proxy_scope",
+        "options": [
+          {
+            "selected": true,
+            "text": "Active phones",
+            "value": "active"
+          },
+          {
+            "selected": false,
+            "text": "All phones",
+            "value": "all"
+          }
+        ],
+        "query": "Active phones : active, All phones : all",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Server IP Overlap",
+  "uid": "server-ip-overlap",
+  "version": 17
+}

@@ -5,11 +5,12 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 18,
   "links": [],
   "liveNow": false,
   "panels": [
     {
+      "description": "This metric shows the current value of avg download speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -54,10 +55,10 @@
         }
       ],
       "title": "Avg Download Speed",
-      "type": "stat",
-      "description": "This metric shows the current value of avg download speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the current value of median download speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -102,10 +103,10 @@
         }
       ],
       "title": "Median Download Speed",
-      "type": "stat",
-      "description": "This metric shows the current value of median download speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the current value of avg upload speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -150,10 +151,10 @@
         }
       ],
       "title": "Avg Upload Speed",
-      "type": "stat",
-      "description": "This metric shows the current value of avg upload speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This metric shows the current value of median upload speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -198,10 +199,10 @@
         }
       ],
       "title": "Median Upload Speed",
-      "type": "stat",
-      "description": "This metric shows the current value of median upload speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -229,10 +230,10 @@
         }
       ],
       "title": "Avg Download Speed History",
-      "type": "timeseries",
-      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
+      "type": "timeseries"
     },
     {
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -260,10 +261,22 @@
         }
       ],
       "title": "Avg Upload Speed History",
-      "type": "timeseries",
-      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
+      "type": "timeseries"
     },
     {
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        }
+      },
       "gridPos": {
         "h": 12,
         "w": 24,
@@ -289,18 +302,6 @@
           }
         ]
       },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": true
-          }
-        }
-      },
       "targets": [
         {
           "datasource": {
@@ -313,8 +314,7 @@
         }
       ],
       "title": "Proxy Speed Metrics (All)",
-      "type": "table",
-      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
+      "type": "table"
     }
   ],
   "refresh": "",
@@ -389,6 +389,6 @@
   "timezone": "browser",
   "title": "XProxy Tester - Speed Metrics",
   "uid": "speed-metrics",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

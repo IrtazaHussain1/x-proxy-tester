@@ -2,12 +2,12 @@
   "annotations": {
     "list": []
   },
+  "description": "This dashboard focuses on speed quality, latency risk, and throughput behavior. It helps teams detect regressions early and prioritize performance remediation by impact.",
   "editable": true,
   "graphTooltip": 0,
-  "id": null,
+  "id": 13,
   "links": [],
   "liveNow": false,
-  "description": "This dashboard focuses on speed quality, latency risk, and throughput behavior. It helps teams detect regressions early and prioritize performance remediation by impact.",
   "panels": [
     {
       "collapsed": false,
@@ -18,17 +18,17 @@
         "y": 0
       },
       "id": 100,
-      "title": "Response Time Stats — today from raw · history from daily_summary",
+      "title": "Response Time Stats \u2014 today from raw \u00b7 history from daily_summary",
       "type": "row"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "decimals": 0,
-          "unit": "ms",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -45,7 +45,8 @@
                 "value": 3000
               }
             ]
-          }
+          },
+          "unit": "ms"
         }
       },
       "gridPos": {
@@ -55,8 +56,6 @@
         "y": 1
       },
       "id": 1,
-      "title": "Avg Response Time",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -67,16 +66,17 @@
           "rawSql": "SELECT ROUND(SUM(weighted_ms) / NULLIF(SUM(total_requests), 0), 0) as value FROM (\n  SELECT SUM(s.avg_response_time_ms * s.total_requests) as weighted_ms, SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  UNION ALL\n  SELECT SUM(s.avg_response_time_ms * s.total_requests) as weighted_ms, SUM(s.total_requests) as total_requests\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND p.location IN ($location)\n) combined"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "Avg Response Time",
+      "type": "stat"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "decimals": 0,
-          "unit": "ms",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -93,7 +93,8 @@
                 "value": 3000
               }
             ]
-          }
+          },
+          "unit": "ms"
         }
       },
       "gridPos": {
@@ -103,8 +104,6 @@
         "y": 1
       },
       "id": 2,
-      "title": "P50 Response Time",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -115,16 +114,17 @@
           "rawSql": "SELECT ROUND(AVG(p50), 0) as value FROM (\n  SELECT AVG(s.p50_response_time_ms) as p50\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  UNION ALL\n  SELECT SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0) as p50\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND p.location IN ($location)\n) combined"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "P50 Response Time",
+      "type": "stat"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "decimals": 0,
-          "unit": "ms",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -141,7 +141,8 @@
                 "value": 5000
               }
             ]
-          }
+          },
+          "unit": "ms"
         }
       },
       "gridPos": {
@@ -151,8 +152,6 @@
         "y": 1
       },
       "id": 3,
-      "title": "P95 Response Time",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -163,16 +162,17 @@
           "rawSql": "SELECT ROUND(AVG(p95), 0) as value FROM (\n  SELECT AVG(s.p95_response_time_ms) as p95\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  UNION ALL\n  SELECT\n    (SELECT sub.response_time_ms FROM (\n      SELECT response_time_ms,\n             ROW_NUMBER() OVER (ORDER BY response_time_ms) as rn,\n             COUNT(*) OVER () as total\n      FROM proxy_requests r2\n      JOIN proxies p2 ON r2.proxy_id = p2.device_id\n      WHERE DATE(r2.timestamp) = CURDATE()\n        AND r2.response_time_ms IS NOT NULL\n        AND p2.location IN ($location)\n    ) sub WHERE sub.rn = FLOOR(sub.total * 0.95) + 1 LIMIT 1) as p95\n) combined"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "P95 Response Time",
+      "type": "stat"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "decimals": 0,
-          "unit": "ms",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -189,7 +189,8 @@
                 "value": 10000
               }
             ]
-          }
+          },
+          "unit": "ms"
         }
       },
       "gridPos": {
@@ -199,8 +200,6 @@
         "y": 1
       },
       "id": 4,
-      "title": "P99 Response Time",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -211,7 +210,8 @@
           "rawSql": "SELECT ROUND(AVG(p99), 0) as value FROM (\n  SELECT AVG(s.p99_response_time_ms) as p99\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  UNION ALL\n  SELECT\n    (SELECT sub.response_time_ms FROM (\n      SELECT response_time_ms,\n             ROW_NUMBER() OVER (ORDER BY response_time_ms) as rn,\n             COUNT(*) OVER () as total\n      FROM proxy_requests r2\n      JOIN proxies p2 ON r2.proxy_id = p2.device_id\n      WHERE DATE(r2.timestamp) = CURDATE()\n        AND r2.response_time_ms IS NOT NULL\n        AND p2.location IN ($location)\n    ) sub WHERE sub.rn = FLOOR(sub.total * 0.99) + 1 LIMIT 1) as p99\n) combined"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "P99 Response Time",
+      "type": "stat"
     },
     {
       "collapsed": false,
@@ -226,17 +226,18 @@
       "type": "row"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "ms",
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 2
-          }
+          },
+          "unit": "ms"
         }
       },
       "gridPos": {
@@ -246,8 +247,6 @@
         "y": 6
       },
       "id": 5,
-      "title": "Avg / P50 / P95 Response Time Over Time (daily summary + today hourly)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -259,7 +258,8 @@
           "refId": "A"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "Avg / P50 / P95 Response Time Over Time (daily summary + today hourly)",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -274,12 +274,12 @@
       "type": "row"
     },
     {
+      "description": "This panel shows which error categories are driving failures. It helps teams direct fixes toward the causes with highest customer impact.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short",
           "custom": {
             "drawStyle": "bars",
             "fillOpacity": 80,
@@ -288,7 +288,8 @@
               "group": "A",
               "mode": "normal"
             }
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -298,8 +299,6 @@
         "y": 15
       },
       "id": 6,
-      "title": "Error Types Over Time (stacked)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -311,20 +310,22 @@
           "refId": "A"
         }
       ],
-      "description": "This panel shows which error categories are driving failures. It helps teams direct fixes toward the causes with highest customer impact."
+      "title": "Error Types Over Time (stacked)",
+      "type": "timeseries"
     },
     {
+      "description": "This panel provides proxy-level detail for performance and reliability diagnosis. It helps isolate exactly which proxies require immediate action.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "MBs",
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 2
-          }
+          },
+          "unit": "MBs"
         }
       },
       "gridPos": {
@@ -334,8 +335,6 @@
         "y": 15
       },
       "id": 7,
-      "title": "Avg Download / Upload Speed Over Time",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -347,7 +346,8 @@
           "refId": "A"
         }
       ],
-      "description": "This panel provides proxy-level detail for performance and reliability diagnosis. It helps isolate exactly which proxies require immediate action."
+      "title": "Avg Download / Upload Speed Over Time",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -362,6 +362,7 @@
       "type": "row"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -461,8 +462,6 @@
         "y": 24
       },
       "id": 8,
-      "title": "Top Proxies by Avg Response Time — history from aggregate · today from raw",
-      "type": "table",
       "options": {
         "cellHeight": "sm",
         "showHeader": true
@@ -477,7 +476,8 @@
           "rawSql": "SELECT proxy_name, location, total_requests, success_rate_pct, avg_response_ms, p95_response_ms, p99_response_ms, timeout_count, source FROM (\n  SELECT\n    COALESCE(p.name, s.proxy_id) as proxy_name,\n    s.location,\n    SUM(s.total_requests) as total_requests,\n    ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 1) as success_rate_pct,\n    ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) as avg_response_ms,\n    ROUND(AVG(s.p95_response_time_ms), 0) as p95_response_ms,\n    ROUND(AVG(s.p99_response_time_ms), 0) as p99_response_ms,\n    SUM(s.timeout_count) as timeout_count,\n    'summary' as source\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND p.location IN ($location)\n  GROUP BY s.proxy_id, p.name, s.location\n  UNION ALL\n  SELECT\n    COALESCE(p.name, p.device_id) as proxy_name,\n    p.location,\n    SUM(s.total_requests) as total_requests,\n    ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 1) as success_rate_pct,\n    ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) as avg_response_ms,\n    NULL as p95_response_ms,\n    NULL as p99_response_ms,\n    SUM(s.timeout_count) as timeout_count,\n    'today' as source\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND p.location IN ($location)\n  GROUP BY p.device_id, p.name, p.location\n) combined\nORDER BY avg_response_ms DESC\nLIMIT 20"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "Top Proxies by Avg Response Time \u2014 history from aggregate \u00b7 today from raw",
+      "type": "table"
     }
   ],
   "refresh": "5m",
@@ -525,5 +525,5 @@
   "timezone": "browser",
   "title": "BETA - Performance",
   "uid": "beta-performance-hotcold-v1",
-  "version": 1
+  "version": 3
 }

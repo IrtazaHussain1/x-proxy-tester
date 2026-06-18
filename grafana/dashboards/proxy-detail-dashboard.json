@@ -18,9 +18,11 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "id": 17,
   "links": [],
   "panels": [
     {
+      "description": "Whether this proxy is currently marked active in the database. Inactive proxies are excluded from continuous testing.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -94,10 +96,10 @@
         }
       ],
       "title": "Active",
-      "type": "stat",
-      "description": "Whether this proxy is currently marked active in the database. Inactive proxies are excluded from continuous testing."
+      "type": "stat"
     },
     {
+      "description": "Computed live: UnstableDaily if downtime > 1h in any 24h window, UnstableHourly if downtime > 10min in any 1h window, otherwise Stable. Unknown when no recent data.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -171,10 +173,10 @@
         }
       ],
       "title": "Stability Status",
-      "type": "stat",
-      "description": "Computed live: UnstableDaily if downtime > 1h in any 24h window, UnstableHourly if downtime > 10min in any 1h window, otherwise Stable. Unknown when no recent data."
+      "type": "stat"
     },
     {
+      "description": "Current rotation classification stored on the proxy. Rotated = IP has changed recently, NoRotation = stuck on same IP for 10+ consecutive checks, Unknown = insufficient data.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -245,10 +247,10 @@
         }
       ],
       "title": "Rotation Status",
-      "type": "stat",
-      "description": "Current rotation classification stored on the proxy. Rotated = IP has changed recently, NoRotation = stuck on same IP for 10+ consecutive checks, Unknown = insufficient data."
+      "type": "stat"
     },
     {
+      "description": "Total number of IP rotations observed for this proxy since it was added (lifetime, not bound by time picker).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -305,10 +307,10 @@
         }
       ],
       "title": "Rotation Count",
-      "type": "stat",
-      "description": "Total number of IP rotations observed for this proxy since it was added (lifetime, not bound by time picker)."
+      "type": "stat"
     },
     {
+      "description": "Timestamp of the most recent IP rotation. Falls back to the latest recorded rotation event if the proxy's stored value is missing.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -365,10 +367,10 @@
         }
       ],
       "title": "Last Rotation At",
-      "type": "stat",
-      "description": "Timestamp of the most recent IP rotation. Falls back to the latest recorded rotation event if the proxy's stored value is missing."
+      "type": "stat"
     },
     {
+      "description": "Percent of SUCCESS responses among all requests in the selected time range and source filter.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -436,10 +438,10 @@
         }
       ],
       "title": "Success Rate",
-      "type": "stat",
-      "description": "Percent of SUCCESS responses among all requests in the selected time range and source filter."
+      "type": "stat"
     },
     {
+      "description": "Percent of non-SUCCESS responses (timeouts, connection errors, HTTP errors, etc.) in the selected time range and source filter.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -507,10 +509,10 @@
         }
       ],
       "title": "Error Rate",
-      "type": "stat",
-      "description": "Percent of non-SUCCESS responses (timeouts, connection errors, HTTP errors, etc.) in the selected time range and source filter."
+      "type": "stat"
     },
     {
+      "description": "Mean response time (ms) across all requests in the selected time range. Outliers can skew this; cross-reference with the Response Time Over Time chart.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -568,10 +570,10 @@
         }
       ],
       "title": "Average Response Time",
-      "type": "stat",
-      "description": "Mean response time (ms) across all requests in the selected time range. Outliers can skew this; cross-reference with the Response Time Over Time chart."
+      "type": "stat"
     },
     {
+      "description": "Count of all requests issued against this proxy in the selected time range and source filter.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -628,10 +630,10 @@
         }
       ],
       "title": "Total Requests",
-      "type": "stat",
-      "description": "Count of all requests issued against this proxy in the selected time range and source filter."
+      "type": "stat"
     },
     {
+      "description": "Percent of periodic_rotation requests that failed (non-SUCCESS) in the selected time range. Returns 0 when no rotation traffic exists.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -699,8 +701,7 @@
         }
       ],
       "title": "Rotation Test Failure Rate",
-      "type": "stat",
-      "description": "Percent of periodic_rotation requests that failed (non-SUCCESS) in the selected time range. Returns 0 when no rotation traffic exists."
+      "type": "stat"
     },
     {
       "description": "Percent of rotations where the outbound IP did not actually change (ip_after = ip_before or null). High values indicate rotation isn't producing new IPs.",
@@ -834,6 +835,7 @@
       "type": "stat"
     },
     {
+      "description": "Firmware/agent version reported by the proxy device on its last sync.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -889,10 +891,10 @@
         }
       ],
       "title": "Version",
-      "type": "stat",
-      "description": "Firmware/agent version reported by the proxy device on its last sync."
+      "type": "stat"
     },
     {
+      "description": "Average response time (ms) bucketed by minute. Spikes indicate latency degradation; sustained increases suggest backend or network issues.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -983,10 +985,10 @@
         }
       ],
       "title": "Response Time Over Time",
-      "type": "timeseries",
-      "description": "Average response time (ms) bucketed by minute. Spikes indicate latency degradation; sustained increases suggest backend or network issues."
+      "type": "timeseries"
     },
     {
+      "description": "Per-minute success rate (% of SUCCESS responses) for this proxy. Drops below 100% pinpoint when failure events occurred.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1077,10 +1079,10 @@
         }
       ],
       "title": "Success Rate Over Time",
-      "type": "timeseries",
-      "description": "Per-minute success rate (% of SUCCESS responses) for this proxy. Drops below 100% pinpoint when failure events occurred."
+      "type": "timeseries"
     },
     {
+      "description": "Per-minute trend of failed rotation attempts. Use to detect rotation outages or systemic failures.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1171,10 +1173,10 @@
         }
       ],
       "title": "Rotation Test Failure Rate Over Time",
-      "type": "timeseries",
-      "description": "Per-minute trend of failed rotation attempts. Use to detect rotation outages or systemic failures."
+      "type": "timeseries"
     },
     {
+      "description": "Per-minute trend of rotations where the IP did not change. Distinguishes 'rotation succeeded but produced same IP' from outright rotation failures.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1265,14 +1267,14 @@
         }
       ],
       "title": "Rotation IP No-Change Rate Over Time",
-      "type": "timeseries",
-      "description": "Per-minute trend of rotations where the IP did not change. Distinguishes 'rotation succeeded but produced same IP' from outright rotation failures."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "Breakdown of non-SUCCESS errors by error_type (TIMEOUT, CONNECTION_ERROR, HTTP_ERROR, DNS_ERROR, OTHER). Identifies the dominant failure class for this proxy.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1326,10 +1328,10 @@
         }
       ],
       "title": "Error Type Distribution",
-      "type": "piechart",
-      "description": "Breakdown of non-SUCCESS errors by error_type (TIMEOUT, CONNECTION_ERROR, HTTP_ERROR, DNS_ERROR, OTHER). Identifies the dominant failure class for this proxy."
+      "type": "piechart"
     },
     {
+      "description": "Per-rotation row (periodic type only): timestamp, IP before, IP after, success flag, duration, retry count, error message.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -1383,10 +1385,10 @@
         }
       ],
       "title": "Rotation Cycle Summary (Periodic)",
-      "type": "table",
-      "description": "Per-rotation row (periodic type only): timestamp, IP before, IP after, success flag, duration, retry count, error message."
+      "type": "table"
     },
     {
+      "description": "Most recent individual request rows for this proxy (timestamp, status, response time, error info, outbound IP, IP-change flag, source). Drill-down for triage.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -1440,10 +1442,10 @@
         }
       ],
       "title": "Recent Requests (Per Proxy)",
-      "type": "table",
-      "description": "Most recent individual request rows for this proxy (timestamp, status, response time, error info, outbound IP, IP-change flag, source). Drill-down for triage."
+      "type": "table"
     },
     {
+      "description": "Proxies with rotation_count = 0 and no last_rotation_at value. These have never produced an observed IP rotation since registration.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -1497,8 +1499,7 @@
         }
       ],
       "title": "Never Rotated Proxies (Tester)",
-      "type": "table",
-      "description": "Proxies with rotation_count = 0 and no last_rotation_at value. These have never produced an observed IP rotation since registration."
+      "type": "table"
     },
     {
       "collapsed": false,
@@ -1922,5 +1923,5 @@
   "timezone": "browser",
   "title": "XProxy Tester - Proxy Detail",
   "uid": "xproxy-proxy-detail",
-  "version": 7
+  "version": 2
 }

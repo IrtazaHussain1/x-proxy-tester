@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 0,
+  "id": 2,
   "links": [],
   "panels": [
     {
@@ -26,6 +26,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -100,13 +101,13 @@
         }
       ],
       "title": "Proxy Status Breakdown",
-      "type": "stat",
-      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql"
       },
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -193,14 +194,14 @@
         }
       ],
       "title": "Success Rate",
-      "type": "stat",
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -287,14 +288,14 @@
         }
       ],
       "title": "Failed Rate",
-      "type": "stat",
-      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -415,11 +416,11 @@
         }
       ],
       "title": "Proxy Stats Aggregate",
-      "type": "table",
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
+      "type": "table"
     }
   ],
   "preload": false,
+  "refresh": "1m",
   "schemaVersion": 42,
   "tags": [],
   "templating": {
@@ -433,6 +434,5 @@
   "timezone": "browser",
   "title": "X-Proxy Tester - Aggregate Stats for proxies",
   "uid": "adbf6vm",
-  "refresh": "1m",
-  "version": 6
+  "version": 3
 }

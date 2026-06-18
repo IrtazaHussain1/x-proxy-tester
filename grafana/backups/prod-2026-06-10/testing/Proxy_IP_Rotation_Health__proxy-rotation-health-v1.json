@@ -1,0 +1,2006 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Mobile proxy IP rotation health — pool cycling, stuck proxies, rotation success rate, and per-server breakdown",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": 51,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Fleet overview",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Total number of unique proxy devices that recorded at least one periodic rotation attempt in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT proxy_id) AS value\nFROM ip_rotations\nWHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )",
+          "refId": "A"
+        }
+      ],
+      "title": "Total proxies",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Percentage of periodic rotation attempts where ip_after differed from ip_before (i.e. the IP actually changed). Lower values indicate systemic rotation failure.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(success) / COUNT(*), 1) AS value\nFROM ip_rotations\nWHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )",
+          "refId": "A"
+        }
+      ],
+      "title": "Rotation success rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Proxies that received multiple rotation commands but their ip_before never changed — the carrier keeps assigning the same address.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS value FROM (\n  SELECT proxy_id\n  FROM ip_rotations\n  WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n  GROUP BY proxy_id\n  HAVING COUNT(DISTINCT ip_before) = 1\n) t",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck proxies (1 IP only)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Proxies whose entire observed IP pool contains only 2–5 unique addresses. They rotate, but within a tiny fixed set — predictable and fingerprintable.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 200
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS value FROM (\n  SELECT proxy_id\n  FROM ip_rotations\n  WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n  GROUP BY proxy_id\n  HAVING COUNT(DISTINCT ip_before) BETWEEN 2 AND 5\n) t",
+          "refId": "A"
+        }
+      ],
+      "title": "Small-pool cycling (2–5 IPs)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Proxies that have been assigned 5+ distinct IPs over the period. These are working as intended — the carrier is allocating freely from its pool.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "green",
+                "value": 300
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS value FROM (\n  SELECT proxy_id\n  FROM ip_rotations\n  WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n  GROUP BY proxy_id\n  HAVING COUNT(DISTINCT ip_before) > 5\n) t",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Healthy proxies (5+ IPs)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Average time in milliseconds from when the rotation command was sent to when the new IP was verified. High values indicate slow airplane-mode cycles or carrier reconnect delays.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 60000
+              },
+              {
+                "color": "red",
+                "value": 120000
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(rotation_duration_ms), 0) AS value\nFROM ip_rotations\nWHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n  AND rotation_duration_ms IS NOT NULL",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg rotation duration",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Rotation health distribution",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Distribution of proxies by IP pool size category over the selected period. Stuck = 1 IP only; Cycling = 2–5 IPs; Medium = 6–20 IPs; Healthy = 20+ IPs.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
+      "id": 10,
+      "options": {
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  pool_group                AS metric,\n  CAST(COUNT(*) AS SIGNED)  AS value\nFROM (\n  SELECT\n    proxy_id,\n    CASE\n      WHEN COUNT(DISTINCT ip_before) = 1              THEN 'Stuck (1 IP)'\n      WHEN COUNT(DISTINCT ip_before) BETWEEN 2 AND 5  THEN 'Cycling (2-5 IPs)'\n      WHEN COUNT(DISTINCT ip_before) BETWEEN 6 AND 20 THEN 'Medium (6-20 IPs)'\n      ELSE 'Healthy (20+ IPs)'\n    END AS pool_group\n  FROM ip_rotations\n  WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n  GROUP BY proxy_id\n) t\nGROUP BY pool_group\nORDER BY FIELD(pool_group,\n  'Stuck (1 IP)', 'Cycling (2-5 IPs)', 'Medium (6-20 IPs)', 'Healthy (20+ IPs)')",
+          "refId": "A"
+        }
+      ],
+      "title": "IP pool size distribution",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Cities with the highest concentration of stuck or cycling proxies (pool size ≤ 5). Helps identify geographic clusters that may share a problem carrier node or DHCP pool.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 60
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 5
+      },
+      "id": 11,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "text": {},
+        "valueMode": "color"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.city')) AS metric,\n  COUNT(DISTINCT proxy_id) AS value\nFROM ip_rotations\nWHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n  AND JSON_EXTRACT(device_metadata, '$.city') IS NOT NULL\n  AND proxy_id IN (\n    SELECT proxy_id\n    FROM ip_rotations\n    WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n    GROUP BY proxy_id\n    HAVING COUNT(DISTINCT ip_before) <= 5\n  )\nGROUP BY metric\nORDER BY value DESC\nLIMIT 15",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck + cycling proxies by city (top 15)",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Average rotation duration broken down by pool health group. Stuck proxies typically show higher durations because the verification timeout fires before a new IP appears.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "id": 12,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fillOpacity": 80,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "vertical",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "pool_group",
+        "xTickLabelRotation": -20,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT pool_group, ROUND(AVG(avg_duration), 0) AS avg_duration_ms\nFROM (\n  SELECT proxy_id,\n    CASE\n      WHEN COUNT(DISTINCT ip_before) = 1             THEN 'Stuck'\n      WHEN COUNT(DISTINCT ip_before) BETWEEN 2 AND 5  THEN 'Cycling'\n      WHEN COUNT(DISTINCT ip_before) BETWEEN 6 AND 20 THEN 'Medium'\n      ELSE 'Healthy'\n    END AS pool_group,\n    AVG(rotation_duration_ms) AS avg_duration\n  FROM ip_rotations\n  WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n    AND rotation_duration_ms IS NOT NULL\n  GROUP BY proxy_id\n) t\nGROUP BY pool_group\nORDER BY FIELD(pool_group, 'Stuck', 'Cycling', 'Medium', 'Healthy')",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg rotation duration by pool group (ms)",
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Rotation activity over time",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Count of periodic rotation attempts over time split by outcome. A rising 'failed' line indicates a worsening rotation problem across the fleet.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 14
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT\n  $__timeGroupAlias(rotation_timestamp, $__interval),\n  SUM(success)     AS success,\n  SUM(1 - success) AS failed\nFROM ip_rotations\nWHERE $__timeFilter(rotation_timestamp)\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\nGROUP BY 1\nORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Rotation attempts over time — success vs failed",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Count of rotation events where ip_before = ip_after, meaning the device reconnected to the exact same IP. This is the raw signal for stuck behaviour.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 14
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT\n  $__timeGroupAlias(rotation_timestamp, $__interval),\n  COUNT(*) AS same_ip_count\nFROM ip_rotations\nWHERE $__timeFilter(rotation_timestamp)\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n  AND ip_before = ip_after\nGROUP BY 1\nORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Same-IP rotations over time (ip_before = ip_after)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 103,
+      "panels": [],
+      "title": "Server-level breakdown",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Each server's proxy count broken down by pool health group (Stuck / Cycling / Medium / Healthy). Servers dominated by red/orange bars need investigation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "id": 30,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fillOpacity": 80,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "vertical",
+        "showValue": "auto",
+        "stacking": {
+          "group": "A",
+          "mode": "normal"
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xField": "server_name",
+        "xTickLabelRotation": -30,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  server_name,\n  pool_group,\n  COUNT(*) AS proxy_count\nFROM (\n  SELECT\n    proxy_id,\n    CASE\n      WHEN UPPER(TRIM(MAX(JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.name')))))\n           REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n      THEN REGEXP_SUBSTR(\n             UPPER(TRIM(MAX(JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.name'))))),\n             '^S[0-9]{1,3}'\n           )\n      ELSE 'UNKNOWN'\n    END AS server_name,\n    CASE\n      WHEN COUNT(DISTINCT ip_before) = 1              THEN 'Stuck'\n      WHEN COUNT(DISTINCT ip_before) BETWEEN 2 AND 5  THEN 'Cycling'\n      WHEN COUNT(DISTINCT ip_before) BETWEEN 6 AND 20 THEN 'Medium'\n      ELSE 'Healthy'\n    END AS pool_group\n  FROM ip_rotations\n  WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n  GROUP BY proxy_id\n) classified\nGROUP BY server_name, pool_group\nORDER BY server_name,\n  FIELD(pool_group, 'Stuck', 'Cycling', 'Medium', 'Healthy')",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxy pool health by server",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Per-server summary: total proxies, stuck and cycling counts, percentage of problematic proxies, and average rotation success rate. Sorted by worst performers first.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "server_name"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_proxies"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.align",
+                "value": "center"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "stuck_count"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 3
+                    },
+                    {
+                      "color": "red",
+                      "value": 8
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cycling_count"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 3
+                    },
+                    {
+                      "color": "red",
+                      "value": 8
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "id": 31,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "pct_stuck_cycling"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  server_name,\n  COUNT(DISTINCT proxy_id)                                                        AS total_proxies,\n  SUM(CASE WHEN pool_group = 'Stuck'   THEN 1 ELSE 0 END)                        AS stuck_count,\n  SUM(CASE WHEN pool_group = 'Cycling' THEN 1 ELSE 0 END)                        AS cycling_count,\n  SUM(CASE WHEN pool_group = 'Healthy' THEN 1 ELSE 0 END)                        AS healthy_count,\n  ROUND(\n    100.0 * SUM(CASE WHEN pool_group IN ('Stuck','Cycling') THEN 1 ELSE 0 END)\n    / COUNT(DISTINCT proxy_id), 1\n  )                                                                               AS pct_stuck_cycling,\n  ROUND(AVG(success_rate), 1)                                                     AS success_rate_pct\nFROM (\n  SELECT\n    proxy_id,\n    CASE\n      WHEN UPPER(TRIM(MAX(JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.name')))))\n           REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n      THEN REGEXP_SUBSTR(\n             UPPER(TRIM(MAX(JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.name'))))),\n             '^S[0-9]{1,3}'\n           )\n      ELSE 'UNKNOWN'\n    END AS server_name,\n    CASE\n      WHEN COUNT(DISTINCT ip_before) = 1              THEN 'Stuck'\n      WHEN COUNT(DISTINCT ip_before) BETWEEN 2 AND 5  THEN 'Cycling'\n      WHEN COUNT(DISTINCT ip_before) BETWEEN 6 AND 20 THEN 'Medium'\n      ELSE 'Healthy'\n    END AS pool_group,\n    ROUND(100.0 * AVG(success), 1) AS success_rate\n  FROM ip_rotations\n  WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n  GROUP BY proxy_id\n) classified\nGROUP BY server_name\nORDER BY pct_stuck_cycling DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Server risk table",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 104,
+      "panels": [],
+      "title": "Cycling proxy detail",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Full list of proxies with a small fixed IP pool (2–5 IPs). Shows the exact cycle sequence each proxy rotates through, how many rotations were attempted, and the success rate.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pool_size"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 2
+                    },
+                    {
+                      "color": "orange",
+                      "value": 3
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "center"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_rotations"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "center"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 20
+                    },
+                    {
+                      "color": "green",
+                      "value": 50
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "center"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "id": 40,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "total_rotations"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  ir.proxy_id,\n  MAX(JSON_UNQUOTE(JSON_EXTRACT(ir.device_metadata, '$.name')))    AS device_name,\n  CONCAT(\n    COALESCE(MAX(JSON_UNQUOTE(JSON_EXTRACT(ir.device_metadata, '$.city'))), ''),\n    ', ',\n    COALESCE(MAX(JSON_UNQUOTE(JSON_EXTRACT(ir.device_metadata, '$.state'))), '')\n  )                                                                  AS location,\n  CASE\n    WHEN UPPER(TRIM(MAX(JSON_UNQUOTE(JSON_EXTRACT(ir.device_metadata, '$.name')))))\n         REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n    THEN REGEXP_SUBSTR(\n           UPPER(TRIM(MAX(JSON_UNQUOTE(JSON_EXTRACT(ir.device_metadata, '$.name'))))),\n           '^S[0-9]{1,3}'\n         )\n    ELSE 'UNKNOWN'\n  END                                                                AS server_name,\n  COUNT(DISTINCT ir.ip_before)                                       AS pool_size,\n  COUNT(*)                                                           AS total_rotations,\n  ROUND(100.0 * AVG(ir.success), 1)                                 AS success_rate_pct,\n  GROUP_CONCAT(\n    DISTINCT ir.ip_before\n    ORDER BY ir.ip_before\n    SEPARATOR ' -> '\n  )                                                                  AS ip_cycle\nFROM ip_rotations ir\nWHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\nGROUP BY ir.proxy_id\nHAVING COUNT(DISTINCT ir.ip_before) BETWEEN 2 AND 5\nORDER BY total_rotations DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Small-pool cycling proxies — full detail",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 105,
+      "panels": [],
+      "title": "Stuck proxy detail",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Proxies that have never changed IP during the selected window. Shows the locked IP address, which /16 subnet it belongs to, total rotation attempts, and how long the proxy has been stuck.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_rotations"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 100
+                    },
+                    {
+                      "color": "red",
+                      "value": 300
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "center"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "hours_stuck"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 24
+                    },
+                    {
+                      "color": "red",
+                      "value": 72
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "center"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "id": 50,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "hours_stuck"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  proxy_id,\n  MAX(JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.name')))   AS device_name,\n  CONCAT(\n    COALESCE(MAX(JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.city'))), ''),\n    ', ',\n    COALESCE(MAX(JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.state'))), '')\n  )                                                              AS location,\n  CASE\n    WHEN UPPER(TRIM(MAX(JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.name')))))\n         REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n    THEN REGEXP_SUBSTR(\n           UPPER(TRIM(MAX(JSON_UNQUOTE(JSON_EXTRACT(device_metadata, '$.name'))))),\n           '^S[0-9]{1,3}'\n         )\n    ELSE 'UNKNOWN'\n  END                                                            AS server_name,\n  MIN(ip_before)                                                 AS locked_ip,\n  SUBSTRING_INDEX(MIN(ip_before), '.', 2)                       AS ip_16_block,\n  COUNT(*)                                                       AS total_rotations,\n  ROUND(\n    TIMESTAMPDIFF(MINUTE, MIN(rotation_timestamp), MAX(rotation_timestamp)) / 60.0,\n    1\n  )                                                              AS hours_stuck\nFROM ip_rotations\nWHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\nGROUP BY proxy_id\nHAVING COUNT(DISTINCT ip_before) = 1\nORDER BY hours_stuck DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck proxies — never changed IP",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "id": 106,
+      "panels": [],
+      "title": "IP subnet analysis",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Groups proxies by their first two IP octets (/16 block) and shows how many in each subnet are Stuck, Cycling, Medium, or Healthy. Subnets with high stuck counts indicate carrier-level DHCP pool exhaustion or business account IP reservation.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ip_16_block"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "stuck_proxies"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 3
+                    },
+                    {
+                      "color": "red",
+                      "value": 8
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cycling_proxies"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 3
+                    },
+                    {
+                      "color": "red",
+                      "value": 8
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "healthy_proxies"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "green",
+                      "value": 5
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 55
+      },
+      "id": 60,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "stuck_proxies"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  SUBSTRING_INDEX(ip_before, '.', 2)           AS ip_16_block,\n  COUNT(DISTINCT proxy_id)                      AS total_proxies,\n  SUM(CASE WHEN pool_group = 'Stuck'    THEN 1 ELSE 0 END) AS stuck_proxies,\n  SUM(CASE WHEN pool_group = 'Cycling'  THEN 1 ELSE 0 END) AS cycling_proxies,\n  SUM(CASE WHEN pool_group = 'Medium'   THEN 1 ELSE 0 END) AS medium_proxies,\n  SUM(CASE WHEN pool_group = 'Healthy'  THEN 1 ELSE 0 END) AS healthy_proxies\nFROM (\n  /* Step 2 – attach pool_group label to every row */\n  SELECT t.proxy_id, t.ip_before, g.pool_group\n  FROM ip_rotations t\n  JOIN (\n    /* Step 1 – classify each proxy by its unique-IP count */\n    SELECT proxy_id,\n      CASE\n        WHEN COUNT(DISTINCT ip_before) = 1             THEN 'Stuck'\n        WHEN COUNT(DISTINCT ip_before) BETWEEN 2 AND 5  THEN 'Cycling'\n        WHEN COUNT(DISTINCT ip_before) BETWEEN 6 AND 20 THEN 'Medium'\n        ELSE 'Healthy'\n      END AS pool_group\n    FROM ip_rotations\n    WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n    GROUP BY proxy_id\n  ) g ON g.proxy_id = t.proxy_id\n  WHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\n) classified\nGROUP BY ip_16_block\nHAVING total_proxies >= 3\nORDER BY stuck_proxies DESC\nLIMIT 30",
+          "refId": "A"
+        }
+      ],
+      "title": "Problem subnets — /16 breakdown (stuck vs healthy)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Breakdown of rotation events by rotation_type (e.g. standard, manual, scheduled). All panels in this dashboard filter to periodic only — this chart shows the split within that subset.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cycle_type"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rotation_type"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 30
+                    },
+                    {
+                      "color": "green",
+                      "value": 60
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 55
+      },
+      "id": 61,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "total_rotations"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  COALESCE(rc.cycle_type, 'unknown')   AS cycle_type,\n  COALESCE(ir.rotation_type, 'unknown') AS rotation_type,\n  COUNT(*)                              AS total_rotations,\n  ROUND(100.0 * AVG(ir.success), 1)    AS success_rate_pct\nFROM ip_rotations ir\nLEFT JOIN xproxy_tester.rotation_cycles rc ON rc.id = ir.cycle_id\nWHERE rotation_timestamp >= $__timeFrom() AND rotation_timestamp <= $__timeTo()\n  AND cycle_id IN (\n    SELECT id FROM xproxy_tester.rotation_cycles\n    WHERE cycle_type = 'periodic'\n    AND $__timeFilter(cycle_timestamp)\n  )\nGROUP BY rc.cycle_type, ir.rotation_type\nORDER BY total_rotations DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Rotation type breakdown",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "30m",
+  "schemaVersion": 42,
+  "tags": [
+    "proxy",
+    "ip-rotation",
+    "mobile-proxy",
+    "networking"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT\n  CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n    THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}')\n    ELSE 'UNKNOWN' END AS __text,\n  CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n    THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}')\n    ELSE 'UNKNOWN' END AS __value\nFROM proxies\nGROUP BY __text, __value\nORDER BY CASE WHEN __value = 'UNKNOWN' THEN 999999\n  ELSE CAST(SUBSTRING(__value, 2) AS UNSIGNED) END",
+        "includeAll": true,
+        "label": "Server",
+        "multi": true,
+        "name": "server",
+        "options": [],
+        "query": "SELECT DISTINCT\n  CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n    THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}')\n    ELSE 'UNKNOWN' END AS __text,\n  CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)'\n    THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}')\n    ELSE 'UNKNOWN' END AS __value\nFROM proxies\nGROUP BY __text, __value\nORDER BY CASE WHEN __value = 'UNKNOWN' THEN 999999\n  ELSE CAST(SUBSTRING(__value, 2) AS UNSIGNED) END",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location AS __text, location AS __value\nFROM proxy_requests_daily_summary\nWHERE location IS NOT NULL AND location != ''\nORDER BY 1",
+        "includeAll": true,
+        "label": "City",
+        "multi": true,
+        "name": "city",
+        "options": [],
+        "query": "SELECT DISTINCT location AS __text, location AS __value\nFROM proxy_requests_daily_summary\nWHERE location IS NOT NULL AND location != ''\nORDER BY 1",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "$__all",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "label": "Pool group",
+        "name": "pool_group",
+        "options": [
+          {
+            "selected": false,
+            "text": "Stuck",
+            "value": "Stuck"
+          },
+          {
+            "selected": false,
+            "text": "Cycling",
+            "value": "Cycling"
+          },
+          {
+            "selected": false,
+            "text": "Medium",
+            "value": "Medium"
+          },
+          {
+            "selected": false,
+            "text": "Healthy",
+            "value": "Healthy"
+          }
+        ],
+        "query": "Stuck,Cycling,Medium,Healthy",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Proxy IP Rotation Health",
+  "uid": "proxy-rotation-health-v1",
+  "version": 12,
+  "weekStart": ""
+}

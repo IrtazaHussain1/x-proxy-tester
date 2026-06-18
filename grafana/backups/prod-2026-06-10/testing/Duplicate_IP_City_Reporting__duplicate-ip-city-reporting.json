@@ -1,0 +1,740 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "City-based duplicate IP reporting for 7-day and 30-day operating windows. Uses duplicate IP snapshots captured by the application and city filters from the indexed proxies table for faster dashboard loading.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": 41,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Duplicate IP KPIs",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Distinct duplicated outbound IPs observed in the selected time range for the selected proxy cities. Reads from precomputed duplicate-IP snapshots.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT city AS city_name\n  FROM proxies\n  WHERE '${city:raw}' IN ('$__all', '')\n    AND city IS NOT NULL\n    AND city != ''\n  UNION\n  SELECT city_name\n  FROM JSON_TABLE(\n    CAST('${city:json}' AS JSON),\n    '$[*]' COLUMNS (city_name VARCHAR(255) PATH '$')\n  ) AS selected_city\n  WHERE '${city:raw}' NOT IN ('$__all', '')\n)\nSELECT COUNT(DISTINCT x.last_ip) AS value\nFROM duplicate_ip_snapshot_rows x\nWHERE x.proxy_status_scope = '${proxy_scope}'\n  AND $__timeFilter(x.captured_at)\n  AND x.last_ip != '__snapshot_empty__'\n  AND EXISTS (\n    SELECT 1\n    FROM selected_cities sc\n    WHERE LOCATE(CONCAT(' | ', sc.city_name, ','), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n      OR LOCATE(CONCAT(' | ', sc.city_name, ' | '), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n  )",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicated IPs Detected",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Peak affected phones in a single scan for selected cities. Uses the precomputed phones_on_same_ip snapshot count to avoid expanding phone lists on every dashboard load.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 25
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 5,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT city AS city_name\n  FROM proxies\n  WHERE '${city:raw}' IN ('$__all', '')\n    AND city IS NOT NULL\n    AND city != ''\n  UNION\n  SELECT city_name\n  FROM JSON_TABLE(\n    CAST('${city:json}' AS JSON),\n    '$[*]' COLUMNS (city_name VARCHAR(255) PATH '$')\n  ) AS selected_city\n  WHERE '${city:raw}' NOT IN ('$__all', '')\n), scan_counts AS (\n  SELECT\n    x.captured_at,\n    SUM(x.phones_on_same_ip) AS affected_phones\n  FROM duplicate_ip_snapshot_rows x\n  WHERE x.proxy_status_scope = '${proxy_scope}'\n    AND $__timeFilter(x.captured_at)\n    AND x.last_ip != '__snapshot_empty__'\n    AND EXISTS (\n      SELECT 1\n      FROM selected_cities sc\n      WHERE LOCATE(CONCAT(' | ', sc.city_name, ','), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n        OR LOCATE(CONCAT(' | ', sc.city_name, ' | '), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n    )\n  GROUP BY x.captured_at\n)\nSELECT COALESCE(MAX(affected_phones), 0) AS value\nFROM scan_counts",
+          "refId": "A"
+        }
+      ],
+      "title": "Peak Phones Affected",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Percentage of duplicate IP scan rows where all phones sharing the IP were on one server label.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 40
+              },
+              {
+                "color": "red",
+                "value": 70
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 10,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT city AS city_name\n  FROM proxies\n  WHERE '${city:raw}' IN ('$__all', '')\n    AND city IS NOT NULL\n    AND city != ''\n  UNION\n  SELECT city_name\n  FROM JSON_TABLE(\n    CAST('${city:json}' AS JSON),\n    '$[*]' COLUMNS (city_name VARCHAR(255) PATH '$')\n  ) AS selected_city\n  WHERE '${city:raw}' NOT IN ('$__all', '')\n), filtered_rows AS (\n  SELECT DISTINCT x.captured_at, x.last_ip\n  FROM duplicate_ip_snapshot_rows x\n  WHERE x.proxy_status_scope = '${proxy_scope}'\n    AND $__timeFilter(x.captured_at)\n    AND x.last_ip != '__snapshot_empty__'\n    AND EXISTS (\n      SELECT 1\n      FROM selected_cities sc\n      WHERE LOCATE(CONCAT(' | ', sc.city_name, ','), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n        OR LOCATE(CONCAT(' | ', sc.city_name, ' | '), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n    )\n), row_scope AS (\n  SELECT\n    fr.captured_at,\n    fr.last_ip,\n    COUNT(DISTINCT s.server_label) AS server_count\n  FROM filtered_rows fr\n  JOIN duplicate_ip_snapshot_servers s\n    ON s.captured_at = fr.captured_at\n    AND s.proxy_status_scope = '${proxy_scope}'\n    AND s.last_ip = fr.last_ip\n  GROUP BY fr.captured_at, fr.last_ip\n)\nSELECT COALESCE(ROUND(SUM(CASE WHEN server_count = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2), 0) AS value\nFROM row_scope",
+          "refId": "A"
+        }
+      ],
+      "title": "% Within Same Server",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Percentage of duplicate IP scan rows where the same IP appeared on more than one server label.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 15,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT city AS city_name\n  FROM proxies\n  WHERE '${city:raw}' IN ('$__all', '')\n    AND city IS NOT NULL\n    AND city != ''\n  UNION\n  SELECT city_name\n  FROM JSON_TABLE(\n    CAST('${city:json}' AS JSON),\n    '$[*]' COLUMNS (city_name VARCHAR(255) PATH '$')\n  ) AS selected_city\n  WHERE '${city:raw}' NOT IN ('$__all', '')\n), filtered_rows AS (\n  SELECT DISTINCT x.captured_at, x.last_ip\n  FROM duplicate_ip_snapshot_rows x\n  WHERE x.proxy_status_scope = '${proxy_scope}'\n    AND $__timeFilter(x.captured_at)\n    AND x.last_ip != '__snapshot_empty__'\n    AND EXISTS (\n      SELECT 1\n      FROM selected_cities sc\n      WHERE LOCATE(CONCAT(' | ', sc.city_name, ','), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n        OR LOCATE(CONCAT(' | ', sc.city_name, ' | '), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n    )\n), row_scope AS (\n  SELECT\n    fr.captured_at,\n    fr.last_ip,\n    COUNT(DISTINCT s.server_label) AS server_count\n  FROM filtered_rows fr\n  JOIN duplicate_ip_snapshot_servers s\n    ON s.captured_at = fr.captured_at\n    AND s.proxy_status_scope = '${proxy_scope}'\n    AND s.last_ip = fr.last_ip\n  GROUP BY fr.captured_at, fr.last_ip\n)\nSELECT COALESCE(ROUND(SUM(CASE WHEN server_count > 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2), 0) AS value\nFROM row_scope",
+          "refId": "A"
+        }
+      ],
+      "title": "% Across Servers",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Average daily affected-phone rate across the selected time range. Each 24h group uses duplicate-IP snapshots for the numerator and active proxy count by city for the denominator.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 15
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT city AS city_name\n  FROM proxies\n  WHERE '${city:raw}' IN ('$__all', '')\n    AND city IS NOT NULL\n    AND city != ''\n  UNION\n  SELECT city_name\n  FROM JSON_TABLE(\n    CAST('${city:json}' AS JSON),\n    '$[*]' COLUMNS (city_name VARCHAR(255) PATH '$')\n  ) AS selected_city\n  WHERE '${city:raw}' NOT IN ('$__all', '')\n), active_proxy_count AS (\n  SELECT COUNT(*) AS total_phones\n  FROM proxies\n  WHERE active = true\n    AND city IN ($city)\n), daily_affected AS (\n  SELECT\n    DATE(x.captured_at) AS scan_day,\n    SUM(x.phones_on_same_ip) AS affected_phones\n  FROM duplicate_ip_snapshot_rows x\n  WHERE x.proxy_status_scope = '${proxy_scope}'\n    AND $__timeFilter(x.captured_at)\n    AND x.last_ip != '__snapshot_empty__'\n    AND EXISTS (\n      SELECT 1\n      FROM selected_cities sc\n      WHERE LOCATE(CONCAT(' | ', sc.city_name, ','), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n        OR LOCATE(CONCAT(' | ', sc.city_name, ' | '), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n    )\n  GROUP BY DATE(x.captured_at)\n)\nSELECT COALESCE(ROUND(AVG(daily_affected.affected_phones * 100.0 / NULLIF(active_proxy_count.total_phones, 0)), 2), 0) AS value\nFROM daily_affected\nCROSS JOIN active_proxy_count",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg 24h Dup Rate",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Duplicate Details by City, Server, and Phone",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Duplicate-IP evidence for the selected cities and time range. Uses the snapshot row's precomputed phone list and server list instead of expanding every phone on dashboard load.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false,
+            "wrapHeaderText": false,
+            "wrapText": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dup_scope"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "across_servers": {
+                        "color": "red",
+                        "text": "across_servers"
+                      },
+                      "within_server": {
+                        "color": "orange",
+                        "text": "within_server"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "sibling_phones"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 420
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "enablePagination": true,
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "scan_appearances"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT city AS city_name\n  FROM proxies\n  WHERE '${city:raw}' IN ('$__all', '')\n    AND city IS NOT NULL\n    AND city != ''\n  UNION\n  SELECT city_name\n  FROM JSON_TABLE(\n    CAST('${city:json}' AS JSON),\n    '$[*]' COLUMNS (city_name VARCHAR(255) PATH '$')\n  ) AS selected_city\n  WHERE '${city:raw}' NOT IN ('$__all', '')\n), filtered_rows AS (\n  SELECT\n    x.captured_at,\n    x.last_ip,\n    x.location,\n    x.phones_on_same_ip,\n    x.all_servers_on_ip,\n    x.sibling_phones,\n    x.device_ids\n  FROM duplicate_ip_snapshot_rows x\n  WHERE x.proxy_status_scope = '${proxy_scope}'\n    AND $__timeFilter(x.captured_at)\n    AND x.last_ip != '__snapshot_empty__'\n    AND EXISTS (\n      SELECT 1\n      FROM selected_cities sc\n      WHERE LOCATE(CONCAT(' | ', sc.city_name, ','), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n        OR LOCATE(CONCAT(' | ', sc.city_name, ' | '), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n    )\n), ip_scope AS (\n  SELECT\n    fr.captured_at,\n    fr.last_ip,\n    COUNT(DISTINCT s.server_label) AS server_count\n  FROM filtered_rows fr\n  JOIN duplicate_ip_snapshot_servers s\n    ON s.captured_at = fr.captured_at\n    AND s.proxy_status_scope = '${proxy_scope}'\n    AND s.last_ip = fr.last_ip\n  GROUP BY fr.captured_at, fr.last_ip\n)\nSELECT\n  fr.location,\n  fr.last_ip,\n  MAX(fr.all_servers_on_ip) AS all_servers_on_ip,\n  CASE WHEN MAX(ip_scope.server_count) > 1 THEN 'across_servers' ELSE 'within_server' END AS dup_scope,\n  COUNT(DISTINCT fr.captured_at) AS scan_appearances,\n  MIN(fr.captured_at) AS first_seen,\n  MAX(fr.captured_at) AS last_seen,\n  MAX(fr.phones_on_same_ip) AS max_phones_on_ip,\n  MAX(fr.sibling_phones) AS duplicated_phones,\n  MAX(fr.device_ids) AS duplicated_device_ids\nFROM filtered_rows fr\nJOIN ip_scope\n  ON ip_scope.captured_at = fr.captured_at\n  AND ip_scope.last_ip = fr.last_ip\nGROUP BY fr.location, fr.last_ip\nORDER BY scan_appearances DESC, max_phones_on_ip DESC, fr.location, fr.last_ip\nLIMIT 500",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicated IP and Phone Details",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Daily Duplication Trend",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "One point per day per selected city. The value is the number of distinct duplicated IPs observed that day, read from duplicate-IP snapshots without expanding device_ids.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Duplicate IPs",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "min",
+            "max",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT city AS city_name\n  FROM proxies\n  WHERE '${city:raw}' IN ('$__all', '')\n    AND city IS NOT NULL\n    AND city != ''\n  UNION\n  SELECT city_name\n  FROM JSON_TABLE(\n    CAST('${city:json}' AS JSON),\n    '$[*]' COLUMNS (city_name VARCHAR(255) PATH '$')\n  ) AS selected_city\n  WHERE '${city:raw}' NOT IN ('$__all', '')\n)\nSELECT\n  UNIX_TIMESTAMP(DATE(x.captured_at)) AS time_sec,\n  sc.city_name AS metric,\n  COUNT(DISTINCT x.last_ip) AS value\nFROM duplicate_ip_snapshot_rows x\nJOIN selected_cities sc\n  ON LOCATE(CONCAT(' | ', sc.city_name, ','), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\n  OR LOCATE(CONCAT(' | ', sc.city_name, ' | '), CONCAT(' | ', COALESCE(x.location, ''), ' | ')) > 0\nWHERE x.proxy_status_scope = '${proxy_scope}'\n  AND $__timeFilter(x.captured_at)\n  AND x.last_ip != '__snapshot_empty__'\nGROUP BY DATE(x.captured_at), sc.city_name\nORDER BY time_sec, metric",
+          "refId": "A"
+        }
+      ],
+      "title": "Daily Duplicate IP Count by City",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "5m",
+  "schemaVersion": 42,
+  "tags": [
+    "proxies",
+    "duplicates",
+    "city",
+    "reporting"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT city FROM proxies WHERE city IS NOT NULL AND city != '' ORDER BY city",
+        "hide": 0,
+        "includeAll": true,
+        "label": "City",
+        "multi": true,
+        "name": "city",
+        "options": [],
+        "query": "SELECT DISTINCT city FROM proxies WHERE city IS NOT NULL AND city != '' ORDER BY city",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "active",
+          "value": "active"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Proxy scope",
+        "multi": false,
+        "name": "proxy_scope",
+        "options": [
+          {
+            "selected": true,
+            "text": "active",
+            "value": "active"
+          },
+          {
+            "selected": false,
+            "text": "all",
+            "value": "all"
+          }
+        ],
+        "query": "active : active, all : all",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5m",
+      "15m",
+      "1h"
+    ],
+    "time_options": [
+      "7d",
+      "30d"
+    ]
+  },
+  "timezone": "browser",
+  "title": "Duplicate IP City Reporting",
+  "uid": "duplicate-ip-city-reporting",
+  "version": 1,
+  "weekStart": ""
+}

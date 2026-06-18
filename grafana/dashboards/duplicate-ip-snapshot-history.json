@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 13,
+  "id": 9,
   "links": [],
   "panels": [
     {
@@ -40,6 +40,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "Counts from the most recent scan in the selected time range. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and finds any IPs shared by 2 or more phones. Shows how many IPs are currently shared and how many phones are caught in those collisions.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -105,15 +106,15 @@
           "refId": "A"
         }
       ],
-      "title": "Latest Scan — Shared IP Detail",
-      "type": "stat",
-      "description": "Counts from the most recent scan in the selected time range. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and finds any IPs shared by 2 or more phones. Shows how many IPs are currently shared and how many phones are caught in those collisions."
+      "title": "Latest Scan \u2014 Shared IP Detail",
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "How many IP scans completed during the selected period. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and identifies IPs shared by 2 or more phones. Expected: ~12 scans per hour. Gaps indicate the scan service was down or delayed during that window.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -172,14 +173,14 @@
         }
       ],
       "title": "IP Scans in Range",
-      "type": "stat",
-      "description": "How many IP scans completed during the selected period. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and identifies IPs shared by 2 or more phones. Expected: ~12 scans per hour. Gaps indicate the scan service was down or delayed during that window."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "The highest number of shared IPs recorded in any single scan during the selected period. A scan = an automated check run every 5 minutes recording each phone's outbound IP. This is the worst-case collision count observed \u2014 use it to size risk exposure and set alert thresholds.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -246,14 +247,14 @@
         }
       ],
       "title": "Peak Shared IPs (single scan)",
-      "type": "stat",
-      "description": "The highest number of shared IPs recorded in any single scan during the selected period. A scan = an automated check run every 5 minutes recording each phone's outbound IP. This is the worst-case collision count observed — use it to size risk exposure and set alert thresholds."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -312,14 +313,14 @@
         }
       ],
       "title": "Distinct duplicate IPs seen (range)",
-      "type": "stat",
-      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "Each data point = one scan. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and counts IPs shared by 2 or more phones. Y-axis = number of shared IPs detected in that scan. A rising trend means more IPs are entering collision. A flat line at zero means full isolation.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -412,14 +413,14 @@
         }
       ],
       "title": "Shared IP Count Over Time (per scan)",
-      "type": "timeseries",
-      "description": "Each data point = one scan. A scan = an automated check run every 5 minutes that records each phone's current outbound IP and counts IPs shared by 2 or more phones. Y-axis = number of shared IPs detected in that scan. A rising trend means more IPs are entering collision. A flat line at zero means full isolation."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -519,15 +520,15 @@
           }
         }
       ],
-      "title": "Server labels — how often a server appears on duplicate-IP rows (historical)",
-      "type": "barchart",
-      "description": "This panel quantifies shared-IP overlap and its operational impact. Lower overlap indicates healthier isolation and reduced detection risk."
+      "title": "Server labels \u2014 how often a server appears on duplicate-IP rows (historical)",
+      "type": "barchart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "IPs ranked by how many scans they appeared as shared during the selected period. scan_appearances = number of 5-minute scans where this IP was found on 2 or more phones. High count = IP has been in collision for a long time and is not resolving. These are the IPs most likely to be causing sustained isolation failures.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -590,14 +591,14 @@
         }
       ],
       "title": "Most Persistent Shared IPs (by scan count)",
-      "type": "table",
-      "description": "IPs ranked by how many scans they appeared as shared during the selected period. scan_appearances = number of 5-minute scans where this IP was found on 2 or more phones. High count = IP has been in collision for a long time and is not resolving. These are the IPs most likely to be causing sustained isolation failures."
+      "type": "table"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "Row-level detail from the most recent scan within the selected time range. A scan = an automated check run every 5 minutes recording each phone's current outbound IP. Each row = one IP that was shared by 2 or more phones at the time of that scan. Shows which phones are on each IP, which servers they belong to, and how many phones are in the collision.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -659,9 +660,8 @@
           "refId": "A"
         }
       ],
-      "title": "Latest Scan in Range — Per-IP Detail",
-      "type": "table",
-      "description": "Row-level detail from the most recent scan within the selected time range. A scan = an automated check run every 5 minutes recording each phone's current outbound IP. Each row = one IP that was shared by 2 or more phones at the time of that scan. Shows which phones are on each IP, which servers they belong to, and how many phones are in the collision."
+      "title": "Latest Scan in Range \u2014 Per-IP Detail",
+      "type": "table"
     }
   ],
   "preload": false,
@@ -708,5 +708,5 @@
   "timezone": "browser",
   "title": "IP Collision History",
   "uid": "duplicate-ip-snapshot-history",
-  "version": 1
+  "version": 2
 }

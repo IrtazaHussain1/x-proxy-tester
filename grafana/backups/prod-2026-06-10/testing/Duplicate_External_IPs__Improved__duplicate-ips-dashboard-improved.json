@@ -1,0 +1,2090 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Duplicate-IP risk and diversity health across the fleet. Mixes current-state KPIs with time-window-aware comparisons. All rates use a time-aligned active-device denominator.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 44,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 200,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "**Two views combined.**\n\n- **Right Now** panels (top stats, current-IP tables, geomap, server-pair, server within/cross): read live `proxies.last_ip`. Reflect the present moment. Time picker does not affect them.\n- **Over Time Range** panels (city comparison, trends, frequency and severity): use the dashboard time picker. Rates are time-aligned: phone counts on duplicates are divided by phones online in the matching 5-minute window, using the actual active count observed for each city.\n\n**Snapshot / check** = an automatic scan run every few minutes that records every IP currently shared by two or more phones.\n\n**Filters:** Proxy Status (Active default), City (multi-select, All), Min Active Devices (hide tiny cities).\n\n**Notes when reading numbers:**\n- *Observations* / *appearances* multiply by time — the same IP counts again every check it persisted. NOT a phone count.\n- *Distinct* counts deduplicate across checks. Compare these to fleet size.\n- *Peak* / *worst* columns are MAX across checks, never averages.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "12.3.0",
+      "title": "How to read this dashboard",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Right Now — Current State",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Current number of duplicated outbound IPs for the selected cities. Each value is one IP currently shared by 2+ selected phones. Reflects this moment, not the time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 6
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS value FROM (\n  SELECT last_ip\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n    AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n    AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) AS dup_ips",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicate IPs (Right Now)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Selected phones currently on duplicate IPs. Current state, not historical count.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 6
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS value\nFROM proxies\nWHERE ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  AND last_ip IN (\n    SELECT last_ip\n    FROM proxies\n    WHERE last_ip IS NOT NULL AND last_ip != ''\n      AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n      AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n    GROUP BY last_ip\n    HAVING COUNT(*) > 1\n  )",
+          "refId": "A"
+        }
+      ],
+      "title": "Affected Phones (Right Now)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Largest current duplicate cluster: max phones on a single shared IP across the selected cities.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 3
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 6
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT MAX(phone_count) AS value FROM (\n  SELECT last_ip, COUNT(*) AS phone_count\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n    AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n    AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) AS counts",
+          "refId": "A"
+        }
+      ],
+      "title": "Max Phones Sharing One IP (Right Now)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Cities currently with at least one duplicate IP. Spread vs concentration indicator.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 6
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(DISTINCT city) AS value\nFROM proxies\nWHERE city IS NOT NULL\n  AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  AND last_ip IN (\n    SELECT last_ip\n    FROM proxies\n    WHERE last_ip IS NOT NULL AND last_ip != ''\n      AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n      AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n    GROUP BY last_ip\n    HAVING COUNT(*) > 1\n  )",
+          "refId": "A"
+        }
+      ],
+      "title": "Cities w/ Duplicate IPs (Right Now)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Top 20 currently duplicated IPs ranked by number of phones sharing them.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Phones sharing this IP",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "id": 5,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT last_ip, COUNT(*) AS phone_count\nFROM proxies\nWHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\nGROUP BY last_ip\nHAVING COUNT(*) > 1\nORDER BY phone_count DESC\nLIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Duplicate IPs by Phone Count (Right Now)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Cities currently having the most phones on duplicate IPs (absolute counts).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Affected phones",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "id": 6,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  CONCAT(IFNULL(city,'Unknown'), ', ', IFNULL(state,'')) AS city_label,\n  COUNT(*) AS affected_phones,\n  COUNT(DISTINCT last_ip) AS duplicate_ips\nFROM proxies\nWHERE ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  AND last_ip IN (\n    SELECT last_ip\n    FROM proxies\n    WHERE last_ip IS NOT NULL AND last_ip != ''\n      AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n      AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n    GROUP BY last_ip\n    HAVING COUNT(*) > 1\n  )\nGROUP BY city, state\nORDER BY affected_phones DESC\nLIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Cities w/ Most IP-Sharing Phones (Right Now)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "One row per current shared IP. Phone count, active/inactive split, phone names, device IDs, cities, countries.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": [
+                "count"
+              ]
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phone_count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phones Sharing IP"
+              },
+              {
+                "id": "custom.width",
+                "value": 160
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 2
+                    },
+                    {
+                      "color": "orange",
+                      "value": 4
+                    },
+                    {
+                      "color": "red",
+                      "value": 7
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_ip"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Shared IP"
+              },
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phone Names"
+              },
+              {
+                "id": "custom.width",
+                "value": 520
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cities"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Cities"
+              },
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "countries"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Countries"
+              },
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "active_count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Active"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "inactive_count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Inactive"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Phones Sharing IP"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  last_ip,\n  COUNT(*) AS phone_count,\n  SUM(CASE WHEN proxy_status = 'active' THEN 1 ELSE 0 END) AS active_count,\n  SUM(CASE WHEN proxy_status = 'inactive' THEN 1 ELSE 0 END) AS inactive_count,\n  GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') AS phones,\n  GROUP_CONCAT(device_id ORDER BY name SEPARATOR ', ') AS device_ids,\n  GROUP_CONCAT(DISTINCT IFNULL(city,'?') ORDER BY city SEPARATOR ', ') AS cities,\n  GROUP_CONCAT(DISTINCT IFNULL(country,'?') ORDER BY country SEPARATOR ', ') AS countries\nFROM proxies\nWHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\nGROUP BY last_ip\nHAVING COUNT(*) > 1\nORDER BY phone_count DESC, last_ip",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicate IPs — One Row per Shared IP (Right Now)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "id": 110,
+      "panels": [],
+      "title": "Server-Based — Right Now",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Current duplicate-IP impact by server label inferred from phone names (`S<n>P<m>` pattern). Higher = server contributes more duplicate exposure.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Count",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 15,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "vertical",
+        "showValue": "always",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  server,\n  COUNT(DISTINCT last_ip) AS duplicate_ips,\n  COUNT(*) AS affected_phones\nFROM (\n  SELECT\n    last_ip,\n    CASE\n      WHEN UPPER(name) REGEXP '^S[0-9]+' THEN CONCAT('S', SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(name), 'P', 1), 'S', -1))\n      ELSE 'Unknown'\n    END AS server\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n    AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n    AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n    AND last_ip IN (\n      SELECT last_ip\n      FROM proxies\n      WHERE last_ip IS NOT NULL AND last_ip != ''\n        AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n        AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n      GROUP BY last_ip\n      HAVING COUNT(*) > 1\n    )\n) AS t\nGROUP BY server\nORDER BY duplicate_ips DESC, affected_phones DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicate IPs Per Server (Right Now)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Splits current duplicate IPs by whether they sit on one server (within-server clustering) or span multiple servers (cross-server, carrier/IP-pool issue).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Count",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "id": 26,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "vertical",
+        "showValue": "always",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT TRIM(city) AS city\n  FROM proxies\n  WHERE city IS NOT NULL\n    AND TRIM(city) != ''\n    AND LOWER(TRIM(city)) NOT IN ('n/a','na')\n    AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n), latest AS (\n  SELECT MAX(captured_at) AS captured_at\n  FROM duplicate_ip_snapshot_rows\n  WHERE proxy_status_scope = '${proxy_status}'\n), filtered_rows AS (\n  SELECT DISTINCT r.captured_at, r.proxy_status_scope, r.last_ip\n  FROM duplicate_ip_snapshot_rows r\n  JOIN latest l ON l.captured_at = r.captured_at\n  WHERE r.proxy_status_scope = '${proxy_status}'\n    AND r.last_ip != '__snapshot_empty__'\n    AND ('${city:raw}' = '$__all' OR EXISTS (\n      SELECT 1 FROM selected_cities c\n      WHERE LOCATE(CONCAT(' | ', c.city, ','),  CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\n         OR LOCATE(CONCAT(' | ', c.city, ' | '), CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\n    ))\n), ip_server_counts AS (\n  SELECT s.last_ip, COUNT(DISTINCT TRIM(s.server_label)) AS distinct_servers_on_ip\n  FROM duplicate_ip_snapshot_servers s\n  JOIN filtered_rows r\n    ON r.captured_at = s.captured_at\n    AND r.proxy_status_scope = s.proxy_status_scope\n    AND r.last_ip = s.last_ip\n  GROUP BY s.last_ip\n)\nSELECT\n  TRIM(s.server_label) AS server,\n  SUM(CASE WHEN c.distinct_servers_on_ip = 1 THEN 1 ELSE 0 END) AS within_server_dup_ips,\n  SUM(CASE WHEN c.distinct_servers_on_ip > 1 THEN 1 ELSE 0 END) AS cross_server_dup_ips\nFROM duplicate_ip_snapshot_servers s\nJOIN filtered_rows r\n  ON r.captured_at = s.captured_at\n  AND r.proxy_status_scope = s.proxy_status_scope\n  AND r.last_ip = s.last_ip\nJOIN ip_server_counts c ON c.last_ip = s.last_ip\nGROUP BY TRIM(s.server_label)\nORDER BY (within_server_dup_ips + cross_server_dup_ips) DESC, server",
+          "refId": "A"
+        }
+      ],
+      "title": "Within vs Cross-Server Duplicate IPs (Right Now)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Server pairs that share duplicated IPs. Computed from the latest snapshot in the time window. Replaces the O(N^2) self-join on the proxies table — uses pre-aggregated server labels.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Shared IPs",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "id": 16,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.73,
+        "colorByField": "shared_ips",
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT TRIM(city) AS city\n  FROM proxies\n  WHERE city IS NOT NULL\n    AND TRIM(city) != ''\n    AND LOWER(TRIM(city)) NOT IN ('n/a','na')\n    AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n), latest AS (\n  SELECT MAX(captured_at) AS captured_at\n  FROM duplicate_ip_snapshot_rows\n  WHERE proxy_status_scope = '${proxy_status}'\n), filtered_ips AS (\n  SELECT DISTINCT r.captured_at, r.proxy_status_scope, r.last_ip\n  FROM duplicate_ip_snapshot_rows r\n  JOIN latest l ON l.captured_at = r.captured_at\n  WHERE r.proxy_status_scope = '${proxy_status}'\n    AND r.last_ip != '__snapshot_empty__'\n    AND ('${city:raw}' = '$__all' OR EXISTS (\n      SELECT 1 FROM selected_cities c\n      WHERE LOCATE(CONCAT(' | ', c.city, ','),  CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\n         OR LOCATE(CONCAT(' | ', c.city, ' | '), CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\n    ))\n)\nSELECT\n  CONCAT(LEAST(TRIM(a.server_label), TRIM(b.server_label)),\n         ' vs ',\n         GREATEST(TRIM(a.server_label), TRIM(b.server_label))) AS server_pair,\n  COUNT(DISTINCT a.last_ip) AS shared_ips\nFROM duplicate_ip_snapshot_servers a\nJOIN duplicate_ip_snapshot_servers b\n  ON a.captured_at = b.captured_at\n AND a.proxy_status_scope = b.proxy_status_scope\n AND a.last_ip = b.last_ip\n AND TRIM(a.server_label) < TRIM(b.server_label)\nJOIN filtered_ips f\n  ON f.captured_at = a.captured_at\n AND f.proxy_status_scope = a.proxy_status_scope\n AND f.last_ip = a.last_ip\nGROUP BY server_pair\nORDER BY shared_ips DESC\nLIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Server Pairs Sharing IPs (Right Now)",
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 73
+      },
+      "id": 120,
+      "panels": [],
+      "title": "Over Time Range — City Comparison (Apples-to-Apples)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Per-city duplicate-IP frequency and severity over the selected time range. Active-device denominator is time-aligned (5-min bucket containing each check), using the actual active devices observed for that city. The honest answer to how often this city has duplicates, and how serious they are.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "city"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "City"
+              },
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_active_devices"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Active Devices"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scans_city_alive"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Checks (City Alive)"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scans_with_duplicates"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Checks w/ Dups"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_scan_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "% Checks w/ Dups"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 25
+                    },
+                    {
+                      "color": "orange",
+                      "value": 60
+                    },
+                    {
+                      "color": "red",
+                      "value": 90
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "distinct_dup_ips_in_window"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Distinct Dup IPs"
+              },
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phone_on_dup_observations"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phone-on-Dup Observations"
+              },
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "active_device_observations"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Active Device Observations"
+              },
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duplicate_phone_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Duplicate Phone Rate (%)"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 5
+                    },
+                    {
+                      "color": "orange",
+                      "value": 15
+                    },
+                    {
+                      "color": "red",
+                      "value": 25
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_dup_ips_when_hit"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Avg Dup IPs (when hit)"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "peak_dup_ips_in_scan"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Peak Dup IPs in One Check"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "peak_phones_on_dup_in_scan"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Peak Phones on Dups in One Check"
+              },
+              {
+                "id": "custom.width",
+                "value": 210
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "peak_single_ip_load"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Peak Single IP Load"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Checks (City Alive)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 246
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Checks w/ Dups"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 233
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distinct Dup IPs"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 308
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Phone-on-Dup Observations"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 254
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Active Device Observations"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 298
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duplicate Phone Rate (%)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 229
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg Dup IPs (when hit)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 271
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Peak Dup IPs in One Check"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 288
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 74
+      },
+      "id": 41,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "City"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT TRIM(city) AS city\n  FROM proxies\n  WHERE city IS NOT NULL\n    AND TRIM(city) != ''\n    AND LOWER(TRIM(city)) NOT IN ('n/a','na')\n    AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n),\nwindow_active AS (\n  SELECT TRIM(p.city) AS city,\n         COUNT(DISTINCT sm.proxy_id) AS active_devices_in_window\n  FROM proxy_requests_5min_summary sm\n  JOIN proxies p ON p.device_id = sm.proxy_id\n  JOIN selected_cities c ON c.city = TRIM(p.city)\n  WHERE sm.window_start BETWEEN $__timeFrom() AND $__timeTo()\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n  GROUP BY TRIM(p.city)\n  HAVING active_devices_in_window >= ${min_active_devices}\n),\nsnaps AS (\n  SELECT DISTINCT captured_at AS snapshot_at,\n         FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(captured_at)/300)*300) AS bucket_start\n  FROM duplicate_ip_snapshot_rows\n  WHERE captured_at BETWEEN $__timeFrom() AND $__timeTo()\n    AND proxy_status_scope = '${proxy_status}'\n),\nbucket_active AS (\n  SELECT sm.window_start AS bucket_start,\n         TRIM(p.city) AS city,\n         COUNT(DISTINCT sm.proxy_id) AS active_devices\n  FROM proxy_requests_5min_summary sm\n  JOIN proxies p ON p.device_id = sm.proxy_id\n  JOIN window_active w ON w.city = TRIM(p.city)\n  WHERE sm.window_start BETWEEN $__timeFrom() - INTERVAL 5 MINUTE AND $__timeTo()\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n  GROUP BY sm.window_start, TRIM(p.city)\n),\nsnap_active AS (\n  SELECT s.snapshot_at, b.city, b.active_devices\n  FROM snaps s\n  JOIN bucket_active b ON b.bucket_start = s.bucket_start\n),\nsnap_dup AS (\n  SELECT s.snapshot_at,\n         w.city,\n         COUNT(DISTINCT r.last_ip) AS duplicate_ips_in_scan,\n         SUM(r.phones_on_same_ip) AS phones_on_dup_in_scan,\n         MAX(r.phones_on_same_ip) AS max_phones_per_ip\n  FROM snaps s\n  JOIN duplicate_ip_snapshot_rows r ON r.captured_at = s.snapshot_at\n  JOIN window_active w\n    ON LOCATE(CONCAT(' | ', w.city, ','),  CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\n    OR LOCATE(CONCAT(' | ', w.city, ' | '), CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\n  WHERE r.proxy_status_scope = '${proxy_status}'\n    AND r.last_ip != '__snapshot_empty__'\n  GROUP BY s.snapshot_at, w.city\n),\ndistinct_ips AS (\n  SELECT w.city,\n         COUNT(DISTINCT r.last_ip) AS distinct_dup_ips_in_window\n  FROM duplicate_ip_snapshot_rows r\n  JOIN window_active w\n    ON LOCATE(CONCAT(' | ', w.city, ','),  CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\n    OR LOCATE(CONCAT(' | ', w.city, ' | '), CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\n  WHERE r.captured_at BETWEEN $__timeFrom() AND $__timeTo()\n    AND r.proxy_status_scope = '${proxy_status}'\n    AND r.last_ip != '__snapshot_empty__'\n  GROUP BY w.city\n),\njoined AS (\n  SELECT sa.snapshot_at, sa.city, sa.active_devices,\n         COALESCE(d.duplicate_ips_in_scan, 0) AS duplicate_ips_in_scan,\n         COALESCE(d.phones_on_dup_in_scan, 0) AS phones_on_dup_in_scan,\n         COALESCE(d.max_phones_per_ip, 0) AS max_phones_per_ip\n  FROM snap_active sa\n  LEFT JOIN snap_dup d\n    ON d.snapshot_at = sa.snapshot_at AND d.city = sa.city\n)\nSELECT\n  w.city,\n  w.active_devices_in_window AS total_active_devices,\n  COUNT(j.snapshot_at) AS scans_city_alive,\n  SUM(CASE WHEN j.duplicate_ips_in_scan > 0 THEN 1 ELSE 0 END) AS scans_with_duplicates,\n  ROUND(100.0 * SUM(CASE WHEN j.duplicate_ips_in_scan > 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(j.snapshot_at), 0), 2) AS duplicate_scan_rate_pct,\n  COALESCE(di.distinct_dup_ips_in_window, 0) AS distinct_dup_ips_in_window,\n  SUM(j.phones_on_dup_in_scan) AS phone_on_dup_observations,\n  SUM(j.active_devices) AS active_device_observations,\n  ROUND(100.0 * SUM(j.phones_on_dup_in_scan) / NULLIF(SUM(j.active_devices), 0), 2) AS duplicate_phone_rate_pct,\n  ROUND(AVG(CASE WHEN j.duplicate_ips_in_scan > 0 THEN j.duplicate_ips_in_scan END), 2) AS avg_dup_ips_when_hit,\n  MAX(j.duplicate_ips_in_scan) AS peak_dup_ips_in_scan,\n  MAX(j.phones_on_dup_in_scan) AS peak_phones_on_dup_in_scan,\n  MAX(j.max_phones_per_ip) AS peak_single_ip_load\nFROM window_active w\nLEFT JOIN joined j ON j.city = w.city\nLEFT JOIN distinct_ips di ON di.city = w.city\nGROUP BY w.city, w.active_devices_in_window, di.distinct_dup_ips_in_window\nORDER BY duplicate_phone_rate_pct DESC, w.city",
+          "refId": "A"
+        }
+      ],
+      "title": "City Comparison — Duplicate Frequency & Severity (Actual City Counts)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 86
+      },
+      "id": 130,
+      "panels": [],
+      "title": "Over Time Range — Daily Trends",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Daily distinct duplicate IP count per selected city across the time window. One line per city, one point per day. Uses the dashboard time picker.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Duplicate IPs",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "Miami"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 87
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT TRIM(city) AS city\n  FROM proxies\n  WHERE city IS NOT NULL\n    AND TRIM(city) != ''\n    AND LOWER(TRIM(city)) NOT IN ('n/a','na')\n    AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n)\nSELECT\n  UNIX_TIMESTAMP(DATE(r.captured_at)) AS time_sec,\n  c.city AS metric,\n  COUNT(DISTINCT r.last_ip) AS value\nFROM duplicate_ip_snapshot_rows r\nJOIN selected_cities c\n  ON LOCATE(CONCAT(' | ', c.city, ','),  CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\n  OR LOCATE(CONCAT(' | ', c.city, ' | '), CONCAT(' | ', COALESCE(r.location, ''), ' | ')) > 0\nWHERE r.captured_at BETWEEN $__timeFrom() AND $__timeTo()\n  AND r.proxy_status_scope = '${proxy_status}'\n  AND r.last_ip != '__snapshot_empty__'\nGROUP BY UNIX_TIMESTAMP(DATE(r.captured_at)), c.city\nORDER BY time_sec, metric",
+          "refId": "A"
+        }
+      ],
+      "title": "Daily Distinct Duplicate IPs — Selected Cities",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "IP rotation events per day, per selected city. Uses proxy_requests_daily_summary for completed historical days and proxy_requests_5min_summary for today, so 30-day ranges render beyond the short 5-minute-summary retention window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "Miami"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 97
+      },
+      "id": 33,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH selected_cities AS (\n  SELECT DISTINCT TRIM(city) AS city\n  FROM proxies\n  WHERE city IS NOT NULL\n    AND TRIM(city) != ''\n    AND LOWER(TRIM(city)) NOT IN ('n/a','na')\n    AND ('${city:raw}' = '$__all' OR TRIM(city) IN (${city:sqlstring}))\n),\nrotation_points AS (\n  SELECT\n    UNIX_TIMESTAMP(d.day) AS time_sec,\n    TRIM(p.city) AS metric,\n    SUM(d.ip_change_count) AS value\n  FROM proxy_requests_daily_summary d\n  JOIN proxies p ON p.device_id = d.proxy_id\n  JOIN selected_cities c ON c.city = TRIM(p.city)\n  WHERE d.day >= DATE($__timeFrom())\n    AND d.day <= DATE($__timeTo())\n    AND d.day < CURDATE()\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n  GROUP BY UNIX_TIMESTAMP(d.day), TRIM(p.city)\n\n  UNION ALL\n\n  SELECT\n    UNIX_TIMESTAMP(DATE(sm.window_start)) AS time_sec,\n    TRIM(p.city) AS metric,\n    SUM(sm.ip_change_count) AS value\n  FROM proxy_requests_5min_summary sm\n  JOIN proxies p ON p.device_id = sm.proxy_id\n  JOIN selected_cities c ON c.city = TRIM(p.city)\n  WHERE sm.window_start BETWEEN GREATEST($__timeFrom(), CURDATE()) AND $__timeTo()\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n  GROUP BY UNIX_TIMESTAMP(DATE(sm.window_start)), TRIM(p.city)\n)\nSELECT\n  time_sec,\n  metric,\n  SUM(value) AS value\nFROM rotation_points\nGROUP BY time_sec, metric\nORDER BY time_sec, metric",
+          "refId": "A"
+        }
+      ],
+      "title": "IP Rotation Events per Day — Selected Cities",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 107
+      },
+      "id": 140,
+      "panels": [],
+      "title": "Right Now — Drill-Down Detail",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Per-city, per-IP drill-down. One row per (city, shared IP) currently. Names and IDs for follow-up.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "city"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_ip"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Shared IP"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones_sharing"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phones Sharing"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "active_count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Active"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "inactive_count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Inactive"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phone_names"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Phone Names"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device_ids"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Device IDs"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 108
+      },
+      "id": 30,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "city"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  TRIM(p.city) AS city,\n  p.last_ip,\n  COUNT(*) AS phones_sharing,\n  SUM(CASE WHEN p.proxy_status = 'active' THEN 1 ELSE 0 END) AS active_count,\n  SUM(CASE WHEN p.proxy_status = 'inactive' THEN 1 ELSE 0 END) AS inactive_count,\n  GROUP_CONCAT(p.name ORDER BY p.name SEPARATOR ' | ') AS phone_names,\n  GROUP_CONCAT(p.device_id ORDER BY p.name SEPARATOR ', ') AS device_ids\nFROM proxies p\nWHERE p.last_ip IS NOT NULL AND p.last_ip != ''\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  AND ('${city:raw}' = '$__all' OR TRIM(p.city) IN (${city:sqlstring}))\nGROUP BY TRIM(p.city), p.last_ip\nHAVING COUNT(*) > 1\nORDER BY TRIM(p.city), phones_sharing DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicate IPs — Per-City Detail (Right Now)",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 42,
+  "tags": [
+    "proxies",
+    "ip",
+    "duplicates",
+    "monitoring",
+    "improved"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "active",
+          "value": "active"
+        },
+        "includeAll": false,
+        "label": "Proxy Status",
+        "name": "proxy_status",
+        "options": [
+          {
+            "selected": false,
+            "text": "All",
+            "value": "all"
+          },
+          {
+            "selected": true,
+            "text": "Active",
+            "value": "active"
+          },
+          {
+            "selected": false,
+            "text": "Inactive",
+            "value": "inactive"
+          }
+        ],
+        "query": "All : all, Active : active, Inactive : inactive",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "text": "0",
+          "value": "0"
+        },
+        "includeAll": false,
+        "label": "Min Active Devices",
+        "name": "min_active_devices",
+        "options": [
+          {
+            "selected": true,
+            "text": "0",
+            "value": "0"
+          },
+          {
+            "selected": false,
+            "text": "5",
+            "value": "5"
+          },
+          {
+            "selected": false,
+            "text": "10",
+            "value": "10"
+          },
+          {
+            "selected": false,
+            "text": "20",
+            "value": "20"
+          },
+          {
+            "selected": false,
+            "text": "50",
+            "value": "50"
+          }
+        ],
+        "query": "0, 5, 10, 20, 50",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "text": [
+            "Las Vegas",
+            "Miami",
+            "San Diego"
+          ],
+          "value": [
+            "Las Vegas",
+            "Miami",
+            "San Diego"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT TRIM(city) AS city FROM proxies WHERE city IS NOT NULL AND TRIM(city) != '' AND LOWER(TRIM(city)) NOT IN ('n/a','na') ORDER BY city",
+        "includeAll": true,
+        "label": "City",
+        "multi": true,
+        "name": "city",
+        "options": [],
+        "query": "SELECT DISTINCT TRIM(city) AS city FROM proxies WHERE city IS NOT NULL AND TRIM(city) != '' AND LOWER(TRIM(city)) NOT IN ('n/a','na') ORDER BY city",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Duplicate External IPs — Improved",
+  "uid": "duplicate-ips-dashboard-improved",
+  "version": 3,
+  "weekStart": ""
+}

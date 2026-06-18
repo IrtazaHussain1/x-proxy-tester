@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 4,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -27,6 +27,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -57,14 +58,14 @@
         }
       ],
       "title": "Rotation Cycles (Last Hour)",
-      "type": "stat",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the current value of expected cycles per hour (10m interval) for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -94,14 +95,14 @@
         }
       ],
       "title": "Expected Cycles per Hour (10m interval)",
-      "type": "stat",
-      "description": "This metric shows the current value of expected cycles per hour (10m interval) for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the current value of proxies rotated (last cycle, 15m) for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -131,14 +132,14 @@
         }
       ],
       "title": "Proxies Rotated (Last Cycle, 15m)",
-      "type": "stat",
-      "description": "This metric shows the current value of proxies rotated (last cycle, 15m) for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -168,14 +169,14 @@
         }
       ],
       "title": "IP Changes After Rotation (Last 24h)",
-      "type": "stat",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -202,14 +203,14 @@
         }
       ],
       "title": "Rotation Cycles Detected (Clusters of 5+ Rotations)",
-      "type": "timeseries",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -236,14 +237,14 @@
         }
       ],
       "title": "Rotation Cycle Frequency",
-      "type": "timeseries",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -270,14 +271,14 @@
         }
       ],
       "title": "Test Results After Rotation Cycles",
-      "type": "timeseries",
-      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -304,14 +305,14 @@
         }
       ],
       "title": "IP Changes After Rotation Cycles",
-      "type": "timeseries",
-      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -332,14 +333,14 @@
         }
       ],
       "title": "Recent Rotation Cycles Summary",
-      "type": "table",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "table"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -376,14 +377,14 @@
         }
       ],
       "title": "Rotation Status Distribution",
-      "type": "piechart",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "piechart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -413,14 +414,14 @@
         }
       ],
       "title": "Total Rotations (24h)",
-      "type": "stat",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -441,8 +442,7 @@
         }
       ],
       "title": "Proxies with High Same IP Count (Potential Rotation Issues)",
-      "type": "table",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "table"
     }
   ],
   "refresh": "",
@@ -491,5 +491,5 @@
   "timezone": "browser",
   "title": "XProxy Tester - IP Rotation Testing",
   "uid": "ip-rotation-testing",
-  "version": 1
+  "version": 2
 }

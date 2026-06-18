@@ -1,0 +1,394 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 18,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "description": "This metric shows the current value of avg download speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "green",
+                "value": 15
+              }
+            ]
+          },
+          "unit": "mbps"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT AVG(st.download_speed_mbps) as value FROM speed_tests st JOIN proxies p ON st.proxy_id = p.device_id WHERE $__timeFilter(st.timestamp) AND st.download_speed_mbps IS NOT NULL AND p.location IN ($location) AND p.device_id IN ($proxy)"
+        }
+      ],
+      "title": "Avg Download Speed",
+      "type": "stat"
+    },
+    {
+      "description": "This metric shows the current value of median download speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "green",
+                "value": 15
+              }
+            ]
+          },
+          "unit": "mbps"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH ranked AS (\n  SELECT\n    download_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY download_speed_mbps) AS row_num,\n    COUNT(*) OVER () AS total_count\n  FROM (\n    SELECT DISTINCT\n      st.download_speed_mbps\n    FROM speed_tests st\n    JOIN proxies p ON st.proxy_id = p.device_id\n    WHERE $__timeFilter(st.timestamp)\n      AND st.download_speed_mbps IS NOT NULL\n      AND p.location IN ($location)\n      AND p.device_id IN ($proxy)\n  ) d\n)\nSELECT\n  AVG(download_speed_mbps) AS median\nFROM ranked\nWHERE row_num IN (\n  (total_count + 1) / 2,\n  (total_count + 2) / 2\n);\n"
+        }
+      ],
+      "title": "Median Download Speed",
+      "type": "stat"
+    },
+    {
+      "description": "This metric shows the current value of avg upload speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 2
+              },
+              {
+                "color": "green",
+                "value": 8
+              }
+            ]
+          },
+          "unit": "mbps"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT AVG(st.upload_speed_mbps) as value FROM speed_tests st JOIN proxies p ON st.proxy_id = p.device_id WHERE $__timeFilter(st.timestamp) AND st.upload_speed_mbps IS NOT NULL AND p.location IN ($location) AND p.device_id IN ($proxy)"
+        }
+      ],
+      "title": "Avg Upload Speed",
+      "type": "stat"
+    },
+    {
+      "description": "This metric shows the current value of median upload speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 2
+              },
+              {
+                "color": "green",
+                "value": 8
+              }
+            ]
+          },
+          "unit": "mbps"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH ranked AS (\n  SELECT\n    upload_speed_mbps,\n    ROW_NUMBER() OVER (ORDER BY upload_speed_mbps) AS row_num,\n    COUNT(*) OVER () AS total_count\n  FROM (\n    SELECT DISTINCT\n      st.upload_speed_mbps\n    FROM speed_tests st\n    JOIN proxies p ON st.proxy_id = p.device_id\n    WHERE $__timeFilter(st.timestamp)\n      AND st.upload_speed_mbps IS NOT NULL\n      AND p.location IN ($location)\n      AND p.device_id IN ($proxy)\n  ) d\n)\nSELECT\n  AVG(upload_speed_mbps) AS value\nFROM ranked\nWHERE row_num IN (\n  (total_count + 1) / 2,\n  (total_count + 2) / 2\n);\n"
+        }
+      ],
+      "title": "Median Upload Speed",
+      "type": "stat"
+    },
+    {
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "mbps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT\n  st.timestamp as time_sec,\n  AVG(st.download_speed_mbps) as avg_download\nFROM speed_tests st\nJOIN proxies p ON st.proxy_id = p.device_id\nWHERE $__timeFilter(st.timestamp)\n  AND st.download_speed_mbps IS NOT NULL\n  AND p.location IN ($location)\n  AND p.device_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Download Speed History",
+      "type": "timeseries"
+    },
+    {
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "mbps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 6,
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT\n  st.timestamp as time_sec,\n  AVG(st.upload_speed_mbps) as avg_upload\nFROM speed_tests st\nJOIN proxies p ON st.proxy_id = p.device_id\nWHERE $__timeFilter(st.timestamp)\n  AND st.upload_speed_mbps IS NOT NULL\n  AND p.location IN ($location)\n  AND p.device_id IN ($proxy)\nGROUP BY time_sec\nORDER BY time_sec",
+          "refId": "B"
+        }
+      ],
+      "title": "Avg Upload Speed History",
+      "type": "timeseries"
+    },
+    {
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
+        }
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 7,
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": true,
+          "showPagination": true
+        },
+        "frameIndex": 2,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "ps.avg_download"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH ProxyStats AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) AS avg_download,\n      MIN(download_speed_mbps) AS min_download,\n      MAX(download_speed_mbps) AS max_download,\n      AVG(upload_speed_mbps) AS avg_upload,\n      MIN(upload_speed_mbps) AS min_upload,\n      MAX(upload_speed_mbps) AS max_upload,\n      MAX(timestamp) AS last_test,\n      COUNT(*) AS test_count\n    FROM speed_tests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id\n),\n\nMedianDL AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) AS median_download\n    FROM (\n      SELECT\n        proxy_id,\n        download_speed_mbps,\n        ROW_NUMBER() OVER (\n          PARTITION BY proxy_id\n          ORDER BY download_speed_mbps\n        ) AS row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) AS total_count\n      FROM (\n        SELECT DISTINCT\n          proxy_id,\n          download_speed_mbps\n        FROM speed_tests\n        WHERE $__timeFilter(timestamp)\n          AND download_speed_mbps IS NOT NULL\n      ) d\n    ) t\n    WHERE row_num IN (\n      (total_count + 1) / 2,\n      (total_count + 2) / 2\n    )\n    GROUP BY proxy_id\n),\n\nMedianUL AS (\n    SELECT\n      proxy_id,\n      AVG(upload_speed_mbps) AS median_upload\n    FROM (\n      SELECT\n        proxy_id,\n        upload_speed_mbps,\n        ROW_NUMBER() OVER (\n          PARTITION BY proxy_id\n          ORDER BY upload_speed_mbps\n        ) AS row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) AS total_count\n      FROM (\n        SELECT DISTINCT\n          proxy_id,\n          upload_speed_mbps\n        FROM speed_tests\n        WHERE $__timeFilter(timestamp)\n          AND upload_speed_mbps IS NOT NULL\n      ) d\n    ) t\n    WHERE row_num IN (\n      (total_count + 1) / 2,\n      (total_count + 2) / 2\n    )\n    GROUP BY proxy_id\n)\n\nSELECT\n  p.name,\n  p.device_id,\n  p.location,\n  p.version,\n  ps.last_test,\n  ps.avg_download,\n  md.median_download,\n  ps.min_download,\n  ps.max_download,\n  ps.avg_upload,\n  mu.median_upload,\n  ps.min_upload,\n  ps.max_upload,\n  ps.test_count\nFROM proxies p\nLEFT JOIN ProxyStats ps ON p.device_id = ps.proxy_id\nLEFT JOIN MedianDL md ON p.device_id = md.proxy_id\nLEFT JOIN MedianUL mu ON p.device_id = mu.proxy_id\nWHERE p.location IN ($location)\n  AND p.device_id IN ($proxy)\nORDER BY ps.avg_download DESC;\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Proxy Speed Metrics (All)",
+      "type": "table"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 38,
+  "tags": [
+    "x-proxy-tester",
+    "speed"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT CONCAT(name, ' - ', device_id) as __text, device_id as __value FROM proxies WHERE location IN ($location)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "proxy",
+        "options": [],
+        "query": "SELECT CONCAT(name, ' - ', device_id) as __text, device_id as __value FROM proxies WHERE location IN ($location)",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XProxy Tester - Speed Metrics",
+  "uid": "speed-metrics",
+  "version": 2,
+  "weekStart": ""
+}

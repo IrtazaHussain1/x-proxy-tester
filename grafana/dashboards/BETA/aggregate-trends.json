@@ -18,6 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "id": 34,
   "links": [],
   "panels": [
     {
@@ -660,7 +661,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Total number of outbound IP change events (rotations) detected during the selected period. Compare with Distinct End-of-Day IPs (period) to separate frequent IP flipping from broader pool usage — a large ratio of changes vs distinct end-of-day IPs means rotations are cycling through the same small set of exits.",
+      "description": "Total number of outbound IP change events (rotations) detected during the selected period. Compare with Distinct End-of-Day IPs (period) to separate frequent IP flipping from broader pool usage \u2014 a large ratio of changes vs distinct end-of-day IPs means rotations are cycling through the same small set of exits.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -864,7 +865,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Distinct end-of-day exit IPs across all phones × days in the selected period (one count per IP no matter how many phones or days used it). Each (phone, day) bucket contributes only its final outbound IP for that day, so mid-day rotations a phone moved away from are not counted. Treat this as a conservative floor on real exit-pool diversity. The cumulative trend chart below ends at exactly this number on its final point. Compare with IP Changes (period): IP Changes ≫ this number means rotations are cycling through the same small set of exits; IP Changes ≈ this number means rotations are landing on fresh exits.",
+      "description": "Distinct end-of-day exit IPs across all phones \u00d7 days in the selected period (one count per IP no matter how many phones or days used it). Each (phone, day) bucket contributes only its final outbound IP for that day, so mid-day rotations a phone moved away from are not counted. Treat this as a conservative floor on real exit-pool diversity. The cumulative trend chart below ends at exactly this number on its final point. Compare with IP Changes (period): IP Changes \u226b this number means rotations are cycling through the same small set of exits; IP Changes \u2248 this number means rotations are landing on fresh exits.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1141,7 +1142,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
-      "description": "Server ranking by collision exposure across the selected period, derived from periodic captures (roughly every 5 minutes). Columns are deduplicated phone counts so they read as real fleet impact: 'Own Phones Affected' = how many of *this server's* phones ever sat on an IP shared with another phone; 'Cross-Server Phone Reach' = total distinct phones (any server) those shared IPs were colliding with — the contact graph this server leaks into. 'Duplicate IPs' is distinct shared IPs the server was on, and 'Max Phones / IP' is the worst single-moment cluster size on any one of those IPs. None of these counts is inflated by capture frequency.",
+      "description": "Server ranking by collision exposure across the selected period, derived from periodic captures (roughly every 5 minutes). Columns are deduplicated phone counts so they read as real fleet impact: 'Own Phones Affected' = how many of *this server's* phones ever sat on an IP shared with another phone; 'Cross-Server Phone Reach' = total distinct phones (any server) those shared IPs were colliding with \u2014 the contact graph this server leaks into. 'Duplicate IPs' is distinct shared IPs the server was on, and 'Max Phones / IP' is the worst single-moment cluster size on any one of those IPs. None of these counts is inflated by capture frequency.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1282,7 +1283,7 @@
           "refId": "A"
         }
       ],
-      "title": "Servers Ranked by Phones on Duplicate IPs — Across Selected Period",
+      "title": "Servers Ranked by Phones on Duplicate IPs \u2014 Across Selected Period",
       "type": "table"
     },
     {
@@ -1345,7 +1346,7 @@
           "refId": "A"
         }
       ],
-      "title": "Top 15 IPs Shared by Most Phones — Selected Period",
+      "title": "Top 15 IPs Shared by Most Phones \u2014 Selected Period",
       "type": "barchart"
     }
   ],
@@ -1436,5 +1437,5 @@
   "timezone": "browser",
   "title": "BETA - Aggregate Trends & IP Diversity",
   "uid": "beta-aggregate-trends",
-  "version": 1
+  "version": 7
 }

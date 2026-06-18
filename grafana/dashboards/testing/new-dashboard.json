@@ -1,0 +1,368 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 49,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": [
+                "count"
+              ]
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 236
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rotated_at_timestamps"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 209
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 149
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "frameIndex": 1,
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "select * from xproxy_tester.rotation_cycles where $__timeFilter(cycle_timestamp) and cycle_type = 'periodic'",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  r.proxy_id                                                    AS proxy_id,\n  p.name                                                        AS device_name,\n  CASE\n    WHEN p.name REGEXP '^[S|s]+[0-9]+.*[P|p][0-9]+.*$'\n    THEN SUBSTRING_INDEX(p.name, 'P', 1)\n    ELSE 'UNKNOWN'\n  END                                                           AS server_name,\n  p.location                                                    AS location,\n  p.country                                                     AS country,\n  p.city                                                        AS city,\n  r.rotation_type                                               AS rotation_type,\n\n  COUNT(*)                                                      AS attempts,\n  SUM(r.success = 1)                                            AS rotated_count,\n  SUM(CASE\n        WHEN r.success = 0\n         AND r.error_message IS NOT NULL THEN 1 ELSE 0\n      END)                                                      AS failed_count,\n  SUM(CASE\n        WHEN r.success = 0\n         AND r.ip_before IS NOT NULL\n         AND r.ip_after  IS NOT NULL\n         AND r.ip_before = r.ip_after THEN 1 ELSE 0\n      END)                                                      AS no_change_count,\n  ROUND(100 * SUM(r.success = 1) / NULLIF(COUNT(*), 0), 2)      AS success_rate_pct,\n\n  MIN(r.rotation_timestamp)                                     AS first_attempt,\n  MAX(r.rotation_timestamp)                                     AS last_attempt,\n\n  COUNT(DISTINCT r.ip_after)                                    AS distinct_ips_seen,\n  ROUND(AVG(r.rotation_duration_ms))                            AS avg_rotation_duration_ms,\n  ROUND(AVG(r.wait_time_ms))                                    AS avg_wait_time_ms,\n\n  GROUP_CONCAT(DISTINCT r.ip_after ORDER BY r.ip_after SEPARATOR '|') AS distinct_ips,\n\n  GROUP_CONCAT(\n    CASE WHEN r.success = 1\n         THEN DATE_FORMAT(r.rotation_timestamp, '%Y-%m-%d %H:%i:%s')\n    END\n    ORDER BY r.rotation_timestamp SEPARATOR '|'\n  ) AS rotated_at_timestamps,\n\n  GROUP_CONCAT(\n    CASE WHEN r.success = 0 AND r.error_message IS NOT NULL\n         THEN DATE_FORMAT(r.rotation_timestamp, '%Y-%m-%d %H:%i:%s')\n    END\n    ORDER BY r.rotation_timestamp SEPARATOR '|'\n  )                                                             AS failed_at_timestamps,\n\n  GROUP_CONCAT(\n    CASE WHEN r.success = 0\n              AND r.ip_before IS NOT NULL\n              AND r.ip_after = r.ip_before\n         THEN DATE_FORMAT(r.rotation_timestamp, '%Y-%m-%d %H:%i:%s')\n    END\n    ORDER BY r.rotation_timestamp SEPARATOR '|'\n  )                                                             AS no_change_at_timestamps,\n\n  GROUP_CONCAT(\n    CASE WHEN r.success = 1\n         THEN CONCAT(COALESCE(r.ip_before,'?'), '>', COALESCE(r.ip_after,'?'))\n    END\n    ORDER BY r.rotation_timestamp SEPARATOR '|'\n  )                                                             AS ip_transitions,\n\n  GROUP_CONCAT(DISTINCT r.error_message SEPARATOR ' || ')       AS distinct_errors\n\nFROM ip_rotations r\nLEFT JOIN proxies p ON p.device_id = r.proxy_id\nWHERE r.rotation_timestamp >= NOW() - INTERVAL 15 DAY\n  AND r.ws_status_before = 'connected'\nGROUP BY\n  r.proxy_id,\n  p.name,\n  CASE\n    WHEN p.name REGEXP '^[S|s]+[0-9]+.*[P|p][0-9]+.*$'\n    THEN SUBSTRING_INDEX(p.name, 'P', 1)\n    ELSE 'UNKNOWN'\n  END,\n  p.location,\n  p.country,\n  p.city,\n  r.rotation_type\nORDER BY\n  server_name,\n  r.proxy_id,\n  r.rotation_type;",
+          "refId": "B",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": true,
+          "rawQuery": true,
+          "rawSql": "SELECT\n  p.name AS device_name,\n  CASE\n    WHEN p.name REGEXP '^[s|S]+[0-9]+[P|p][0-9]+$'\n    THEN SUBSTRING_INDEX(p.name, 'P', 1)\n    ELSE 'UNKNOWN'\n  END AS server_name\nFROM proxies p\nORDER BY server_name, device_name\nLIMIT 50;",
+          "refId": "C",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": true,
+          "rawQuery": true,
+          "rawSql": "SELECT\n    *\nFROM\n    ip_rotations\nWHERE\n    proxy_id = '0a69731833f27210'\n        AND rotation_timestamp >= '2026-04-22'\n        AND ip_before IS NOT NULL;",
+          "refId": "D",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": true,
+          "rawQuery": true,
+          "rawSql": "show columns from xproxy_tester.ip_rotations",
+          "refId": "E",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "New panel",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": [
+                "count"
+              ]
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 1,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "dataset": "xproxy_tester",
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select * from xproxy_tester.proxy_requests where $__timeFilter(timestamp) ",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "New panel",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 42,
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "New dashboard",
+  "uid": "adxzjss",
+  "version": 1,
+  "weekStart": ""
+}

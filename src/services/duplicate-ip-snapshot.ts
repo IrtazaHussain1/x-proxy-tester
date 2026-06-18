@@ -33,6 +33,16 @@ export function buildCrossServerDuplicateIpDetailSql(proxyStatusScope: ProxyStat
   if (proxyStatusScope !== 'active' && proxyStatusScope !== 'all') {
     throw new Error('proxyStatusScope must be active or all');
   }
+  // Rack label from a (often dirty) device name. Mirrors computeServerLabelFromDeviceName:
+  // primary = S##...P## anywhere (the P## suffix prevents model numbers like SM-S908U from
+  // being mis-read as a server); secondary = a leading S## ## that dropped its P (e.g. S39 29).
+  const rackWithPort = "S[0-9]{1,3}[[:space:]_-]*P[0-9]+";
+  const serverLabel =
+    `CASE WHEN UPPER(TRIM(name)) REGEXP '${rackWithPort}' ` +
+    `THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), '${rackWithPort}'), 'S[0-9]{1,3}') ` +
+    `WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' ` +
+    `THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END`;
+  const serverOrder = `CASE WHEN (${serverLabel}) = 'Unknown' THEN 999999 ELSE CAST(REGEXP_SUBSTR(${serverLabel}, '[0-9]+') AS UNSIGNED) END`;
   return `
 SELECT
   x.last_ip,
@@ -58,8 +68,8 @@ JOIN (
     last_ip,
     COUNT(*) AS phones_on_same_ip,
     GROUP_CONCAT(
-      DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END
-      ORDER BY CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN CAST(REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}'), '[0-9]+') AS UNSIGNED) ELSE 999999 END
+      DISTINCT ${serverLabel}
+      ORDER BY ${serverOrder}
       SEPARATOR ', '
     ) AS all_servers_on_ip,
     GROUP_CONCAT(name ORDER BY name SEPARATOR ' | ') AS sibling_phones

@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 27,
+  "id": 14,
   "links": [
     {
       "icon": "external link",
@@ -27,7 +27,7 @@
       "tags": [],
       "targetBlank": false,
       "title": "Deep Dive (BETA)",
-      "tooltip": "Forensic panels — heavier SQL; lives under grafana/dashboards/BETA/analytics_deep_dive.json",
+      "tooltip": "Forensic panels \u2014 heavier SQL; lives under grafana/dashboards/BETA/analytics_deep_dive.json",
       "type": "link",
       "url": "/d/proxy-analytics-deep-dive-beta"
     }
@@ -329,7 +329,7 @@
           "refId": "A"
         }
       ],
-      "title": "Overall Uptime % — Trend",
+      "title": "Overall Uptime % \u2014 Trend",
       "type": "timeseries"
     },
     {
@@ -431,7 +431,7 @@
           "refId": "A"
         }
       ],
-      "title": "Slow Requests % — Trend",
+      "title": "Slow Requests % \u2014 Trend",
       "type": "timeseries"
     },
     {
@@ -525,7 +525,7 @@
           "refId": "A"
         }
       ],
-      "title": "Failure Reason Breakdown — Trend",
+      "title": "Failure Reason Breakdown \u2014 Trend",
       "type": "timeseries"
     },
     {
@@ -660,7 +660,7 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "WITH base_proxies AS (SELECT p.device_id as proxy_id, p.location, CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END as server FROM proxies p WHERE p.location IN ($location)), total_pool AS (SELECT bp.location, bp.server, COUNT(*) as total_phones FROM base_proxies bp GROUP BY bp.location, bp.server), active_proxy_ids AS (SELECT DISTINCT r.proxy_id FROM proxy_requests r WHERE $__timeFilter(r.timestamp)), active_pool AS (SELECT bp.location, bp.server, COUNT(*) as active_phones FROM active_proxy_ids ap JOIN base_proxies bp ON bp.proxy_id = ap.proxy_id GROUP BY bp.location, bp.server) SELECT t.location, t.server, COALESCE(a.active_phones, 0) as active_phones, t.total_phones, ROUND(COALESCE(a.active_phones, 0) * 100.0 / NULLIF(t.total_phones, 0), 2) as saturation_pct FROM total_pool t LEFT JOIN active_pool a ON a.location = t.location AND a.server = t.server ORDER BY saturation_pct DESC, t.location, t.server",
+          "rawSql": "WITH base_proxies AS (SELECT p.device_id as proxy_id, p.location, CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'Unknown' END as server FROM proxies p WHERE p.location IN ($location)), total_pool AS (SELECT bp.location, bp.server, COUNT(*) as total_phones FROM base_proxies bp GROUP BY bp.location, bp.server), active_proxy_ids AS (SELECT DISTINCT r.proxy_id FROM proxy_requests r WHERE $__timeFilter(r.timestamp)), active_pool AS (SELECT bp.location, bp.server, COUNT(*) as active_phones FROM active_proxy_ids ap JOIN base_proxies bp ON bp.proxy_id = ap.proxy_id GROUP BY bp.location, bp.server) SELECT t.location, t.server, COALESCE(a.active_phones, 0) as active_phones, t.total_phones, ROUND(COALESCE(a.active_phones, 0) * 100.0 / NULLIF(t.total_phones, 0), 2) as saturation_pct FROM total_pool t LEFT JOIN active_pool a ON a.location = t.location AND a.server = t.server ORDER BY saturation_pct DESC, t.location, t.server",
           "refId": "A"
         }
       ],
@@ -854,5 +854,5 @@
   "timezone": "browser",
   "title": "Proxy Analytics",
   "uid": "proxy-analytics-v1",
-  "version": 17
+  "version": 18
 }

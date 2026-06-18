@@ -1,0 +1,697 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 50,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Per-server IP diversity. Columns: server (group label), phones (total devices on server), unique_ips (server-wide distinct IPs during window), device_unique_ips_sum (sum of each device's distinct IP count; matches device-table footer), attempts (rotation requests), succ_attempts (IP changed), failed_attempts (IP did not change), failed_pct.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_ips"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 10
+                    },
+                    {
+                      "color": "green",
+                      "value": 20
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed_pct"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 20
+                    },
+                    {
+                      "color": "red",
+                      "value": 40
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device_unique_ips_sum"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 246
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "server"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "attempts"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "succ_attempts"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed_attempts"
+            },
+            "properties": []
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "server"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH proxies_labeled AS (\n  SELECT\n    device_id,\n    CASE\n         WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}')\n         ELSE 'UNKNOWN'\n       END AS server\n  FROM proxies\n),\nproxies_filtered AS (\n  SELECT device_id, server\n  FROM proxies_labeled\n  WHERE ('${server:csv}' IN ('', '$__all') OR FIND_IN_SET(server, '${server:csv}') > 0)\n),\nphones_per_server AS (\n  SELECT server, COUNT(*) AS phone_count\n  FROM proxies_filtered\n  GROUP BY server\n),\nrotations_in_window AS (\n  SELECT pf.server, ir.proxy_id, ir.id, ir.ip_before, ir.ip_after, ir.success\n  FROM ip_rotations ir USE INDEX (ip_rotations_rotation_timestamp_idx)\n  JOIN rotation_cycles rc ON rc.id = ir.cycle_id AND rc.cycle_type <> 'inactive_proxy'\n  JOIN proxies_filtered pf ON pf.device_id = ir.proxy_id\n  WHERE $__timeFilter(ir.rotation_timestamp)\n),\nrotation_stats AS (\n  SELECT\n    server,\n    COUNT(*) AS attempts,\n    SUM(CASE WHEN success = TRUE THEN 1 ELSE 0 END) AS succ_attempts,\n    SUM(CASE WHEN success = FALSE THEN 1 ELSE 0 END) AS failed_attempts\n  FROM rotations_in_window\n  GROUP BY server\n),\nips_in_window AS (\n  SELECT server, proxy_id, ip_before AS ip FROM rotations_in_window WHERE ip_before IS NOT NULL\n  UNION ALL\n  SELECT server, proxy_id, ip_after AS ip FROM rotations_in_window WHERE ip_after IS NOT NULL\n),\nunique_ips_per_server AS (\n  SELECT server, COUNT(DISTINCT ip) AS unique_ips\n  FROM ips_in_window\n  GROUP BY server\n),\nunique_ips_per_device AS (\n  SELECT server, proxy_id, COUNT(DISTINCT ip) AS unique_ips\n  FROM ips_in_window\n  GROUP BY server, proxy_id\n),\ndevice_unique_ips_per_server AS (\n  SELECT server, SUM(unique_ips) AS device_unique_ips_sum\n  FROM unique_ips_per_device\n  GROUP BY server\n)\nSELECT\n  rs.server,\n  COALESCE(pps.phone_count, 0) AS phones,\n  COALESCE(uips.unique_ips, 0) AS unique_ips,\n  COALESCE(duips.device_unique_ips_sum, 0) AS device_unique_ips_sum,\n  rs.attempts,\n  rs.succ_attempts,\n  rs.failed_attempts,\n  ROUND(100.0 * rs.failed_attempts / NULLIF(rs.attempts, 0), 2) AS failed_pct\nFROM rotation_stats rs\nLEFT JOIN unique_ips_per_server uips ON uips.server = rs.server\nLEFT JOIN device_unique_ips_per_server duips ON duips.server = rs.server\nLEFT JOIN phones_per_server pps ON pps.server = rs.server\nORDER BY unique_ips ASC;",
+          "refId": "A"
+        }
+      ],
+      "title": "Unique IPs per server",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Per-device IP diversity leaderboard. Sorted lowest unique_ips first. Columns: device_id, device label, server group, proxy_status, ws_status, unique_ips (distinct IPs held — before ∪ after), attempts, succ_attempts (IP changed), failed_attempts (IP did not change), failed_pct.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": [
+                "count"
+              ]
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_ips"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 10
+                    },
+                    {
+                      "color": "green",
+                      "value": 20
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed_pct"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 20
+                    },
+                    {
+                      "color": "red",
+                      "value": 40
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device_id"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "server"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "proxy_status"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ws_status"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "attempts"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "succ_attempts"
+            },
+            "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed_attempts"
+            },
+            "properties": []
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "pagination": true,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "failed_pct"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH proxies_filtered AS (\n  SELECT\n    device_id,\n    name,\n    proxy_status,\n    ws_status,\n    CASE\n         WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}')\n         ELSE 'UNKNOWN'\n       END AS server\n  FROM proxies\n),\nactive_cycles AS (\n  SELECT id\n  FROM rotation_cycles\n  WHERE $__timeFilter(cycle_timestamp)\n    AND cycle_type <> 'inactive_proxy'\n),\nips_in_window AS (\n  SELECT proxy_id, ip_before AS ip FROM ip_rotations\n  WHERE $__timeFilter(rotation_timestamp)\n    AND ip_before IS NOT NULL\n    AND cycle_id IN (SELECT id FROM active_cycles)\n  UNION\n  SELECT proxy_id, ip_after AS ip FROM ip_rotations\n  WHERE $__timeFilter(rotation_timestamp)\n    AND ip_after IS NOT NULL\n    AND cycle_id IN (SELECT id FROM active_cycles)\n),\nunique_ips_per_device AS (\n  SELECT proxy_id, COUNT(DISTINCT ip) AS uniq\n  FROM ips_in_window\n  GROUP BY proxy_id\n)\nSELECT\n  p.device_id,\n  p.name AS device,\n  p.server,\n  p.proxy_status,\n  p.ws_status,\n  COALESCE(MAX(uipd.uniq), 0) AS unique_ips,\n  COUNT(ir.id) AS attempts,\n  SUM(CASE WHEN ir.success = TRUE THEN 1 ELSE 0 END) AS succ_attempts,\n  SUM(CASE WHEN ir.success = FALSE THEN 1 ELSE 0 END) AS failed_attempts,\n  ROUND(100.0 * SUM(CASE WHEN ir.success = FALSE THEN 1 ELSE 0 END) / NULLIF(COUNT(ir.id), 0), 2) AS failed_pct\nFROM ip_rotations ir\nUSE INDEX (ip_rotations_proxy_id_rotation_timestamp_idx)\nJOIN proxies_filtered p ON p.device_id = ir.proxy_id\nLEFT JOIN unique_ips_per_device uipd ON uipd.proxy_id = ir.proxy_id\nWHERE $__timeFilter(ir.rotation_timestamp)\n  AND ('${server:csv}' IN ('', '$__all') OR FIND_IN_SET(p.server, '${server:csv}') > 0)\n  AND ('${device:csv}' IN ('', '$__all') OR FIND_IN_SET(ir.proxy_id, '${device:csv}') > 0)\n  AND ir.cycle_id IN (SELECT id FROM active_cycles)\nGROUP BY ir.proxy_id, p.device_id, p.name, p.server, p.proxy_status, p.ws_status\nHAVING attempts >= 1\nORDER BY unique_ips ASC, failed_pct DESC",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Devices by unique IP count",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "Failed rotation % and total attempts over the selected time range. Solid line is failed %, secondary bars show attempts to contextualise low-N spikes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(Failed %|Success %)$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Attempts"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": ""
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "interval": "5m",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroup(ir.rotation_timestamp, $__interval) AS time,\n  ROUND(\n    100.0 * SUM(\n      CASE\n        WHEN ir.success = FALSE THEN 1\n        ELSE 0\n      END\n    ) / NULLIF(COUNT(*), 0),\n    2\n  ) AS \"Failed %\",\n  ROUND(\n    100.0 * SUM(\n      CASE\n        WHEN ir.success = TRUE THEN 1\n        ELSE 0\n      END\n    ) / NULLIF(COUNT(*), 0),\n    2\n  ) AS \"Success %\",\n  COUNT(*) AS \"Attempts\"\nFROM ip_rotations ir USE INDEX (ip_rotations_rotation_timestamp_idx)\nJOIN proxies p ON p.device_id = ir.proxy_id\nWHERE $__timeFilter(ir.rotation_timestamp)\n  AND ('${server:csv}' IN ('', '$__all') OR FIND_IN_SET(CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END, '${server:csv}') > 0)\n  AND ('${device:csv}' IN ('', '$__all') OR FIND_IN_SET(ir.proxy_id, '${device:csv}') > 0)\n  AND ir.cycle_id IN (\n    SELECT id\n    FROM rotation_cycles rc\n    WHERE cycle_type <> 'inactive_proxy'\n      AND $__timeFilter(rc.cycle_timestamp)\n  )\nGROUP BY time\nORDER BY time;",
+          "refId": "A"
+        }
+      ],
+      "title": "Rotation trends",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 42,
+  "tags": [
+    "rotation",
+    "client-facing",
+    "summary"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "includeAll": true,
+        "label": "Device",
+        "multi": true,
+        "name": "device",
+        "options": [],
+        "query": "SELECT device_id AS __value, name AS __text FROM proxies ORDER BY name;",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS __text, CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS __value FROM proxies GROUP BY __text, __value ORDER BY CASE WHEN __value = 'UNKNOWN' THEN 999999 ELSE CAST(SUBSTRING(__value, 2) AS UNSIGNED) END;",
+        "includeAll": true,
+        "label": "Server",
+        "multi": true,
+        "name": "server",
+        "options": [],
+        "query": "SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS __text, CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS __value FROM proxies GROUP BY __text, __value ORDER BY CASE WHEN __value = 'UNKNOWN' THEN 999999 ELSE CAST(SUBSTRING(__value, 2) AS UNSIGNED) END;",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "includeAll": true,
+        "label": "Server",
+        "multi": true,
+        "name": "copy_of_server",
+        "options": [],
+        "query": "SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS __text, CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS __value FROM proxies GROUP BY __text, __value ORDER BY CASE WHEN __value = 'UNKNOWN' THEN 999999 ELSE CAST(SUBSTRING(__value, 2) AS UNSIGNED) END;",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5m",
+      "15m",
+      "30m",
+      "1h"
+    ]
+  },
+  "timezone": "browser",
+  "title": "Proxy Rotation Decision / Overview - BETA",
+  "uid": "proxy-rotation-overview",
+  "version": 5,
+  "weekStart": ""
+}

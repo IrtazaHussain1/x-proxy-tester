@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 9,
+  "id": 3,
   "links": [],
   "panels": [
     {
@@ -27,6 +27,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -100,14 +101,14 @@
         }
       ],
       "title": "Rotation Cycle By Category",
-      "type": "gauge",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "gauge"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -182,14 +183,14 @@
         }
       ],
       "title": "Rotation Request Count By Category",
-      "type": "gauge",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "gauge"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -282,14 +283,14 @@
         }
       ],
       "title": "Never Rotated Proxies Count",
-      "type": "gauge",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "gauge"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -364,14 +365,14 @@
         }
       ],
       "title": "Never Rotated Proxies",
-      "type": "table",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "table"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -477,14 +478,14 @@
         }
       ],
       "title": "Periodic Rotation Trend",
-      "type": "timeseries",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -590,14 +591,14 @@
         }
       ],
       "title": "Inactive Proxies Rotation Trend",
-      "type": "timeseries",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -675,8 +676,7 @@
         }
       ],
       "title": "Periodic Rotation Cycle Details",
-      "type": "table",
-      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
+      "type": "table"
     }
   ],
   "preload": false,
@@ -696,5 +696,5 @@
   "timezone": "browser",
   "title": "XProxy Tester - IP Rotation Stats",
   "uid": "adpqsk2",
-  "version": 6
+  "version": 2
 }

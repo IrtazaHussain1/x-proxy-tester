@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 0,
+  "id": 15,
   "links": [],
   "panels": [
     {
@@ -27,6 +27,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -93,14 +94,14 @@
         }
       ],
       "title": "Duplicate IPs (shared by 2+ phones)",
-      "type": "stat",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the current value of affected phones (sharing an ip) for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -167,14 +168,14 @@
         }
       ],
       "title": "Affected Phones (sharing an IP)",
-      "type": "stat",
-      "description": "This metric shows the current value of affected phones (sharing an ip) for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows the current value of max phones sharing one ip for the selected period. It should be used as a quick health checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -241,14 +242,14 @@
         }
       ],
       "title": "Max Phones Sharing One IP",
-      "type": "stat",
-      "description": "This metric shows the current value of max phones sharing one ip for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -315,14 +316,14 @@
         }
       ],
       "title": "Cities with Duplicate IPs",
-      "type": "stat",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -410,14 +411,14 @@
         }
       ],
       "title": "Top Duplicate IPs by Phone Count",
-      "type": "barchart",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "type": "barchart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -505,14 +506,14 @@
         }
       ],
       "title": "Cities with Most IP-Sharing Phones",
-      "type": "barchart",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "barchart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -653,14 +654,14 @@
         }
       ],
       "title": "Geographic Distribution of Duplicate IP Phones",
-      "type": "geomap",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "geomap"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -877,9 +878,8 @@
           "refId": "A"
         }
       ],
-      "title": "Duplicate IPs — Summary (one row per shared IP)",
-      "type": "table",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "title": "Duplicate IPs \u2014 Summary (one row per shared IP)",
+      "type": "table"
     },
     {
       "collapsed": false,
@@ -899,6 +899,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -981,13 +982,12 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  server,\n  COUNT(DISTINCT last_ip) as duplicate_ips,\n  COUNT(*) as affected_phones\nFROM (\n  SELECT\n    last_ip,\n    CASE\n      WHEN UPPER(name) REGEXP '^S[0-9]+' THEN CONCAT('S', SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(name), 'P', 1), 'S', -1))\n      ELSE 'Unknown'\n    END as server\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  AND last_ip IN (\n    SELECT last_ip\n    FROM proxies\n    WHERE last_ip IS NOT NULL AND last_ip != ''\n    AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n    GROUP BY last_ip\n    HAVING COUNT(*) > 1\n  )\n) AS t\nGROUP BY server\nORDER BY duplicate_ips DESC, affected_phones DESC\nLIMIT 30",
+          "rawSql": "SELECT\n  server,\n  COUNT(DISTINCT last_ip) as duplicate_ips,\n  COUNT(*) as affected_phones\nFROM (\n  SELECT\n    last_ip,\n    CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END as server\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n  AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  AND last_ip IN (\n    SELECT last_ip\n    FROM proxies\n    WHERE last_ip IS NOT NULL AND last_ip != ''\n    AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n    GROUP BY last_ip\n    HAVING COUNT(*) > 1\n  )\n) AS t\nGROUP BY server\nORDER BY duplicate_ips DESC, affected_phones DESC\nLIMIT 30",
           "refId": "A"
         }
       ],
       "title": "Duplicate IPs Per Server",
-      "type": "barchart",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "barchart"
     },
     {
       "datasource": {
@@ -1089,6 +1089,7 @@
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1171,19 +1172,19 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  server_pair,\n  COUNT(DISTINCT last_ip) as shared_ips\nFROM (\n  SELECT\n    a.last_ip,\n    CONCAT(\n      LEAST(\n        CASE WHEN UPPER(a.name) REGEXP '^S[0-9]+' THEN CONCAT('S', SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(a.name), 'P', 1), 'S', -1)) ELSE 'Unknown' END,\n        CASE WHEN UPPER(b.name) REGEXP '^S[0-9]+' THEN CONCAT('S', SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(b.name), 'P', 1), 'S', -1)) ELSE 'Unknown' END\n      ),\n      ' vs ',\n      GREATEST(\n        CASE WHEN UPPER(a.name) REGEXP '^S[0-9]+' THEN CONCAT('S', SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(a.name), 'P', 1), 'S', -1)) ELSE 'Unknown' END,\n        CASE WHEN UPPER(b.name) REGEXP '^S[0-9]+' THEN CONCAT('S', SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(b.name), 'P', 1), 'S', -1)) ELSE 'Unknown' END\n      )\n    ) as server_pair\n  FROM proxies a\n  JOIN proxies b ON a.last_ip = b.last_ip AND a.device_id < b.device_id\n  WHERE a.last_ip IS NOT NULL AND a.last_ip != ''\n    AND ('${proxy_status}' = 'all' OR a.proxy_status = '${proxy_status}')\n    AND ('${proxy_status}' = 'all' OR b.proxy_status = '${proxy_status}')\n) as pairs\nGROUP BY server_pair\nORDER BY shared_ips DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  server_pair,\n  COUNT(DISTINCT last_ip) as shared_ips\nFROM (\n  SELECT\n    a.last_ip,\n    CONCAT(\n      LEAST(\n        CASE WHEN UPPER(TRIM(a.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(a.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(a.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(a.name)), '^S[0-9]{1,3}') ELSE 'Unknown' END,\n        CASE WHEN UPPER(TRIM(b.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(b.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(b.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(b.name)), '^S[0-9]{1,3}') ELSE 'Unknown' END\n      ),\n      ' vs ',\n      GREATEST(\n        CASE WHEN UPPER(TRIM(a.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(a.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(a.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(a.name)), '^S[0-9]{1,3}') ELSE 'Unknown' END,\n        CASE WHEN UPPER(TRIM(b.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(b.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(b.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(b.name)), '^S[0-9]{1,3}') ELSE 'Unknown' END\n      )\n    ) as server_pair\n  FROM proxies a\n  JOIN proxies b ON a.last_ip = b.last_ip AND a.device_id < b.device_id\n  WHERE a.last_ip IS NOT NULL AND a.last_ip != ''\n    AND ('${proxy_status}' = 'all' OR a.proxy_status = '${proxy_status}')\n    AND ('${proxy_status}' = 'all' OR b.proxy_status = '${proxy_status}')\n) as pairs\nGROUP BY server_pair\nORDER BY shared_ips DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
       "title": "Top Server Pairs Sharing IPs",
-      "type": "barchart",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "barchart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1271,14 +1272,14 @@
         }
       ],
       "title": "Duplicate IP Impact by State",
-      "type": "barchart",
-      "description": "This metric shows how many distinct outbound IPs were observed in the selected scope and period. Higher values indicate stronger IP diversity and lower concentration risk."
+      "type": "barchart"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1562,7 +1563,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  x.last_ip,\n  GROUP_CONCAT(DISTINCT x.location ORDER BY x.location SEPARATOR ' | ') AS location,\n  MAX(dup.all_servers_on_ip) AS all_servers_on_ip,\n  MAX(dup.phones_on_same_ip) AS phones_on_same_ip,\n  MAX(dup.sibling_phones) AS sibling_phones,\n  GROUP_CONCAT(x.name ORDER BY x.name SEPARATOR ' | ') AS phone_names,\n  GROUP_CONCAT(x.device_id ORDER BY x.name SEPARATOR ' | ') AS device_ids\nFROM (\n  SELECT\n    p.name,\n    p.device_id,\n    p.last_ip,\n    p.proxy_status,\n    CONCAT_WS(', ', NULLIF(TRIM(p.city), ''), NULLIF(TRIM(p.state), ''), NULLIF(TRIM(p.country), '')) AS location\n  FROM proxies p\n  WHERE p.last_ip IS NOT NULL AND p.last_ip != ''\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n) x\nJOIN (\n  SELECT\n    last_ip,\n    COUNT(*) AS phones_on_same_ip,\n    GROUP_CONCAT(\n      DISTINCT CASE WHEN UPPER(name) REGEXP '^S[0-9]+' THEN CONCAT('S', SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(name), 'P', 1), 'S', -1)) ELSE 'Unknown' END\n      ORDER BY CASE WHEN UPPER(name) REGEXP '^S[0-9]+' THEN CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(name), 'P', 1), 'S', -1) AS UNSIGNED) ELSE 999999 END\n      SEPARATOR ', '\n    ) AS all_servers_on_ip,\n    GROUP_CONCAT(name ORDER BY name SEPARATOR ' | ') AS sibling_phones\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n    AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) dup ON x.last_ip = dup.last_ip\nGROUP BY x.last_ip\nORDER BY MAX(dup.phones_on_same_ip) DESC, x.last_ip",
+          "rawSql": "SELECT\n  x.last_ip,\n  GROUP_CONCAT(DISTINCT x.location ORDER BY x.location SEPARATOR ' | ') AS location,\n  MAX(dup.all_servers_on_ip) AS all_servers_on_ip,\n  MAX(dup.phones_on_same_ip) AS phones_on_same_ip,\n  MAX(dup.sibling_phones) AS sibling_phones,\n  GROUP_CONCAT(x.name ORDER BY x.name SEPARATOR ' | ') AS phone_names,\n  GROUP_CONCAT(x.device_id ORDER BY x.name SEPARATOR ' | ') AS device_ids\nFROM (\n  SELECT\n    p.name,\n    p.device_id,\n    p.last_ip,\n    p.proxy_status,\n    CONCAT_WS(', ', NULLIF(TRIM(p.city), ''), NULLIF(TRIM(p.state), ''), NULLIF(TRIM(p.country), '')) AS location\n  FROM proxies p\n  WHERE p.last_ip IS NOT NULL AND p.last_ip != ''\n    AND ('${proxy_status}' = 'all' OR p.proxy_status = '${proxy_status}')\n) x\nJOIN (\n  SELECT\n    last_ip,\n    COUNT(*) AS phones_on_same_ip,\n    GROUP_CONCAT(\n      DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END\n      ORDER BY CASE WHEN (CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END) = 'Unknown' THEN 999999 ELSE CAST(REGEXP_SUBSTR((CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END), '[0-9]+') AS UNSIGNED) END\n      SEPARATOR ', '\n    ) AS all_servers_on_ip,\n    GROUP_CONCAT(name ORDER BY name SEPARATOR ' | ') AS sibling_phones\n  FROM proxies\n  WHERE last_ip IS NOT NULL AND last_ip != ''\n    AND ('${proxy_status}' = 'all' OR proxy_status = '${proxy_status}')\n  GROUP BY last_ip\n  HAVING COUNT(*) > 1\n) dup ON x.last_ip = dup.last_ip\nGROUP BY x.last_ip\nORDER BY MAX(dup.phones_on_same_ip) DESC, x.last_ip",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1583,15 +1584,15 @@
           }
         }
       ],
-      "title": "Cross-Server Duplicate IP — Per-Phone Detail",
-      "type": "table",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "title": "Cross-Server Duplicate IP \u2014 Per-Phone Detail",
+      "type": "table"
     },
     {
       "datasource": {
         "type": "mysql",
         "uid": "xproxy-tester-mysql"
       },
+      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1798,8 +1799,7 @@
         }
       ],
       "title": "Duplicate Devices by City + IP (Names, IDs)",
-      "type": "table",
-      "description": "This panel measures duplicate-IP overlap by counting shared IP groups and affected entities. Lower values indicate healthier isolation and reduced operational risk."
+      "type": "table"
     }
   ],
   "preload": false,
@@ -1851,5 +1851,5 @@
   "timezone": "browser",
   "title": "Duplicate External IPs",
   "uid": "duplicate-ips-dashboard",
-  "version": 56
+  "version": 15
 }

@@ -2,12 +2,12 @@
   "annotations": {
     "list": []
   },
+  "description": "This dashboard summarizes fleet health, reliability, and performance in one operational view. It helps stakeholders quickly understand current state and prioritize next actions.",
   "editable": true,
   "graphTooltip": 0,
-  "id": null,
+  "id": 20,
   "links": [],
   "liveNow": false,
-  "description": "This dashboard summarizes fleet health, reliability, and performance in one operational view. It helps stakeholders quickly understand current state and prioritize next actions.",
   "panels": [
     {
       "collapsed": false,
@@ -18,10 +18,11 @@
         "y": 0
       },
       "id": 100,
-      "title": "Summary — today from raw · history from daily_summary",
+      "title": "Summary \u2014 today from raw \u00b7 history from daily_summary",
       "type": "row"
     },
     {
+      "description": "This metric shows total active proxies for the selected scope and period. Use it as a quick checkpoint before deeper drill-down.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -45,8 +46,6 @@
         "y": 1
       },
       "id": 1,
-      "title": "Total Active Proxies",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -54,18 +53,19 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as value FROM proxies p WHERE p.active = true\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
+          "rawSql": "SELECT COUNT(*) as value FROM proxies p WHERE p.active = true\n  AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n  AND p.device_id IN ($phone)"
         }
       ],
-      "description": "This metric shows total active proxies for the selected scope and period. Use it as a quick checkpoint before deeper drill-down."
+      "title": "Total Active Proxies",
+      "type": "stat"
     },
     {
+      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -74,7 +74,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -84,8 +85,6 @@
         "y": 1
       },
       "id": 2,
-      "title": "Total Requests (selected range)",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -93,19 +92,20 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT SUM(total_requests) as value FROM (\n  SELECT SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT SUM(s.total_requests) as total_requests\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n) combined"
+          "rawSql": "SELECT SUM(total_requests) as value FROM (\n  SELECT SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT SUM(s.total_requests) as total_requests\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n) combined"
         }
       ],
-      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes."
+      "title": "Total Requests (selected range)",
+      "type": "stat"
     },
     {
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "decimals": 2,
-          "unit": "percent",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -122,7 +122,8 @@
                 "value": 95
               }
             ]
-          }
+          },
+          "unit": "percent"
         }
       },
       "gridPos": {
@@ -132,8 +133,6 @@
         "y": 1
       },
       "id": 3,
-      "title": "Overall Success Rate % (selected range)",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -141,19 +140,20 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(success_count) * 100.0 / NULLIF(SUM(total_requests), 0), 2) as value FROM (\n  SELECT SUM(s.success_count) as success_count, SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT SUM(s.success_count) as success_count, SUM(s.total_requests) as total_requests\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n) combined"
+          "rawSql": "SELECT ROUND(SUM(success_count) * 100.0 / NULLIF(SUM(total_requests), 0), 2) as value FROM (\n  SELECT SUM(s.success_count) as success_count, SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT SUM(s.success_count) as success_count, SUM(s.total_requests) as total_requests\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n) combined"
         }
       ],
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context."
+      "title": "Overall Success Rate % (selected range)",
+      "type": "stat"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "decimals": 0,
-          "unit": "ms",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -170,7 +170,8 @@
                 "value": 3000
               }
             ]
-          }
+          },
+          "unit": "ms"
         }
       },
       "gridPos": {
@@ -180,8 +181,6 @@
         "y": 1
       },
       "id": 4,
-      "title": "Avg Response Time (selected range)",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -189,18 +188,19 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(weighted_ms) / NULLIF(SUM(total_requests), 0), 0) as value FROM (\n  SELECT SUM(s.avg_response_time_ms * s.total_requests) as weighted_ms, SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT\n    SUM(s.avg_response_time_ms * s.total_requests) as weighted_ms,\n    SUM(s.total_requests) as total_requests\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n) combined"
+          "rawSql": "SELECT ROUND(SUM(weighted_ms) / NULLIF(SUM(total_requests), 0), 0) as value FROM (\n  SELECT SUM(s.avg_response_time_ms * s.total_requests) as weighted_ms, SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT\n    SUM(s.avg_response_time_ms * s.total_requests) as weighted_ms,\n    SUM(s.total_requests) as total_requests\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n) combined"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "Avg Response Time (selected range)",
+      "type": "stat"
     },
     {
+      "description": "This metric tracks observed outbound IP-change activity across the selected period. It validates whether rotation behavior is producing real identity movement.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -217,7 +217,8 @@
                 "value": 500
               }
             ]
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -227,8 +228,6 @@
         "y": 1
       },
       "id": 8,
-      "title": "IP Changes (selected range)",
-      "type": "stat",
       "targets": [
         {
           "datasource": {
@@ -236,10 +235,11 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT SUM(ip_changes) as value FROM (\n  SELECT COALESCE(SUM(s.ip_change_count), 0) as ip_changes\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT COALESCE(SUM(s.ip_change_count), 0) as ip_changes\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n) combined"
+          "rawSql": "SELECT SUM(ip_changes) as value FROM (\n  SELECT COALESCE(SUM(s.ip_change_count), 0) as ip_changes\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT COALESCE(SUM(s.ip_change_count), 0) as ip_changes\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n) combined"
         }
       ],
-      "description": "This metric tracks observed outbound IP-change activity across the selected period. It validates whether rotation behavior is producing real identity movement."
+      "title": "IP Changes (selected range)",
+      "type": "stat"
     },
     {
       "collapsed": false,
@@ -250,21 +250,22 @@
         "y": 5
       },
       "id": 101,
-      "title": "Trends — daily bars from summary · hourly resolution for today",
+      "title": "Trends \u2014 daily bars from summary \u00b7 hourly resolution for today",
       "type": "row"
     },
     {
+      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short",
           "custom": {
             "drawStyle": "bars",
             "fillOpacity": 60,
             "lineWidth": 1
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -274,8 +275,6 @@
         "y": 6
       },
       "id": 5,
-      "title": "Request Volume (daily summary + today hourly)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -283,24 +282,26 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT time_sec, total_requests FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600 as time_sec,\n    SUM(s.total_requests) as total_requests\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600\n) combined\nORDER BY time_sec",
+          "rawSql": "SELECT time_sec, total_requests FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    SUM(s.total_requests) as total_requests\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600 as time_sec,\n    SUM(s.total_requests) as total_requests\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600\n) combined\nORDER BY time_sec",
           "refId": "A"
         }
       ],
-      "description": "This metric shows total request activity in the selected period, including successful and failed attempts. It provides baseline demand context for interpreting quality and performance changes."
+      "title": "Request Volume (daily summary + today hourly)",
+      "type": "timeseries"
     },
     {
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "percent",
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 2
-          }
+          },
+          "unit": "percent"
         }
       },
       "gridPos": {
@@ -310,8 +311,6 @@
         "y": 6
       },
       "id": 6,
-      "title": "Success Rate % (daily summary + today hourly)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -319,24 +318,26 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT time_sec, success_rate FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) as success_rate\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600 as time_sec,\n    ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) as success_rate\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600\n) combined\nORDER BY time_sec",
+          "rawSql": "SELECT time_sec, success_rate FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) as success_rate\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600 as time_sec,\n    ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2) as success_rate\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE DATE(s.window_start) = CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY FLOOR(UNIX_TIMESTAMP(s.window_start) / 3600) * 3600\n) combined\nORDER BY time_sec",
           "refId": "A"
         }
       ],
-      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability KPI and should be read with traffic volume for proper context."
+      "title": "Success Rate % (daily summary + today hourly)",
+      "type": "timeseries"
     },
     {
+      "description": "This metric reflects rotation execution and outcome quality for the selected scope. It helps detect stalled, weak, or failing rotation behavior early.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short",
           "custom": {
             "drawStyle": "bars",
             "fillOpacity": 55,
             "lineWidth": 1
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -346,8 +347,6 @@
         "y": 14
       },
       "id": 9,
-      "title": "IP Rotation Outcomes (daily summary + today hourly)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -355,24 +354,26 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT time_sec, periodic_success, periodic_failure, continuous_success, continuous_failure FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    SUM(s.ip_rotation_periodic_success_count) as periodic_success,\n    SUM(s.ip_rotation_periodic_failure_count) as periodic_failure,\n    SUM(s.ip_rotation_continuous_success_count) as continuous_success,\n    SUM(s.ip_rotation_continuous_failure_count) as continuous_failure\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    UNIX_TIMESTAMP(DATE_FORMAT(ir.rotation_timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n    SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) as periodic_success,\n    SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) as periodic_failure,\n    SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) as continuous_success,\n    SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) as continuous_failure\n  FROM ip_rotations ir\n  JOIN rotation_cycles rc ON rc.id = ir.cycle_id\n  JOIN proxies p ON ir.proxy_id = p.device_id\n  WHERE ir.rotation_timestamp >= CURDATE()\n    AND ir.rotation_timestamp < CURDATE() + INTERVAL 1 DAY\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY UNIX_TIMESTAMP(DATE_FORMAT(ir.rotation_timestamp, '%Y-%m-%d %H:00:00'))\n) combined\nORDER BY time_sec",
+          "rawSql": "SELECT time_sec, periodic_success, periodic_failure, continuous_success, continuous_failure FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    SUM(s.ip_rotation_periodic_success_count) as periodic_success,\n    SUM(s.ip_rotation_periodic_failure_count) as periodic_failure,\n    SUM(s.ip_rotation_continuous_success_count) as continuous_success,\n    SUM(s.ip_rotation_continuous_failure_count) as continuous_failure\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    UNIX_TIMESTAMP(DATE_FORMAT(ir.rotation_timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n    SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) as periodic_success,\n    SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) as periodic_failure,\n    SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) as continuous_success,\n    SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) as continuous_failure\n  FROM ip_rotations ir\n  JOIN rotation_cycles rc ON rc.id = ir.cycle_id\n  JOIN proxies p ON ir.proxy_id = p.device_id\n  WHERE ir.rotation_timestamp >= CURDATE()\n    AND ir.rotation_timestamp < CURDATE() + INTERVAL 1 DAY\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY UNIX_TIMESTAMP(DATE_FORMAT(ir.rotation_timestamp, '%Y-%m-%d %H:00:00'))\n) combined\nORDER BY time_sec",
           "refId": "A"
         }
       ],
-      "description": "This metric reflects rotation execution and outcome quality for the selected scope. It helps detect stalled, weak, or failing rotation behavior early."
+      "title": "IP Rotation Outcomes (daily summary + today hourly)",
+      "type": "timeseries"
     },
     {
+      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short",
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 15,
             "lineWidth": 2
-          }
+          },
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -382,8 +383,6 @@
         "y": 14
       },
       "id": 10,
-      "title": "Unique IPs Seen (daily summary + today hourly)",
-      "type": "timeseries",
       "targets": [
         {
           "datasource": {
@@ -391,11 +390,12 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT time_sec, unique_ips_count FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    SUM(s.unique_ips_count) as unique_ips_count\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n    COUNT(DISTINCT r.outbound_ip) as unique_ips_count\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE DATE(r.timestamp) = CURDATE()\n    AND r.outbound_ip IS NOT NULL\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00'))\n) combined\nORDER BY time_sec",
+          "rawSql": "SELECT time_sec, unique_ips_count FROM (\n  SELECT\n    UNIX_TIMESTAMP(s.day) as time_sec,\n    SUM(s.unique_ips_count) as unique_ips_count\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY s.day\n  UNION ALL\n  SELECT\n    UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00')) as time_sec,\n    COUNT(DISTINCT r.outbound_ip) as unique_ips_count\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  WHERE DATE(r.timestamp) = CURDATE()\n    AND r.outbound_ip IS NOT NULL\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00'))\n) combined\nORDER BY time_sec",
           "refId": "A"
         }
       ],
-      "description": "This metric measures distinct outbound IP coverage in the selected scope and period. Higher values indicate stronger diversity and lower concentration risk."
+      "title": "Unique IPs Seen (daily summary + today hourly)",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -410,6 +410,7 @@
       "type": "row"
     },
     {
+      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -677,8 +678,6 @@
         "y": 23
       },
       "id": 7,
-      "title": "Per-Proxy Daily Summary — history from aggregate table · today from raw",
-      "type": "table",
       "options": {
         "cellHeight": "sm",
         "enablePagination": true,
@@ -691,10 +690,11 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT day, proxy_id, device_name, server_name, total_requests, success_count, failure_count, ROUND(success_rate_pct, 1) as success_rate_pct, ROUND(avg_response_ms, 0) as avg_response_ms, ROUND(p95_response_ms, 0) as p95_response_ms, timeout_count, ip_change_count, unique_ips_count, ip_rotation_periodic_success_count, ip_rotation_periodic_failure_count, ip_rotation_continuous_success_count, ip_rotation_continuous_failure_count, ip_history, source FROM (\n  SELECT\n    s.day,\n    s.proxy_id,\n    COALESCE(s.device_name, p.name, s.proxy_id) as device_name,\n    COALESCE(s.server_name, CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) as server_name,\n    s.total_requests,\n    s.success_count,\n    s.failure_count,\n    s.success_rate_pct,\n    s.avg_response_time_ms as avg_response_ms,\n    s.p95_response_time_ms as p95_response_ms,\n    s.timeout_count,\n    s.ip_change_count,\n    s.unique_ips_count,\n    s.ip_rotation_periodic_success_count,\n    s.ip_rotation_periodic_failure_count,\n    s.ip_rotation_continuous_success_count,\n    s.ip_rotation_continuous_failure_count,\n    TRIM(BOTH ',' FROM REPLACE(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(s.ip_history_json, '$.uniqueIps')), JSON_UNQUOTE(JSON_EXTRACT(s.ip_history_json, '$.assignedIps')), ''), '[', ''), ']', ''), '\"', '')) as ip_history,\n    'summary' as source\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT\n    CURDATE() as day,\n    p.device_id as proxy_id,\n    COALESCE(p.name, p.device_id) as device_name,\n    CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END as server_name,\n    COUNT(*) as total_requests,\n    COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) as success_count,\n    COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) as failure_count,\n    ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as success_rate_pct,\n    ROUND(AVG(r.response_time_ms), 0) as avg_response_ms,\n    NULL as p95_response_ms,\n    COUNT(CASE WHEN r.status = 'TIMEOUT' THEN 1 END) as timeout_count,\n    GREATEST(COUNT(DISTINCT r.outbound_ip) - 1, 0) as ip_change_count,\n    COUNT(DISTINCT r.outbound_ip) as unique_ips_count,\n    MAX(COALESCE(rot.periodic_success, 0)) as ip_rotation_periodic_success_count,\n    MAX(COALESCE(rot.periodic_failure, 0)) as ip_rotation_periodic_failure_count,\n    MAX(COALESCE(rot.continuous_success, 0)) as ip_rotation_continuous_success_count,\n    MAX(COALESCE(rot.continuous_failure, 0)) as ip_rotation_continuous_failure_count,\n    GROUP_CONCAT(DISTINCT r.outbound_ip ORDER BY r.outbound_ip SEPARATOR ', ') as ip_history,\n    'raw (today)' as source\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  LEFT JOIN (\n    SELECT\n      ir.proxy_id,\n      SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) AS periodic_success,\n      SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) AS periodic_failure,\n      SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) AS continuous_success,\n      SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) AS continuous_failure\n    FROM ip_rotations ir\n    JOIN rotation_cycles rc ON rc.id = ir.cycle_id\n    WHERE ir.rotation_timestamp >= CURDATE()\n      AND ir.rotation_timestamp < CURDATE() + INTERVAL 1 DAY\n    GROUP BY ir.proxy_id\n  ) rot ON rot.proxy_id = p.device_id\n  WHERE r.timestamp >= CURDATE()\n    AND r.timestamp < CURDATE() + INTERVAL 1 DAY\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY p.device_id, p.name\n) combined\nORDER BY day DESC, total_requests DESC"
+          "rawSql": "SELECT day, proxy_id, device_name, server_name, total_requests, success_count, failure_count, ROUND(success_rate_pct, 1) as success_rate_pct, ROUND(avg_response_ms, 0) as avg_response_ms, ROUND(p95_response_ms, 0) as p95_response_ms, timeout_count, ip_change_count, unique_ips_count, ip_rotation_periodic_success_count, ip_rotation_periodic_failure_count, ip_rotation_continuous_success_count, ip_rotation_continuous_failure_count, ip_history, source FROM (\n  SELECT\n    s.day,\n    s.proxy_id,\n    COALESCE(s.device_name, p.name, s.proxy_id) as device_name,\n    COALESCE(s.server_name, CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) as server_name,\n    s.total_requests,\n    s.success_count,\n    s.failure_count,\n    s.success_rate_pct,\n    s.avg_response_time_ms as avg_response_ms,\n    s.p95_response_time_ms as p95_response_ms,\n    s.timeout_count,\n    s.ip_change_count,\n    s.unique_ips_count,\n    s.ip_rotation_periodic_success_count,\n    s.ip_rotation_periodic_failure_count,\n    s.ip_rotation_continuous_success_count,\n    s.ip_rotation_continuous_failure_count,\n    TRIM(BOTH ',' FROM REPLACE(REPLACE(REPLACE(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(s.ip_history_json, '$.uniqueIps')), JSON_UNQUOTE(JSON_EXTRACT(s.ip_history_json, '$.assignedIps')), ''), '[', ''), ']', ''), '\"', '')) as ip_history,\n    'summary' as source\n  FROM proxy_requests_daily_summary s\n  JOIN proxies p ON s.proxy_id = p.device_id\n  WHERE s.day >= DATE($__timeFrom()) AND s.day < CURDATE()\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  UNION ALL\n  SELECT\n    CURDATE() as day,\n    p.device_id as proxy_id,\n    COALESCE(p.name, p.device_id) as device_name,\n    CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END as server_name,\n    COUNT(*) as total_requests,\n    COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) as success_count,\n    COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) as failure_count,\n    ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as success_rate_pct,\n    ROUND(AVG(r.response_time_ms), 0) as avg_response_ms,\n    NULL as p95_response_ms,\n    COUNT(CASE WHEN r.status = 'TIMEOUT' THEN 1 END) as timeout_count,\n    GREATEST(COUNT(DISTINCT r.outbound_ip) - 1, 0) as ip_change_count,\n    COUNT(DISTINCT r.outbound_ip) as unique_ips_count,\n    MAX(COALESCE(rot.periodic_success, 0)) as ip_rotation_periodic_success_count,\n    MAX(COALESCE(rot.periodic_failure, 0)) as ip_rotation_periodic_failure_count,\n    MAX(COALESCE(rot.continuous_success, 0)) as ip_rotation_continuous_success_count,\n    MAX(COALESCE(rot.continuous_failure, 0)) as ip_rotation_continuous_failure_count,\n    GROUP_CONCAT(DISTINCT r.outbound_ip ORDER BY r.outbound_ip SEPARATOR ', ') as ip_history,\n    'raw (today)' as source\n  FROM proxy_requests r\n  JOIN proxies p ON r.proxy_id = p.device_id\n  LEFT JOIN (\n    SELECT\n      ir.proxy_id,\n      SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) AS periodic_success,\n      SUM(CASE WHEN rc.cycle_type = 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) AS periodic_failure,\n      SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 1 THEN 1 ELSE 0 END) AS continuous_success,\n      SUM(CASE WHEN rc.cycle_type != 'periodic' AND ir.success = 0 THEN 1 ELSE 0 END) AS continuous_failure\n    FROM ip_rotations ir\n    JOIN rotation_cycles rc ON rc.id = ir.cycle_id\n    WHERE ir.rotation_timestamp >= CURDATE()\n      AND ir.rotation_timestamp < CURDATE() + INTERVAL 1 DAY\n    GROUP BY ir.proxy_id\n  ) rot ON rot.proxy_id = p.device_id\n  WHERE r.timestamp >= CURDATE()\n    AND r.timestamp < CURDATE() + INTERVAL 1 DAY\n    AND (CASE WHEN UPPER(TRIM(p.name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(p.name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(p.name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(p.name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server)\n    AND p.device_id IN ($phone)\n  GROUP BY p.device_id, p.name\n) combined\nORDER BY day DESC, total_requests DESC"
         }
       ],
-      "description": "This metric measures request speed, including slow-end latency risk where applicable. Persistent increases signal degrading user experience and should trigger performance triage."
+      "title": "Per-Proxy Daily Summary \u2014 history from aggregate table \u00b7 today from raw",
+      "type": "table"
     }
   ],
   "refresh": "5m",
@@ -720,13 +720,13 @@
           "type": "mysql",
           "uid": "xproxy-tester-mysql"
         },
-        "definition": "SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS server_name FROM proxies ORDER BY server_name",
+        "definition": "SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS server_name FROM proxies ORDER BY server_name",
         "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "server",
         "options": [],
-        "query": "SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS server_name FROM proxies ORDER BY server_name",
+        "query": "SELECT DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END AS server_name FROM proxies ORDER BY server_name",
         "refresh": 1,
         "sort": 1,
         "type": "query"
@@ -745,13 +745,13 @@
           "type": "mysql",
           "uid": "xproxy-tester-mysql"
         },
-        "definition": "SELECT CONCAT(COALESCE(name, device_id), ' [', device_id, ']') AS __text, device_id AS __value FROM proxies WHERE (CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server) ORDER BY __text",
+        "definition": "SELECT CONCAT(COALESCE(name, device_id), ' [', device_id, ']') AS __text, device_id AS __value FROM proxies WHERE (CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server) ORDER BY __text",
         "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "phone",
         "options": [],
-        "query": "SELECT CONCAT(COALESCE(name, device_id), ' [', device_id, ']') AS __text, device_id AS __value FROM proxies WHERE (CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server) ORDER BY __text",
+        "query": "SELECT CONCAT(COALESCE(name, device_id), ' [', device_id, ']') AS __text, device_id AS __value FROM proxies WHERE (CASE WHEN UPPER(TRIM(name)) REGEXP 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+' THEN REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), 'S[0-9]{1,3}[[:space:]_-]*P[0-9]+'), 'S[0-9]{1,3}') WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}[[:space:]_-]+[0-9]+' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'UNKNOWN' END) IN ($server) ORDER BY __text",
         "refresh": 1,
         "sort": 1,
         "type": "query"
@@ -766,5 +766,5 @@
   "timezone": "browser",
   "title": "BETA - Overview",
   "uid": "beta-overview-hotcold-v1",
-  "version": 4
+  "version": 9
 }
