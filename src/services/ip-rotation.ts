@@ -270,7 +270,7 @@ export async function checkAndRotateInactiveProxies(
     const cycleId = await createRotationCycle('inactive_proxy', proxyIds);
 
     // Start rotation cycle - send commands
-    await startRotationCycle(cycleId, proxyIds, rotationType);
+    await startRotationCycle(cycleId, proxyIds, rotationType, 'inactive_proxy');
 
     // Wait a bit before starting verification
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -364,6 +364,7 @@ export function startInactiveProxyRotation(
  */
 let periodicRotationInterval: NodeJS.Timeout | null = null;
 let periodicRotationRunning = false;
+let periodicRotationCyclePromise: Promise<void> | null = null;
 
 
 
@@ -374,6 +375,7 @@ let periodicRotationRunning = false;
  * Errors for individual devices are logged but don't stop the process.
  */
 async function rotateAllDevices(): Promise<void> {
+  let cycleId: string | null = null;
   try {
     const devices = await getAllDevices();
     
@@ -386,10 +388,13 @@ async function rotateAllDevices(): Promise<void> {
     const rotationType = config.ipRotation.preferUniqueRotation ? 'unique' : 'standard';
 
     // Create rotation cycle with shared timestamp
-    const cycleId = await createRotationCycle('periodic', proxyIds);
+    cycleId = await createRotationCycle('periodic', proxyIds);
 
     // Start rotation cycle - send commands
-    await startRotationCycle(cycleId, proxyIds, rotationType);
+    // Passing cycleType='periodic' enables fast-fail retries on the rotateIp
+    // HTTP call (see startRotationCycle docs) so a single slow tick doesn't
+    // overrun PERIODIC_IP_ROTATION_INTERVAL_MS and skip the next interval.
+    await startRotationCycle(cycleId, proxyIds, rotationType, 'periodic');
 
     // Wait a bit before starting verification
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -408,8 +413,35 @@ async function rotateAllDevices(): Promise<void> {
       'Periodic IP rotation cycle completed'
     );
   } catch (error) {
+    if (cycleId) {
+      try {
+        // Mark cycle as failed if execution stops before completion.
+        await prisma.rotationCycle.updateMany({
+          where: {
+            id: cycleId,
+            status: {
+              in: ['in_progress', 'verifying'],
+            },
+          },
+          data: {
+            status: 'failed',
+            pendingCount: 0,
+          },
+        });
+      } catch (updateError) {
+        logger.error(
+          {
+            cycleId,
+            error: updateError instanceof Error ? updateError.message : 'Unknown error',
+          },
+          'Failed to mark periodic rotation cycle as failed'
+        );
+      }
+    }
+
     logger.error(
       {
+        cycleId,
         error: error instanceof Error ? error.message : 'Unknown error',
       },
       'Failed to rotate all devices'
@@ -438,12 +470,30 @@ export function startPeriodicIpRotation(intervalMs: number = 600000): NodeJS.Tim
     'Starting periodic IP rotation service'
   );
 
+  function triggerPeriodicRotation(): void {
+    if (periodicRotationCyclePromise) {
+      logger.warn(
+        { intervalMs },
+        'Previous periodic rotation cycle is still running, skipping this run'
+      );
+      return;
+    }
+
+    periodicRotationCyclePromise = rotateAllDevices()
+      .catch(() => {
+        // rotateAllDevices already logs detailed errors
+      })
+      .finally(() => {
+        periodicRotationCyclePromise = null;
+      });
+  }
+
   // Rotate immediately on start
-  void rotateAllDevices();
+  triggerPeriodicRotation();
 
   // Then rotate at configured interval
   periodicRotationInterval = setInterval(() => {
-    void rotateAllDevices();
+    triggerPeriodicRotation();
   }, intervalMs);
 
   return periodicRotationInterval;
@@ -466,6 +516,8 @@ export function stopPeriodicIpRotation(): void {
     clearInterval(periodicRotationInterval);
     periodicRotationInterval = null;
   }
+
+  periodicRotationCyclePromise = null;
 
   logger.info('Periodic IP rotation service stopped');
 }

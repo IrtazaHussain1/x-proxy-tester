@@ -78,7 +78,8 @@
         }
       ],
       "title": "Stable Proxies",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of stable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -144,7 +145,8 @@
         }
       ],
       "title": "Unstable Hourly",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of unstable hourly for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -210,7 +212,8 @@
         }
       ],
       "title": "Unstable Daily",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of unstable daily for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -250,12 +253,13 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:00')) as time_sec,\n  COUNT(CASE WHEN stability_status = 'Stable' THEN 1 END) as stable,\n  COUNT(CASE WHEN stability_status = 'UnstableHourly' THEN 1 END) as unstable_hourly,\n  COUNT(CASE WHEN stability_status = 'UnstableDaily' THEN 1 END) as unstable_daily\nFROM proxies\nWHERE active = true AND $__timeFilter(updated_at) AND location IN ($location)\nGROUP BY time_sec\nORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(hour_bucket) AS time_sec,\n  SUM(CASE WHEN failures_in_hour > 120 THEN 1 ELSE 0 END) AS unstable_hourly,\n  SUM(CASE WHEN failures_in_hour <= 120 AND total_in_hour > 0 THEN 1 ELSE 0 END) AS stable\nFROM (\n  SELECT\n    DATE_FORMAT(s.window_start, '%Y-%m-%d %H:00:00') AS hour_bucket,\n    s.proxy_id,\n    SUM(s.failure_count)  AS failures_in_hour,\n    SUM(s.total_requests) AS total_in_hour\n  FROM proxy_requests_5min_summary s\n  JOIN proxies p ON p.device_id = s.proxy_id\n  WHERE s.window_start >= FROM_UNIXTIME($__unixEpochFrom())\n    AND s.window_start <= FROM_UNIXTIME($__unixEpochTo())\n    AND p.active = true\n    AND p.location IN ($location)\n  GROUP BY DATE_FORMAT(s.window_start, '%Y-%m-%d %H:00:00'), s.proxy_id\n) hourly\nGROUP BY hour_bucket\nORDER BY hour_bucket",
           "refId": "A"
         }
       ],
       "title": "Stability Trend Over Time",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Per-hour count of active proxies classified as Stable vs UnstableHourly. Derived from 5-minute aggregates using the original stability threshold (>120 failures/hour ≈ >10min downtime at 5s test interval). The underlying 5-minute aggregates retain roughly 2 days, so longer time ranges show empty buckets for older periods."
     },
     {
       "fieldConfig": {
@@ -311,7 +315,8 @@
         }
       ],
       "title": "Top Unstable Proxies",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior."
     },
     {
       "fieldConfig": {
@@ -356,7 +361,8 @@
         }
       ],
       "title": "Stability Status by Location",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "This panel shows stability status by location for the selected scope and period. It supports faster, evidence-based operational decisions."
     }
   ],
   "refresh": "",

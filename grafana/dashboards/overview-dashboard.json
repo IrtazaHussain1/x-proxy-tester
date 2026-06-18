@@ -48,7 +48,8 @@
         }
       ],
       "title": "Total Active Proxies",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of total active proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -85,7 +86,8 @@
         }
       ],
       "title": "Stable Proxies",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of stable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -130,7 +132,8 @@
         }
       ],
       "title": "Unstable Proxies",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of unstable proxies for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -173,77 +176,136 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "table",
-          "rawSql": "SELECT COALESCE(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 0) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location)"
+          "rawSql": "SELECT COALESCE(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)"
         }
       ],
       "title": "Success Rate %",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
     },
     {
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 2,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 10 },
-              { "color": "red", "value": 50 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
             ]
           },
           "unit": "percent"
         }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
       "id": 9,
       "targets": [
         {
-          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
           "format": "table",
-          "rawSql": "SELECT COALESCE(COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 0) as value FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location)"
+          "rawSql": "SELECT COALESCE(SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 0) AS value\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)"
         }
       ],
       "title": "Failure Rate %",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     },
     {
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
         }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 4 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      },
       "id": 10,
       "targets": [
         {
-          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
           "format": "table",
           "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND version IS NOT NULL AND TRIM(COALESCE(version, '')) != '' AND location IN ($location)"
         }
       ],
       "title": "Proxies With Version",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of proxies with version for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "orange", "value": null } ] }
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
         }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 4 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
       "id": 11,
       "targets": [
         {
-          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
           "format": "table",
           "rawSql": "SELECT COUNT(*) as value FROM proxies WHERE active = true AND (version IS NULL OR TRIM(COALESCE(version, '')) = '') AND location IN ($location)"
         }
       ],
       "title": "Proxies Without Version",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of proxies without version for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -269,27 +331,43 @@
           "unit": "percent"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
       "id": 5,
       "targets": [
         {
-          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
           "format": "time_series",
-          "rawSql": "SELECT UNIX_TIMESTAMP(DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:%i:00')) as time_sec, COALESCE(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 0) as stability_pct FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) GROUP BY time_sec ORDER BY time_sec",
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(s.window_start) AS time_sec,\n  COALESCE(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 0) AS stability_pct\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\nGROUP BY s.window_start\nORDER BY s.window_start",
           "refId": "A"
         }
       ],
       "title": "Stability % Over Time",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows the percentage of requests that completed successfully in the selected period. It is the primary reliability indicator and should be read alongside request volume for context."
     },
     {
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
       "id": 6,
       "targets": [
         {
@@ -298,12 +376,13 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '1m'), COUNT(*) as request_count FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) GROUP BY 1 ORDER BY 1",
+          "rawSql": "SELECT\n  s.window_start AS time,\n  SUM(s.total_requests) AS request_count\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\nGROUP BY s.window_start\nORDER BY s.window_start",
           "refId": "A"
         }
       ],
       "title": "Request Volume",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed."
     },
     {
       "datasource": {
@@ -326,7 +405,12 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
       "id": 7,
       "options": {
         "legend": {
@@ -362,7 +446,8 @@
         }
       ],
       "title": "Stability Status Distribution",
-      "type": "piechart"
+      "type": "piechart",
+      "description": "This panel shows stability status distribution for the selected scope and period. It supports faster, evidence-based operational decisions."
     },
     {
       "fieldConfig": {
@@ -373,7 +458,12 @@
           "unit": "ms"
         }
       },
-      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 16
+      },
       "id": 8,
       "targets": [
         {
@@ -382,82 +472,205 @@
             "uid": "xproxy-tester-mysql"
           },
           "format": "time_series",
-          "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '1m'), AVG(r.response_time_ms) as avg_response_time FROM proxy_requests r JOIN (SELECT device_id FROM proxies WHERE location IN ($location)) p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.response_time_ms IS NOT NULL GROUP BY 1 ORDER BY 1",
+          "rawSql": "SELECT\n  s.window_start AS time,\n  ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS avg_response_time\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND s.avg_response_time_ms IS NOT NULL\n  AND p.location IN ($location)\nGROUP BY s.window_start\nORDER BY s.window_start",
           "refId": "A"
         }
       ],
       "title": "Average Response Time Trend",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
     },
     {
-      "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true, "inspect": false }
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
       "id": 12,
-      "options": { "cellHeight": "sm", "footer": { "countRows": false }, "showHeader": true },
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false
+        },
+        "showHeader": true
+      },
       "targets": [
         {
-          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
           "format": "table",
           "rawSql": "SELECT p.name, p.location, p.version, p.stability_status, p.rotation_status, p.last_ip, p.updated_at FROM proxies p WHERE p.active = true AND p.version IS NOT NULL AND TRIM(COALESCE(p.version, '')) != '' AND p.location IN ($location) ORDER BY p.location, p.name"
         }
       ],
       "title": "Proxies With Version (Table)",
-      "type": "table"
+      "type": "table",
+      "description": "This table details proxies with version (table) across entities in the selected scope. It supports targeted diagnosis and action prioritization."
     },
     {
-      "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true, "inspect": false }
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 34 },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
       "id": 13,
-      "options": { "cellHeight": "sm", "footer": { "countRows": false }, "showHeader": true },
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false
+        },
+        "showHeader": true
+      },
       "targets": [
         {
-          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
           "format": "table",
           "rawSql": "SELECT p.name, p.location, p.stability_status, p.rotation_status, p.last_ip, p.updated_at FROM proxies p WHERE p.active = true AND (p.version IS NULL OR TRIM(COALESCE(p.version, '')) = '') AND p.location IN ($location) ORDER BY p.location, p.name"
         }
       ],
       "title": "Proxies Without Version (Table)",
-      "type": "table"
+      "type": "table",
+      "description": "This table details proxies without version (table) across entities in the selected scope. It supports targeted diagnosis and action prioritization."
     },
     {
-      "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true, "inspect": false }
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          }
         },
         "overrides": [
-          { "matcher": { "id": "byName", "options": "success_rate_pct" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "decimals", "value": 2 }] },
-          { "matcher": { "id": "byName", "options": "failure_rate_pct" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "decimals", "value": 2 }] },
-          { "matcher": { "id": "byName", "options": "avg_response_ms" }, "properties": [{ "id": "unit", "value": "ms" }] }
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failure_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_response_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
         ]
       },
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 44 },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
       "id": 14,
-      "options": { "cellHeight": "sm", "footer": { "countRows": false }, "showHeader": true },
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false
+        },
+        "showHeader": true
+      },
       "targets": [
         {
-          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
           "format": "table",
-          "rawSql": "SELECT p.name, p.location, COALESCE(p.version, '-') as version, COUNT(*) as total_requests, COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) as success_count, ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as success_rate_pct, COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) as failure_count, ROUND(COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as failure_rate_pct, ROUND(AVG(r.response_time_ms), 0) as avg_response_ms, p.stability_status, p.rotation_status FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND p.active = true GROUP BY p.device_id, p.name, p.location, p.version, p.stability_status, p.rotation_status ORDER BY success_rate_pct ASC, total_requests DESC"
+          "rawSql": "SELECT\n  p.name,\n  p.location,\n  COALESCE(p.version, '-')                                                                    AS version,\n  SUM(s.total_requests)                                                                        AS total_requests,\n  SUM(s.success_count)                                                                         AS success_count,\n  ROUND(SUM(s.success_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2)                  AS success_rate_pct,\n  SUM(s.failure_count)                                                                         AS failure_count,\n  ROUND(SUM(s.failure_count) * 100.0 / NULLIF(SUM(s.total_requests), 0), 2)                  AS failure_rate_pct,\n  ROUND(SUM(s.avg_response_time_ms * s.total_requests) / NULLIF(SUM(s.total_requests), 0), 0) AS avg_response_ms,\n  p.stability_status,\n  p.rotation_status\nFROM proxy_requests_5min_summary s\nJOIN proxies p ON s.proxy_id = p.device_id\nWHERE $__timeFilter(s.window_start)\n  AND p.location IN ($location)\n  AND p.active = true\nGROUP BY p.device_id, p.name, p.location, p.version, p.stability_status, p.rotation_status\nORDER BY success_rate_pct ASC, total_requests DESC"
         }
       ],
       "title": "All Proxies – Success Rate & Overview",
-      "type": "table"
+      "type": "table",
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting."
     }
   ],
   "refresh": "1m",

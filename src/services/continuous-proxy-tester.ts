@@ -17,17 +17,18 @@ import { testProxyWithStats } from '../helpers/test-proxy';
 import { logger } from '../lib/logger';
 import { extractAppVersion } from '../helpers/extra-parser';
 import { prismaWithRetry as prisma, prisma as prismaRaw } from '../lib/db';
-import { batchWriter } from '../lib/batch-writer';
 import { startStabilityCalculation } from './stability-calculator';
 import {
-  // checkAutoDeactivation,
-  // autoDeactivateProxy,
+  checkAutoDeactivation,
+  autoDeactivateProxy,
   startRecoveryChecking,
 } from './auto-deactivation';
 import { startInactiveProxyRotation } from './ip-rotation';
 import { rotateIp } from '../api/commands';
 import { config } from '../config';
 import { recordRequest, setActiveProxies } from '../lib/metrics';
+import { batchWriter } from '../lib/batch-writer';
+import { encrypt } from '../lib/encryption';
 import type { Device, ProxyMetrics, RequestStatus, RotationStatus, RequestSource } from '../types';
 
 /**
@@ -49,6 +50,36 @@ let refreshInterval: NodeJS.Timeout | null = null;
 let recoveryInterval: NodeJS.Timeout | null = null;
 let ipRotationInterval: NodeJS.Timeout | null = null;
 const lastOutboundIpByDevice = new Map<string, string>();
+class Semaphore {
+  private permits: number;
+  private waitQueue: Array<() => void> = [];
+
+  constructor(permits: number) {
+    this.permits = permits;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.permits > 0) {
+      this.permits--;
+      return;
+    }
+
+    return new Promise((resolve) => {
+      this.waitQueue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.waitQueue.length > 0) {
+      const next = this.waitQueue.shift();
+      if (next) next();
+      return;
+    }
+
+    this.permits++;
+  }
+}
+const databaseWriteSemaphore = new Semaphore(config.database.proxySyncConcurrency);
 
 // Removed getHistoricalRotationStats - now using proxy table fields directly
 // This eliminates expensive aggregate queries that were causing connection pool exhaustion
@@ -138,6 +169,22 @@ export async function saveProxyTestToDatabase(
   metrics: ProxyMetrics,
   source: RequestSource = 'continuous'
 ): Promise<void> {
+  await processProxyTestWriteJob(device, metrics, source);
+}
+
+/**
+ * Persists proxy test write jobs from BullMQ worker.
+ */
+export async function processProxyTestWriteJob(
+  device: Device,
+  metrics: ProxyMetrics,
+  source: RequestSource = 'continuous'
+): Promise<void> {
+  // BullMQ serializes Dates as strings; normalize once for DB timestamp fields.
+  const eventTimestamp =
+    metrics.timestamp instanceof Date ? metrics.timestamp : new Date(metrics.timestamp as unknown as string);
+
+  await databaseWriteSemaphore.acquire();
   // Removed health check here - it was causing connection pool exhaustion
   // Health checks are cached and called less frequently elsewhere
   // Database operations will fail gracefully if connection is unavailable
@@ -155,78 +202,53 @@ export async function saveProxyTestToDatabase(
       where: { deviceId: device.device_id },
     });
 
+    /** When true, we merge portal sync + rotation into a single UPDATE (reduces InnoDB row lock churn). */
+    const proxyExistedBefore = proxy !== null;
 
     // Map portal proxy_status to active boolean
     const isActive = mapProxyStatusToActive(device.proxy_status);
+
+    /** Portal fields from XProxy — written together with rotation fields when proxy already existed. */
+    const portalSyncData = {
+      deviceApiId: device.id || null,
+      name: device.name,
+      model: device.model || null,
+      location: device.state || device.city || null,
+      host: device.relay_server_ip_address,
+      port: device.port,
+      username: device.username,
+      password: device.password ? await encrypt(device.password) : null,
+      active: isActive,
+      ipAddress: device.ip_address || null,
+      wsStatus: device.ws_status || null,
+      proxyStatus: device.proxy_status || null,
+      country: device.country || null,
+      state: device.state || null,
+      city: device.city || null,
+      street: device.street || null,
+      longitude: device.longitude || null,
+      latitude: device.latitude || null,
+      relayServerId: device.relay_server_id || null,
+      relayServerIpAddress: device.relay_server_ip_address || null,
+      downloadNetSpeed: device.download_net_speed || null,
+      uploadNetSpeed: device.upload_net_speed || null,
+      lastIpRotation: device.last_ip_rotation || null,
+      extra: device.extra || null,
+      version: extractAppVersion(device.extra),
+    };
 
     if (!proxy) {
       // Create new proxy record with device_id as primary key
       proxy = await prisma.proxy.create({
         data: {
           deviceId: device.device_id,
-          deviceApiId: device.id || null,
-          name: device.name,
-          model: device.model || null,
-          location: device.state || device.city || null,
-          host: device.relay_server_ip_address,
-          port: device.port,
+          ...portalSyncData,
           protocol: 'http',
-          username: device.username,
-          password: device.password || null,
-          active: isActive,
-          ipAddress: device.ip_address || null,
-          wsStatus: device.ws_status || null,
-          proxyStatus: device.proxy_status || null,
-          country: device.country || null,
-          state: device.state || null,
-          city: device.city || null,
-          street: device.street || null,
-          longitude: device.longitude || null,
-          latitude: device.latitude || null,
-          relayServerId: device.relay_server_id || null,
-          relayServerIpAddress: device.relay_server_ip_address || null,
-          downloadNetSpeed: device.download_net_speed || null,
-          uploadNetSpeed: device.upload_net_speed || null,
-          lastIpRotation: device.last_ip_rotation || null,
-          extra: device.extra || null,
-          version: extractAppVersion(device.extra),
           lastIp: metrics.outboundIp || null,
           sameIpCount: hasCurrentIp ? 1 : 0,
           rotationStatus: 'Rotated',
           lastRotationAt: null,
           rotationCount: 0,
-        },
-      });
-    } else {
-      // Update proxy info including all device fields from portal
-      await prisma.proxy.update({
-        where: { deviceId: device.device_id },
-        data: {
-          deviceApiId: device.id || null,
-          name: device.name,
-          model: device.model || null,
-          location: device.state || device.city || null,
-          host: device.relay_server_ip_address,
-          port: device.port,
-          username: device.username,
-          password: device.password || null,
-          active: isActive, // Sync active status from portal
-          ipAddress: device.ip_address || null,
-          wsStatus: device.ws_status || null,
-          proxyStatus: device.proxy_status || null,
-          country: device.country || null,
-          state: device.state || null,
-          city: device.city || null,
-          street: device.street || null,
-          longitude: device.longitude || null,
-          latitude: device.latitude || null,
-          relayServerId: device.relay_server_id || null,
-          relayServerIpAddress: device.relay_server_ip_address || null,
-          downloadNetSpeed: device.download_net_speed || null,
-          uploadNetSpeed: device.upload_net_speed || null,
-          lastIpRotation: device.last_ip_rotation || null,
-          extra: device.extra || null,
-          version: extractAppVersion(device.extra),
         },
       });
     }
@@ -277,7 +299,7 @@ export async function saveProxyTestToDatabase(
       // IP changed - actual rotation detected!
       sameIpCount = 1; // Start counting from 1 (this is the first request with new IP)
       rotationStatus = 'Rotated'; // Mark as Rotated when actual rotation is detected
-      finalLastRotationAt = new Date(); // Record rotation timestamp
+      finalLastRotationAt = eventTimestamp; // Record rotation timestamp from the test event
       finalRotationCount = rotationCount + 1; // Increment rotation count
 
       // Check if this IP change is part of a rotation cycle and update the rotation record
@@ -346,47 +368,47 @@ export async function saveProxyTestToDatabase(
       hasCurrentIp &&
       expectedIp === metrics.outboundIp;
 
-    // Update proxy with latest IP info (immediate - needed for rotation tracking)
-    // Use transaction to ensure data consistency
-    await prismaRaw.$transaction(
-      async (tx) => {
-        await tx.proxy.update({
-          where: { deviceId: proxy.deviceId },
-          data: {
-            // Only update last IP when we successfully observe one.
-            lastIp: hasCurrentIp ? metrics.outboundIp : proxy.lastIp,
-            sameIpCount,
-            rotationStatus,
-            lastRotationAt: finalLastRotationAt,
-            rotationCount: finalRotationCount,
-          },
-        });
-      },
-      {
-        timeout: 10000, // 10 seconds timeout
-        maxWait: 5000, // Maximum time to wait for a transaction slot
-      }
-    );
+    // Persist rotation (+ portal sync when the row already existed — one UPDATE instead of two).
+    const rotationData = {
+      // Only update last IP when we successfully observe one.
+      lastIp: hasCurrentIp ? metrics.outboundIp : proxy.lastIp,
+      sameIpCount,
+      rotationStatus,
+      lastRotationAt: finalLastRotationAt,
+      rotationCount: finalRotationCount,
+    };
+
+    batchWriter.add({
+      type: 'update',
+      model: 'proxy',
+      where: { deviceId: proxy.deviceId },
+      data: proxyExistedBefore ? { ...portalSyncData, ...rotationData } : rotationData,
+    });
     
-    // Save the test request using batch writer (optimized for high volume)
-    // This batches writes to reduce database overhead from ~2.85M individual inserts
+    // Write the test request directly — awaited so BullMQ only acknowledges the job
+    // after the data is actually in MySQL. The queue's 5-attempt retry covers transient
+    // DB failures. Using batchWriter.add() here caused silent data loss: the job was
+    // acknowledged before the async batch flush, so a crash between enqueue and flush
+    // permanently dropped the record.
     batchWriter.add({
       type: 'create',
       model: 'proxyRequest',
       data: {
         proxyId: proxy.deviceId,
-        timestamp: metrics.timestamp,
+        timestamp: eventTimestamp,
+        createdAt: eventTimestamp,
+        updatedAt: eventTimestamp,
         targetUrl: metrics.requestUrl,
         status: mapToRequestStatus(metrics),
         httpStatusCode: metrics.httpStatus || null,
         responseTimeMs: metrics.responseTimeMs,
         expectedIp: expectedIp || null,
         outboundIp: metrics.outboundIp || null,
-        ipChanged: ipChangedFromPrevious, // Changed from previous request (rotation)
+        ipChanged: ipChangedFromPrevious,
         errorType: metrics.errorType || null,
         errorMessage: metrics.errorMessage || null,
-        source: source, // Track the source workflow
-        downloadSpeedMbps: null, // Speed tests handled separately
+        source: source,
+        downloadSpeedMbps: null,
         uploadSpeedMbps: null,
       },
     });
@@ -454,17 +476,16 @@ export async function saveProxyTestToDatabase(
     }
 
     // Check for auto-deactivation if request failed
-    // if (!metrics.success && config.autoDeactivation.enabled) {
-    //   const deactivationCheck = await checkAutoDeactivation(device.device_id);
-    //   if (deactivationCheck.shouldDeactivate) {
-    //     // await autoDeactivateProxy(device.device_id, deactivationCheck.reason || 'unknown', {
-    //     //   consecutiveFailures: deactivationCheck.consecutiveFailures,
-    //     //   failureRate: deactivationCheck.failureRate,
-    //     // });
-    //     // // Stop testing this device if it was auto-deactivated
-    //     // stopDeviceTesting(device.device_id);
-    //   }
-    // }
+    if (!metrics.success && config.autoDeactivation.enabled) {
+      const deactivationCheck = await checkAutoDeactivation(device.device_id);
+      if (deactivationCheck.shouldDeactivate) {
+        await autoDeactivateProxy(device.device_id, deactivationCheck.reason ?? 'unknown', {
+          consecutiveFailures: deactivationCheck.consecutiveFailures,
+          failureRate: deactivationCheck.failureRate,
+        });
+        stopDeviceTesting(device.device_id);
+      }
+    }
   } catch (error) {
     logger.error(
       {
@@ -474,7 +495,20 @@ export async function saveProxyTestToDatabase(
       },
       `Failed to save proxy test to database (${source} workflow)`
     );
+    throw error;
+  } finally {
+    databaseWriteSemaphore.release();
   }
+}
+
+/**
+ * Applies coalesced proxy metadata updates from the dedicated queue worker.
+ */
+export async function processProxyMetaWriteJob(deviceId: string, data: Record<string, unknown>): Promise<void> {
+  await prisma.proxy.update({
+    where: { deviceId },
+    data,
+  });
 }
 
 /**
@@ -634,6 +668,10 @@ function startDeviceTesting(device: Device): void {
   // Mark device as being tested
   deviceTestingFlags.set(deviceId, true);
 
+  // Spread initial starts across the test interval so all devices don't hit the DB at once.
+  // Each device gets a random offset in [0, TEST_INTERVAL_MS).
+  const startOffset = Math.floor(Math.random() * config.testing.intervalMs);
+
   // Test immediately, then wait 5 seconds after completion before next test
   async function runTestWithInterval(): Promise<void> {
     // Check if we should continue (device might have been stopped)
@@ -763,8 +801,12 @@ function startDeviceTesting(device: Device): void {
     deviceIntervals.set(deviceId, timeoutId);
   }
 
-  // Start the test cycle
-  void runTestWithInterval();
+  // Start the test cycle after a random offset to avoid thundering herd at startup
+  const initialTimeoutId = setTimeout(() => {
+    deviceIntervals.delete(deviceId);
+    void runTestWithInterval();
+  }, startOffset);
+  deviceIntervals.set(deviceId, initialTimeoutId);
 }
 
 /**
@@ -862,67 +904,71 @@ async function refreshDeviceTesters(): Promise<void> {
   // Sync all device fields for all proxies from portal
   try {
     const allProxies = await prisma.proxy.findMany({
-      select: { deviceId: true, active: true },
+      select: { deviceId: true, active: true, ipAddress: true },
     });
     for (const proxy of allProxies) {
       existingProxyActiveById.set(proxy.deviceId, proxy.active);
     }
 
-    // Batch updates: unbounded Promise.all() here exhausts Prisma's connection pool when many proxies exist.
+    // Batch updates: execute chunked updates inside one transaction per chunk to reduce
+    // connection churn compared to many concurrent single-row updates.
     const proxiesToSync = allProxies.filter((proxy) => deviceMap.has(proxy.deviceId));
     const batchSize = config.database.proxySyncConcurrency;
 
     for (let i = 0; i < proxiesToSync.length; i += batchSize) {
       const chunk = proxiesToSync.slice(i, i + batchSize);
-      await Promise.all(
-        chunk.map(async (proxy) => {
-          const device = deviceMap.get(proxy.deviceId);
-          if (!device) return;
+      const updateQueries: any[] = [];
+      for (const proxy of chunk) {
+        const device = deviceMap.get(proxy.deviceId);
+        if (!device) continue;
 
-          const isActive = mapProxyStatusToActive(device.proxy_status);
+        const isActive = mapProxyStatusToActive(device.proxy_status);
 
-          await prisma.proxy.update({
-            where: { deviceId: proxy.deviceId },
-            data: {
-              deviceApiId: device.id || null,
-              name: device.name,
-              model: device.model || null,
-              location: device.state || device.city || null,
-              host: device.relay_server_ip_address,
-              port: device.port,
-              username: device.username,
-              password: device.password || null,
-              active: isActive,
-              ipAddress: device.ip_address || null,
-              wsStatus: device.ws_status || null,
-              proxyStatus: device.proxy_status || null,
-              country: device.country || null,
-              state: device.state || null,
-              city: device.city || null,
-              street: device.street || null,
-              longitude: device.longitude || null,
-              latitude: device.latitude || null,
-              relayServerId: device.relay_server_id || null,
-              relayServerIpAddress: device.relay_server_ip_address || null,
-              downloadNetSpeed: device.download_net_speed || null,
-              uploadNetSpeed: device.upload_net_speed || null,
-              lastIpRotation: device.last_ip_rotation || null,
-              extra: device.extra || null,
-              version: extractAppVersion(device.extra),
-            },
-          });
+        logger.debug(
+          {
+            deviceId: proxy.deviceId,
+            deviceName: device.name,
+            active: isActive,
+            portalStatus: device.proxy_status,
+          },
+          'Queued proxy field sync from portal'
+        );
 
-          logger.debug(
-            {
-              deviceId: proxy.deviceId,
-              deviceName: device.name,
-              active: isActive,
-              portalStatus: device.proxy_status,
-            },
-            'Synced proxy fields from portal'
-          );
-        })
-      );
+        updateQueries.push(prismaRaw.proxy.update({
+          where: { deviceId: proxy.deviceId },
+          data: {
+            deviceApiId: device.id || null,
+            name: device.name,
+            model: device.model || null,
+            location: device.state || device.city || null,
+            host: device.relay_server_ip_address,
+            port: device.port,
+            username: device.username,
+            password: device.password ? await encrypt(device.password) : null,
+            active: isActive,
+            ipAddress: device.ip_address || null,
+            wsStatus: device.ws_status || null,
+            proxyStatus: device.proxy_status || null,
+            country: device.country || null,
+            state: device.state || null,
+            city: device.city || null,
+            street: device.street || null,
+            longitude: device.longitude || null,
+            latitude: device.latitude || null,
+            relayServerId: device.relay_server_id || null,
+            relayServerIpAddress: device.relay_server_ip_address || null,
+            downloadNetSpeed: device.download_net_speed || null,
+            uploadNetSpeed: device.upload_net_speed || null,
+            lastIpRotation: device.last_ip_rotation || null,
+            extra: device.extra || null,
+            version: extractAppVersion(device.extra),
+          },
+        }));
+      }
+
+      if (updateQueries.length > 0) {
+        await prisma.$transaction(updateQueries, { maxWait: 20_000, timeout: 120_000 });
+      }
     }
   } catch (error) {
     logger.error(
@@ -993,7 +1039,7 @@ async function refreshDeviceTesters(): Promise<void> {
             port: device.port,
             protocol: 'http',
             username: device.username,
-            password: device.password || null,
+            password: device.password ? await encrypt(device.password) : null,
             active: portalActive, // Set based on portal status (can be false for inactive)
             ipAddress: device.ip_address || null,
             wsStatus: device.ws_status || null,

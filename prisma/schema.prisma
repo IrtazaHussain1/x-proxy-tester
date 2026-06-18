@@ -142,15 +142,9 @@ model ProxyRequest {
   proxy Proxy @relation(fields: [proxyId], references: [deviceId], onDelete: Cascade)
 
   @@index([proxyId, timestamp])
-  @@index([timestamp, proxyId])
+  @@index([proxyId, timestamp, source], map: "idx_proxy_requests_proxy_timestamp_source")
   @@index([timestamp])
-  @@index([status])
   @@index([outboundIp])
-  @@index([expectedIp])
-  @@index([ipChanged])
-  @@index([source])
-  @@index([createdAt])
-  @@index([updatedAt])
   @@map("proxy_requests")
 }
 
@@ -179,6 +173,72 @@ model SpeedTest {
   @@map("speed_tests")
 }
 
+/// Pre-aggregated daily summary of proxy_requests, one row per proxy per day.
+/// Raw proxy_requests are deleted after 30 days; this table is kept forever.
+/// Populated nightly at 1 AM by the daily-aggregation service.
+model ProxyRequestsDailySummary {
+  day                  DateTime @db.Date
+  proxyId              String   @map("proxy_id") @db.VarChar(255)
+  deviceName           String?  @map("device_name") @db.VarChar(255)
+  serverName           String?  @map("server_name") @db.VarChar(32)
+  location             String?  @db.VarChar(255)
+  relayServerId        String?  @map("relay_server_id") @db.VarChar(255)
+  relayServerIp        String?  @map("relay_server_ip") @db.VarChar(45)
+
+  totalRequests        Int      @default(0) @map("total_requests")
+  successCount         Int      @default(0) @map("success_count")
+  failureCount         Int      @default(0) @map("failure_count")
+  successRatePct       Decimal? @map("success_rate_pct") @db.Decimal(5, 2)
+
+  avgResponseTimeMs    Decimal? @map("avg_response_time_ms") @db.Decimal(10, 2)
+  minResponseTimeMs    Int?     @map("min_response_time_ms")
+  maxResponseTimeMs    Int?     @map("max_response_time_ms")
+  p50ResponseTimeMs    Int?     @map("p50_response_time_ms")
+  p95ResponseTimeMs    Int?     @map("p95_response_time_ms")
+  p99ResponseTimeMs    Int?     @map("p99_response_time_ms")
+
+  timeoutCount         Int      @default(0) @map("timeout_count")
+  connectionErrorCount Int      @default(0) @map("connection_error_count")
+  httpErrorCount       Int      @default(0) @map("http_error_count")
+  dnsErrorCount        Int      @default(0) @map("dns_error_count")
+
+  rotationCount        Int      @default(0) @map("rotation_count")
+  ipRotationPeriodicSuccessCount Int      @default(0) @map("ip_rotation_periodic_success_count")
+  ipRotationPeriodicFailureCount Int      @default(0) @map("ip_rotation_periodic_failure_count")
+  ipRotationInactiveProxySuccessCount Int  @default(0) @map("ip_rotation_inactive_proxy_success_count")
+  ipRotationInactiveProxyFailureCount Int  @default(0) @map("ip_rotation_inactive_proxy_failure_count")
+  ipRotationContinuousSuccessCount Int     @default(0) @map("ip_rotation_continuous_success_count")
+  ipRotationContinuousFailureCount Int     @default(0) @map("ip_rotation_continuous_failure_count")
+
+  avgDownloadSpeedMbps Decimal? @map("avg_download_speed_mbps") @db.Decimal(10, 4)
+  avgUploadSpeedMbps   Decimal? @map("avg_upload_speed_mbps") @db.Decimal(10, 4)
+  maxDownloadSpeedMbps Decimal? @map("max_download_speed_mbps") @db.Decimal(10, 4)
+  maxUploadSpeedMbps   Decimal? @map("max_upload_speed_mbps") @db.Decimal(10, 4)
+  minDownloadSpeedMbps Decimal? @map("min_download_speed_mbps") @db.Decimal(10, 4)
+  minUploadSpeedMbps   Decimal? @map("min_upload_speed_mbps") @db.Decimal(10, 4)
+
+  uniqueIpsCount       Int      @default(0) @map("unique_ips_count")
+  ipDiversityScore     Decimal? @map("ip_diversity_score") @db.Decimal(5, 2)
+  ipHistoryJson        Json?    @map("ip_history_json")
+  ipChangeCount        Int      @default(0) @map("ip_change_count")
+  firstIp              String?  @map("first_ip") @db.VarChar(45)
+  lastIp               String?  @map("last_ip") @db.VarChar(45)
+  mostUsedIp           String?  @map("most_used_ip") @db.VarChar(45)
+  mostUsedIpCount      Int      @default(0) @map("most_used_ip_count")
+
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@id([day, proxyId])
+  @@index([day])
+  @@index([proxyId, day])
+  @@index([location])
+  @@index([serverName])
+  @@index([relayServerId])
+  @@index([day, relayServerId])
+  @@map("proxy_requests_daily_summary")
+}
+
 /// One row per duplicate shared IP for one capture instant (group by captured_at + proxy_status_scope = one snapshot).
 model DuplicateIpSnapshotRow {
   id               BigInt   @id @default(autoincrement())
@@ -195,6 +255,40 @@ model DuplicateIpSnapshotRow {
   @@index([capturedAt, proxyStatusScope])
   @@index([lastIp, capturedAt])
   @@map("duplicate_ip_snapshot_rows")
+}
+
+/// Pre-aggregated 5-minute buckets for proxy_requests.
+/// Populated every 5 minutes by the app-side aggregation service.
+/// Retention: 2 days (rolling purge). Used by Grafana live dashboards,
+/// the stability calculator, and the analytics problems API.
+model ProxyRequests5MinSummary {
+  windowStart          DateTime @db.DateTime(0) @map("window_start")
+  proxyId              String   @db.VarChar(255) @map("proxy_id")
+
+  totalRequests        Int      @default(0) @map("total_requests")
+  successCount         Int      @default(0) @map("success_count")
+  failureCount         Int      @default(0) @map("failure_count")
+  timeoutCount         Int      @default(0) @map("timeout_count")
+  connectionErrorCount Int      @default(0) @map("connection_error_count")
+  httpErrorCount       Int      @default(0) @map("http_error_count")
+  dnsErrorCount        Int      @default(0) @map("dns_error_count")
+  ipChangeCount        Int      @default(0) @map("ip_change_count")
+  /// Requests with response_time_ms > 2000
+  slowRequestCount     Int      @default(0) @map("slow_request_count")
+
+  successRatePct       Decimal? @db.Decimal(5, 2) @map("success_rate_pct")
+  avgResponseTimeMs    Decimal? @db.Decimal(10, 2) @map("avg_response_time_ms")
+  minResponseTimeMs    Int?     @map("min_response_time_ms")
+  maxResponseTimeMs    Int?     @map("max_response_time_ms")
+  lastOutboundIp       String?  @db.VarChar(45) @map("last_outbound_ip")
+
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@id([windowStart, proxyId])
+  @@index([proxyId, windowStart])
+  @@index([windowStart])
+  @@map("proxy_requests_5min_summary")
 }
 
 /// Normalized server labels for one capture (same captured_at / scope as sibling rows).

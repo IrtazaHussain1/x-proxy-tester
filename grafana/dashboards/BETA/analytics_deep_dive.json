@@ -1,0 +1,1833 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [
+    {
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Proxy Analytics (main)",
+      "tooltip": "Lean operational dashboard",
+      "type": "link",
+      "url": "/d/proxy-analytics-v1"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 500,
+      "title": "Deep dive — heavy queries; prefer shorter time ranges (e.g. 1–3h)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(ROUND(AVG(phone_day_unique_ips), 1), 0) as value FROM (SELECT CAST(r.timestamp AS DATE) as day, r.proxy_id, COUNT(DISTINCT r.outbound_ip) as phone_day_unique_ips FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.outbound_ip IS NOT NULL AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY CAST(r.timestamp AS DATE), r.proxy_id) daily",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Avg Unique IPs / Phone / Timerange",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT\n  $__timeGroupAlias(r.timestamp, '1m'),\n  COUNT(DISTINCT r.outbound_ip) as unique_ips,\n  COUNT(DISTINCT r.proxy_id) as active_phones\nFROM proxy_requests r\nJOIN proxies p ON r.proxy_id = p.device_id\nWHERE $__timeFilter(r.timestamp)\n  AND r.outbound_ip IS NOT NULL\n  AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}'\nGROUP BY 1\nORDER BY 1",
+          "refId": "A",
+          "interval": "5m"
+        }
+      ],
+      "title": "Unique IPs & Active Phones — Trend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uptime_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 80
+                    },
+                    {
+                      "color": "green",
+                      "value": 95
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_response_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_requests"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END as server, CONCAT(p.name, ' [', p.device_id, ']') as phone, p.location, COUNT(*) as total_requests, COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) as successful, COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) as failed, ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as uptime_pct, COUNT(DISTINCT DATE(r.timestamp)) as active_days, ROUND(AVG(r.response_time_ms), 0) as avg_response_ms FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY server, p.device_id, p.name, p.location ORDER BY server, uptime_pct DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Phone Uptime per Server",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_response_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_download_mbps"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbits/s"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_upload_mbps"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbits/s"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT CONCAT(p.name, ' [', p.device_id, ']') as phone, p.location, CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END as server, COUNT(*) as total_requests, ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as success_rate_pct, COUNT(CASE WHEN r.status != 'SUCCESS' THEN 1 END) as failed_requests, ROUND(AVG(r.response_time_ms), 0) as avg_response_ms, COUNT(DISTINCT r.outbound_ip) as unique_ips, ROUND(AVG(CASE WHEN r.download_speed_mbps > 0 THEN r.download_speed_mbps END), 2) as avg_download_mbps, ROUND(AVG(CASE WHEN r.upload_speed_mbps > 0 THEN r.upload_speed_mbps END), 2) as avg_upload_mbps, SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) as ip_rotations_detected FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY p.device_id, p.name, p.location, server ORDER BY total_requests DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Traffic Stats per Phone",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 0.01
+              },
+              {
+                "color": "green",
+                "value": 0.1
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 33
+      },
+      "id": 9,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "text": {},
+        "valueMode": "color"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT p.name as phone, ROUND(COUNT(DISTINCT r.outbound_ip) * 100.0 / NULLIF(COUNT(*), 0), 4) as diversity_score_pct FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.outbound_ip IS NOT NULL AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY p.device_id, p.name ORDER BY diversity_score_pct DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "IP Diversity Score per Phone (unique IPs / total requests %)",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "success_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_response_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_requests"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "hour_of_day"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 33
+      },
+      "id": 10,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT HOUR(r.timestamp) as hour_of_day, COUNT(*) as total_requests, ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as success_rate_pct, ROUND(AVG(r.response_time_ms), 0) as avg_response_ms, COUNT(DISTINCT r.proxy_id) as active_phones, COUNT(DISTINCT r.outbound_ip) as unique_ips FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY HOUR(r.timestamp) ORDER BY hour_of_day",
+          "refId": "A"
+        }
+      ],
+      "title": "Peak Hour Analysis (by Hour of Day)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "phones_sharing"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 2
+                    },
+                    {
+                      "color": "red",
+                      "value": 3
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT r.outbound_ip, COUNT(DISTINCT r.proxy_id) as phones_sharing, COUNT(*) as total_occurrences, GROUP_CONCAT(DISTINCT p.name ORDER BY p.name SEPARATOR ', ') as phones, MIN(r.timestamp) as first_seen, MAX(r.timestamp) as last_seen FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.outbound_ip IS NOT NULL AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY r.outbound_ip HAVING COUNT(DISTINCT r.proxy_id) > 1 ORDER BY phones_sharing DESC, total_occurrences DESC LIMIT 25",
+          "refId": "A"
+        }
+      ],
+      "title": "IPs Shared by Multiple Phones",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uptime_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 80
+                    },
+                    {
+                      "color": "green",
+                      "value": 95
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_response_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ip_diversity_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT CONCAT(p.name, ' [', p.device_id, ']') as phone, CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END as server, ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as uptime_pct, COUNT(DISTINCT r.outbound_ip) as unique_ips, ROUND(COUNT(DISTINCT r.outbound_ip) * 100.0 / NULLIF(COUNT(*), 0), 4) as ip_diversity_pct, ROUND(AVG(r.response_time_ms), 0) as avg_response_ms, SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) as rotations_detected, p.stability_status, p.rotation_status FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY p.device_id, p.name, server, p.stability_status, p.rotation_status ORDER BY uptime_pct DESC, unique_ips DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Phone Reliability Ranking",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uptime_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_ips"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": 0
+                    },
+                    {
+                      "color": "green",
+                      "value": 10
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "id": 13,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT DATE_FORMAT(r.timestamp, '%Y-%m') as month, CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END as server, COUNT(DISTINCT r.outbound_ip) as unique_ips, COUNT(DISTINCT r.proxy_id) as active_phones, COUNT(*) as total_requests, ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as uptime_pct FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.outbound_ip IS NOT NULL AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY DATE_FORMAT(r.timestamp, '%Y-%m'), server ORDER BY month DESC, server LIMIT 200",
+          "refId": "A"
+        }
+      ],
+      "title": "Monthly Unique IPs per Server",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the average response-time level for requests in the selected period. It helps you evaluate overall speed health and identify when performance is drifting.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uptime_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unique_ips"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": 0
+                    },
+                    {
+                      "color": "green",
+                      "value": 5
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 59
+      },
+      "id": 14,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT CAST(r.timestamp AS DATE) as day, CONCAT(p.name, ' [', p.device_id, ']') as phone, CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END as server, COUNT(DISTINCT r.outbound_ip) as unique_ips, COUNT(*) as requests, ROUND(COUNT(CASE WHEN r.status = 'SUCCESS' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as uptime_pct, ROUND(AVG(r.response_time_ms), 0) as avg_response_ms FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND r.outbound_ip IS NOT NULL AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY CAST(r.timestamp AS DATE), p.device_id, p.name, server ORDER BY day DESC LIMIT 300",
+          "refId": "A"
+        }
+      ],
+      "title": "Unique IPs per Phone per Day",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failure_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 71
+      },
+      "id": 16,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT s.status, s.failed_requests, ROUND(s.failed_requests * 100.0 / NULLIF(t.total_failed, 0), 2) as failure_pct FROM (SELECT r.status, COUNT(*) as failed_requests FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' AND r.status != 'SUCCESS' AND r.status LIKE '${status:raw}' GROUP BY r.status) s CROSS JOIN (SELECT COUNT(*) as total_failed FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' AND r.status != 'SUCCESS' AND r.status LIKE '${status:raw}') t ORDER BY s.failed_requests DESC LIMIT 10",
+          "refId": "A"
+        }
+      ],
+      "title": "Failure Reasons Breakdown",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows rotation activity and outcomes for the selected scope and period. It helps distinguish healthy rotation execution from stalled or failing rotation behavior.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rotations_per_active_phone"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 71
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroupAlias(r.timestamp, '5m'), SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) as ip_rotations, ROUND(SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT r.proxy_id), 0), 2) as rotations_per_active_phone FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY 1 ORDER BY 1",
+          "refId": "A",
+          "interval": "5m"
+        }
+      ],
+      "title": "IP Rotation Velocity — Trend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows tail-latency performance for slower requests rather than the average case. Rising values indicate growing risk of user-visible slowness and degraded service quality.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 800
+              },
+              {
+                "color": "red",
+                "value": 2000
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p99_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 79
+      },
+      "id": 18,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH ranked AS (SELECT CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END as server, r.response_time_ms, ROW_NUMBER() OVER (PARTITION BY CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END ORDER BY r.response_time_ms) as rn, COUNT(*) OVER (PARTITION BY CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) as cnt FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' AND r.response_time_ms IS NOT NULL) SELECT server, MIN(cnt) as samples, MAX(CASE WHEN rn >= FLOOR(cnt * 0.95) THEN response_time_ms END) as p95_ms, MAX(CASE WHEN rn >= FLOOR(cnt * 0.99) THEN response_time_ms END) as p99_ms FROM ranked GROUP BY server ORDER BY p99_ms DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "P95/P99 Latency by Server",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows tail-latency performance for slower requests rather than the average case. Rising values indicate growing risk of user-visible slowness and degraded service quality.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 800
+              },
+              {
+                "color": "red",
+                "value": 2000
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p99_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 79
+      },
+      "id": 19,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH top_phones AS (SELECT r.proxy_id FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' GROUP BY r.proxy_id ORDER BY COUNT(*) DESC LIMIT 40), ranked AS (SELECT r.proxy_id, CONCAT(p.name, ' [', p.device_id, ']') as phone, r.response_time_ms, ROW_NUMBER() OVER (PARTITION BY r.proxy_id ORDER BY r.response_time_ms) as rn, COUNT(*) OVER (PARTITION BY r.proxy_id) as cnt FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id JOIN top_phones tp ON tp.proxy_id = r.proxy_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND r.response_time_ms IS NOT NULL) SELECT phone, MIN(cnt) as samples, MAX(CASE WHEN rn >= FLOOR(cnt * 0.95) THEN response_time_ms END) as p95_ms, MAX(CASE WHEN rn >= FLOOR(cnt * 0.99) THEN response_time_ms END) as p99_ms FROM ranked GROUP BY proxy_id, phone ORDER BY p99_ms DESC LIMIT 30",
+          "refId": "A"
+        }
+      ],
+      "title": "P95/P99 Latency by Phone",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the total number of proxy requests executed in the selected period, including both successful and failed attempts. It provides baseline workload context for interpreting changes in reliability and speed.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rotations_per_active_hour"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rotations_per_active_day"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 87
+      },
+      "id": 22,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "SELECT CONCAT(p.name, ' [', p.device_id, ']') as phone, COUNT(*) as total_requests, SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) as ip_rotations, COUNT(DISTINCT DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00')) as active_hours, COUNT(DISTINCT CAST(r.timestamp AS DATE)) as active_days, ROUND(SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT DATE_FORMAT(r.timestamp, '%Y-%m-%d %H:00:00')), 0), 2) as rotations_per_active_hour, ROUND(SUM(CASE WHEN r.ip_changed = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT CAST(r.timestamp AS DATE)), 0), 2) as rotations_per_active_day FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY p.device_id, p.name ORDER BY rotations_per_active_hour DESC, total_requests DESC LIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "IP Churn Velocity by Phone (Hour/Day)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "xproxy-tester-mysql"
+      },
+      "description": "This metric shows the highest observed value reached in any single period within the selected range. It helps quantify worst-case severity and set practical alert thresholds.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 15
+              },
+              {
+                "color": "red",
+                "value": 60
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_gap_minutes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 87
+      },
+      "id": 23,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
+          "format": "table",
+          "rawSql": "WITH gaps AS (SELECT r.proxy_id, TIMESTAMPDIFF(MINUTE, LAG(r.timestamp) OVER (PARTITION BY r.proxy_id ORDER BY r.timestamp), r.timestamp) as gap_min FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}') SELECT CONCAT(p.name, ' [', p.device_id, ']') as phone, COUNT(*) as total_requests, ROUND(COALESCE(MAX(g.gap_min), 0), 0) as max_gap_minutes FROM proxy_requests r JOIN proxies p ON r.proxy_id = p.device_id LEFT JOIN gaps g ON g.proxy_id = r.proxy_id WHERE $__timeFilter(r.timestamp) AND p.location IN ($location) AND CONCAT(p.name, ' [', p.device_id, ']') LIKE '${phone:raw}' AND (CASE WHEN UPPER(p.name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(p.name, '[0-9]+')) ELSE 'Unknown' END) LIKE '${server:raw}' GROUP BY p.device_id, p.name ORDER BY max_gap_minutes DESC, total_requests DESC LIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Phone Inactivity Gap Detector",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "5m",
+  "schemaVersion": 42,
+  "tags": [
+    "x-proxy-tester",
+    "analytics",
+    "beta",
+    "deep-dive"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
+        "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT CONCAT(name, ' [', device_id, ']') FROM proxies WHERE location IN ($location) ORDER BY 1",
+        "allValue": "%",
+        "includeAll": true,
+        "multi": false,
+        "name": "phone",
+        "options": [],
+        "query": "SELECT DISTINCT CONCAT(name, ' [', device_id, ']') FROM proxies WHERE location IN ($location) ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT CASE WHEN UPPER(name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(name, '[0-9]+')) ELSE 'Unknown' END as server FROM proxies WHERE location IN ($location) ORDER BY 1",
+        "allValue": "%",
+        "includeAll": true,
+        "multi": false,
+        "name": "server",
+        "options": [],
+        "query": "SELECT DISTINCT CASE WHEN UPPER(name) REGEXP '^S[0-9]+' THEN CONCAT('S', REGEXP_SUBSTR(name, '[0-9]+')) ELSE 'Unknown' END as server FROM proxies WHERE location IN ($location) ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
+        "definition": "SELECT DISTINCT status FROM proxy_requests ORDER BY 1",
+        "allValue": "%",
+        "includeAll": true,
+        "multi": false,
+        "name": "status",
+        "options": [],
+        "query": "SELECT DISTINCT status FROM proxy_requests ORDER BY 1",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Proxy Analytics — Deep Dive (BETA)",
+  "uid": "proxy-analytics-deep-dive-beta",
+  "version": 1,
+  "description": "This dashboard combines key reliability and behavior signals for deeper operational analysis. It helps convert monitoring data into prioritized action."
+}

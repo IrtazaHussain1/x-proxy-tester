@@ -7,26 +7,74 @@ import 'dotenv/config';
 import { startContinuousTesting, stopContinuousTesting } from './services/continuous-proxy-tester';
 import { startSpeedTestService, stopSpeedTestService } from './services/speed-test-service';
 import { stopIpRotationTesting } from './services/ip-rotation-testing';
-import { stopHourlySummaryService } from './services/hourly-summary';
-import { stopDailyAggregationService } from './services/daily-aggregation';
+import { startDailyAggregationService, stopDailyAggregationService, aggregateRecentDays } from './services/daily-aggregation';
+import { start5MinAggregationService, stop5MinAggregationService } from './services/5min-aggregation';
+import { startPeriodicArchival, stopPeriodicArchival } from './services/archival';
 import { batchWriter } from './lib/batch-writer';
 import { logger } from './lib/logger';
 import { config } from './config';
 import { startServer } from './server';
 import { initGrafanaViews } from './lib/init-grafana-views';
-import { initDatabaseSchema } from './lib/init-db';
-import { initPerformanceOptimizations } from './lib/init-performance-optimizations';
+import { initDatabaseSchema, ensurePartitioningSetup } from './lib/init-db';
 import { waitForDatabase } from './lib/db';
 import { stopPeriodicIpRotation, cleanupWorkers, startPeriodicIpRotation } from './services/ip-rotation';
 import { startDuplicateIpSnapshotService, stopDuplicateIpSnapshotService } from './services/duplicate-ip-snapshot';
+import { registerTimeoutJob, stopAllScheduledJobs } from './services/cron.service';
+
+type DbSchemaSyncMode = 'push' | 'off';
+
+function getDbSchemaSyncMode(): DbSchemaSyncMode {
+  const raw = (process.env.DB_SCHEMA_SYNC_MODE ?? 'push').trim().toLowerCase();
+  return raw === 'off' ? 'off' : 'push';
+}
+
+/**
+ * Performs a graceful shutdown in the correct order:
+ * 1. Stop all schedulers/loops (no new work enqueued)
+ * 2. Flush batchWriter
+ *
+ * A 30-second hard deadline forces process.exit(1) if any step hangs.
+ */
+async function gracefulShutdown(reason: string): Promise<void> {
+  logger.info({ reason }, 'Graceful shutdown initiated');
+
+  const forceExitTimer = setTimeout(() => {
+    logger.error('Graceful shutdown exceeded 30s deadline, forcing exit');
+    process.exit(1);
+  }, 30_000);
+  forceExitTimer.unref();
+
+  try {
+    // Stop schedulers first — no new jobs enqueued after this point
+    stopPeriodicIpRotation();
+    cleanupWorkers();
+    stopContinuousTesting();
+    stopSpeedTestService();
+    stopDailyAggregationService();
+    stop5MinAggregationService();
+    stopPeriodicArchival();
+    stopDuplicateIpSnapshotService();
+    stopAllScheduledJobs();
+
+    await stopIpRotationTesting();
+    await batchWriter.forceFlush();
+
+    clearTimeout(forceExitTimer);
+    logger.info({ reason }, 'Graceful shutdown complete');
+    process.exit(0);
+  } catch (err) {
+    logger.error({ err, reason }, 'Error during graceful shutdown');
+    process.exit(1);
+  }
+}
 
 /**
  * Main application entry point
- * 
+ *
  * Starts continuous proxy testing with runtime management:
  * - If RUN_MODE="fixed": Runs for at least MIN_RUN_HOURS, then stops
  * - If RUN_MODE="infinite": Runs indefinitely until manually stopped (SIGINT/SIGTERM)
- * 
+ *
  * In infinite mode, shutdown is allowed immediately.
  * In fixed mode, shutdown is blocked until minimum hours have passed.
  */
@@ -60,19 +108,7 @@ async function main(): Promise<void> {
     if (config.runtime.runMode === 'infinite') {
       // Infinite mode: allow immediate shutdown
       logger.info(`Received ${signal}, shutting down gracefully...`);
-      stopPeriodicIpRotation();
-      cleanupWorkers();
-      stopContinuousTesting();
-      stopSpeedTestService();
-      stopHourlySummaryService();
-      stopDailyAggregationService();
-      stopDuplicateIpSnapshotService();
-      // Flush any pending batch writes before shutdown
-      void batchWriter.forceFlush().then(() => {
-        void stopIpRotationTesting().then(() => {
-          process.exit(0);
-        });
-      });
+      void gracefulShutdown(`${signal}-infinite`);
     } else {
       // Fixed mode: check if minimum runtime met
       if (hasMetMinimumRuntime()) {
@@ -84,19 +120,7 @@ async function main(): Promise<void> {
           },
           `Received ${signal}, minimum runtime met, shutting down gracefully...`
         );
-        stopPeriodicIpRotation();
-        cleanupWorkers();
-        stopContinuousTesting();
-        stopSpeedTestService();
-        stopHourlySummaryService();
-        stopDailyAggregationService();
-        stopDuplicateIpSnapshotService();
-        // Flush any pending batch writes before shutdown
-        void batchWriter.forceFlush().then(() => {
-          void stopIpRotationTesting().then(() => {
-            process.exit(0);
-          });
-        });
+        void gracefulShutdown(`${signal}-fixed`);
       } else {
         const remainingHours = (getRemainingTimeMs() / (60 * 60 * 1000)).toFixed(2);
         logger.warn(
@@ -137,14 +161,22 @@ async function main(): Promise<void> {
       logger.info('Database connection established successfully');
     }
 
-    // Initialize database schema (create tables if they don't exist)
-    await initDatabaseSchema();
+    // Initialize database schema (create tables/columns if sync mode allows).
+    const dbSchemaSyncMode = getDbSchemaSyncMode();
+    if (dbSchemaSyncMode === 'push') {
+      await initDatabaseSchema();
+    } else {
+      logger.info(
+        { dbSchemaSyncMode },
+        'Database schema sync is disabled (DB_SCHEMA_SYNC_MODE=off)'
+      );
+    }
 
-    // Initialize performance optimizations (indexes, summary tables)
-    await initPerformanceOptimizations();
-
-    // Initialize Grafana views (after database schema is ready)
+    // Initialize Grafana SQL runtime artifacts (indexes)
     await initGrafanaViews();
+
+    // Ensure partitioning + monthly partition EVENT are configured on every startup.
+    await ensurePartitioningSetup();
 
     // Start continuous testing
     await startContinuousTesting();
@@ -200,26 +232,48 @@ async function main(): Promise<void> {
     //   logger.info('IP rotation testing service is disabled');
     // }
 
-    // TEMP: disable aggregation/archival to avoid errors when summary tables are missing
-    // startHourlySummaryService();
-    // logger.info('Hourly summary service started');
+    // Start daily aggregation service (aggregates previous day's data at scheduled time)
+    const enableDailyAggregationOnStart = process.env.ENABLE_DAILY_AGGREGATION_ON_START !== 'false';
+    if (enableDailyAggregationOnStart) {
+      startDailyAggregationService();
+      logger.info('Daily aggregation service started');
+    } else {
+      logger.info('Daily aggregation service startup disabled (ENABLE_DAILY_AGGREGATION_ON_START=false)');
+    }
 
-    // startDailyAggregationService();
-    // logger.info('Daily aggregation service started');
+    // Start 5-minute pre-aggregation service (feeds Grafana live dashboards,
+    // stability calculator, and analytics problems API from a lightweight summary table)
+    start5MinAggregationService();
 
-    // const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
-    // const archivalIntervalMs = parseInt(process.env.ARCHIVAL_INTERVAL_MS || String(12 * 60 * 60 * 1000), 10);
-    // const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || '14', 10);
-    // if (archivalEnabled) {
-    //   startPeriodicArchival(archivalIntervalMs, retentionDays);
-    //   logger.info(
-    //     {
-    //       retentionDays,
-    //       intervalHours: archivalIntervalMs / (60 * 60 * 1000),
-    //     },
-    //     'Periodic data archival enabled'
-    //   );
-    // }
+    // Optional startup backfill. Disabled by default to avoid adding heavy read/write load
+    // while continuous testing and rotation services are warming up.
+    // Default to 2 days so any day skipped by a previous run (e.g. DB pressure at 01:00)
+    // is automatically recovered on the next restart before the partition drops it.
+    const startupBackfillDays = parseInt(process.env.STARTUP_DAILY_BACKFILL_DAYS || '2', 10);
+    if (startupBackfillDays > 0) {
+      registerTimeoutJob('startup-daily-backfill', 60_000, async () => {
+        void aggregateRecentDays(startupBackfillDays, { skipAlreadyAggregatedDays: true }).catch((err) => {
+          logger.error({ error: err instanceof Error ? err.message : 'Unknown error' }, 'Startup backfill of daily summaries failed');
+        });
+      });
+    } else {
+      logger.info('Startup daily backfill disabled (STARTUP_DAILY_BACKFILL_DAYS=0)');
+    }
+
+    // Start periodic archival: aggregate then delete raw data older than retention period
+    const archivalEnabled = process.env.ENABLE_ARCHIVAL !== 'false';
+    const archivalIntervalMs = parseInt(process.env.ARCHIVAL_INTERVAL_MS || String(12 * 60 * 60 * 1000), 10);
+    const retentionDays = parseInt(process.env.DATA_RETENTION_DAYS || '30', 10);
+    if (archivalEnabled) {
+      startPeriodicArchival(archivalIntervalMs, retentionDays);
+      logger.info(
+        {
+          retentionDays,
+          intervalHours: archivalIntervalMs / (60 * 60 * 1000),
+        },
+        'Periodic data archival enabled'
+      );
+    }
 
     // Set up signal handlers
     process.on('SIGINT', () => handleShutdownRequest('SIGINT'));
@@ -246,19 +300,7 @@ async function main(): Promise<void> {
             },
             'Minimum runtime met, shutting down...'
           );
-          stopPeriodicIpRotation();
-          cleanupWorkers();
-          stopContinuousTesting();
-          stopSpeedTestService();
-          stopHourlySummaryService();
-          stopDailyAggregationService();
-          stopDuplicateIpSnapshotService();
-          // Flush any pending batch writes before shutdown
-          void batchWriter.forceFlush().then(() => {
-            void stopIpRotationTesting().then(() => {
-              process.exit(0);
-            });
-          });
+          void gracefulShutdown('fixed-runtime-expired');
         } else {
           const remainingHours = (getRemainingTimeMs() / (60 * 60 * 1000)).toFixed(2);
           logger.debug(

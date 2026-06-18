@@ -69,15 +69,14 @@ export async function encrypt(plaintext: string): Promise<string> {
 
     const tag = cipher.getAuthTag();
 
-    // Format: salt:iv:tag:encrypted (all base64 encoded)
-    const result = [
+    // Format: enc:salt:iv:tag:encrypted (all base64 encoded)
+    // The "enc:" prefix makes isEncrypted() reliable against IPv6/URL false positives.
+    return 'enc:' + [
       salt.toString('base64'),
       iv.toString('base64'),
       tag.toString('base64'),
       encrypted.toString('base64'),
     ].join(':');
-
-    return result;
   } catch (error) {
     logger.error({ error }, 'Encryption failed');
     throw new Error('Failed to encrypt value');
@@ -98,7 +97,10 @@ export async function decrypt(ciphertext: string): Promise<string> {
 
   try {
     const key = await getEncryptionKey();
-    const parts = ciphertext.split(':');
+    // Strip "enc:" prefix if present (new format); fall back to raw string for
+    // old ciphertexts written before the prefix was introduced.
+    const raw = ciphertext.startsWith('enc:') ? ciphertext.slice(4) : ciphertext;
+    const parts = raw.split(':');
 
     if (parts.length !== 4) {
       throw new Error('Invalid encrypted format');
@@ -132,9 +134,7 @@ export async function decrypt(ciphertext: string): Promise<string> {
  * Check if a value is encrypted
  */
 export function isEncrypted(value: string): boolean {
-  if (!value) return false;
-  const parts = value.split(':');
-  return parts.length === 4;
+  return typeof value === 'string' && value.startsWith('enc:');
 }
 
 /**

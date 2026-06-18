@@ -10,7 +10,8 @@ import type { XProxyPhone, XProxyApiResponse } from '../types';
  * Uses token manager for authentication with automatic token refresh
  */
 function createXProxyClient(): AxiosInstance {
-  const baseURL = process.env.XPROXY_API_URL || 'https://jmui.vercel.app';
+  const rawBaseUrl = process.env.XPROXY_API_URL || 'https://jmui.vercel.app';
+  const baseURL = rawBaseUrl.endsWith('/') ? rawBaseUrl : `${rawBaseUrl}/`;
   const timeout = parseInt(process.env.XPROXY_API_TIMEOUT_MS || '30000', 10);
 
   const client = axios.create({

@@ -8,6 +8,8 @@
 import { createHash } from 'crypto';
 import { logger } from '../lib/logger';
 import { prisma } from '../lib/db';
+import { hasDatabaseCapacityForBackgroundJobs } from '../lib/db';
+import { registerIntervalJob, stopScheduledJob } from './cron.service';
 
 /** Whitelisted Grafana ${proxy_status} values only — never interpolate untrusted input. */
 export type ProxyStatusScope = 'active' | 'all';
@@ -22,8 +24,7 @@ export interface DuplicateIpSnapshotQueryRow {
   device_ids: string | null;
 }
 
-let snapshotInterval: NodeJS.Timeout | null = null;
-let retentionInterval: NodeJS.Timeout | null = null;
+let isRunning = false;
 
 /**
  * Builds the panel SQL with a fixed proxy_status scope (safe: only active|all).
@@ -57,8 +58,8 @@ JOIN (
     last_ip,
     COUNT(*) AS phones_on_same_ip,
     GROUP_CONCAT(
-      DISTINCT CASE WHEN UPPER(name) REGEXP '^S[0-9]+' THEN CONCAT('S', SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(name), 'P', 1), 'S', -1)) ELSE 'Unknown' END
-      ORDER BY CASE WHEN UPPER(name) REGEXP '^S[0-9]+' THEN CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(UPPER(name), 'P', 1), 'S', -1) AS UNSIGNED) ELSE 999999 END
+      DISTINCT CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}') ELSE 'Unknown' END
+      ORDER BY CASE WHEN UPPER(TRIM(name)) REGEXP '^S[0-9]{1,3}(P[0-9]+|[[:space:]_-]+P[0-9]+)' THEN CAST(REGEXP_SUBSTR(REGEXP_SUBSTR(UPPER(TRIM(name)), '^S[0-9]{1,3}'), '[0-9]+') AS UNSIGNED) ELSE 999999 END
       SEPARATOR ', '
     ) AS all_servers_on_ip,
     GROUP_CONCAT(name ORDER BY name SEPARATOR ' | ') AS sibling_phones
@@ -287,6 +288,12 @@ export async function runDuplicateIpSnapshots(options?: {
   runRetentionPrune?: boolean;
   retentionDays?: number;
 }): Promise<void> {
+  const hasCapacity = await hasDatabaseCapacityForBackgroundJobs();
+  if (!hasCapacity) {
+    logger.warn('Skipping duplicate IP snapshot tick due to database pool pressure');
+    return;
+  }
+
   const capturedAt = options?.capturedAt ?? floorToFiveMinuteUtc(new Date());
   const scopes: ProxyStatusScope[] = ['active', 'all'];
 
@@ -342,9 +349,10 @@ export async function pruneDuplicateIpSnapshotsOlderThanDays(retentionDays: numb
  * Starts periodic snapshots and retention (retention runs daily on a separate timer).
  */
 export function startDuplicateIpSnapshotService(intervalMs: number, retentionDays: number): void {
-  if (snapshotInterval) {
+  if (isRunning) {
     return;
   }
+  isRunning = true;
 
   const tick = (): void => {
     void runDuplicateIpSnapshots({ retentionDays, runRetentionPrune: false }).catch((e) => {
@@ -355,18 +363,15 @@ export function startDuplicateIpSnapshotService(intervalMs: number, retentionDay
     });
   };
 
-  tick();
-  snapshotInterval = setInterval(tick, intervalMs);
+  registerIntervalJob('duplicate-ip-snapshot-tick', intervalMs, tick, { runImmediately: true });
 
   const dayMs = 24 * 60 * 60 * 1000;
-  retentionInterval = setInterval(() => {
-    void (async () => {
-      const deleted = await pruneDuplicateIpSnapshotsOlderThanDays(retentionDays);
-      if (deleted > 0) {
-        logger.info({ deleted, retentionDays }, 'Duplicate IP snapshot daily retention prune');
-      }
-    })();
-  }, dayMs);
+  registerIntervalJob('duplicate-ip-snapshot-retention', dayMs, async () => {
+    const deleted = await pruneDuplicateIpSnapshotsOlderThanDays(retentionDays);
+    if (deleted > 0) {
+      logger.info({ deleted, retentionDays }, 'Duplicate IP snapshot daily retention prune');
+    }
+  });
 
   logger.info({ intervalMs, retentionDays }, 'Duplicate IP snapshot service started');
 }
@@ -375,13 +380,8 @@ export function startDuplicateIpSnapshotService(intervalMs: number, retentionDay
  * Stops periodic snapshots and retention timers.
  */
 export function stopDuplicateIpSnapshotService(): void {
-  if (snapshotInterval) {
-    clearInterval(snapshotInterval);
-    snapshotInterval = null;
-  }
-  if (retentionInterval) {
-    clearInterval(retentionInterval);
-    retentionInterval = null;
-  }
+  stopScheduledJob('duplicate-ip-snapshot-tick');
+  stopScheduledJob('duplicate-ip-snapshot-retention');
+  isRunning = false;
   logger.info('Duplicate IP snapshot service stopped');
 }

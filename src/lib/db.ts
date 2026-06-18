@@ -1,14 +1,28 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from './logger';
 import { recordDatabaseError, recordDatabaseQuery } from './metrics';
-import { getOptimizedDatabaseUrl } from './db-pool-config';
+import { getDatabaseUrlWithConnectionLimit } from './db-pool-config';
 
 /**
  * Retry configuration
  */
 const MAX_RETRIES = 5;
-const INITIAL_RETRY_DELAY_MS = 1000; // 1 second
-const MAX_RETRY_DELAY_MS = 30000; // 30 seconds
+const INITIAL_RETRY_DELAY_MS = Math.max(
+  100,
+  parseInt(process.env.DB_RETRY_INITIAL_DELAY_MS ?? '1000', 10) || 1000
+);
+const MAX_RETRY_DELAY_MS = Math.max(
+  INITIAL_RETRY_DELAY_MS,
+  parseInt(process.env.DB_RETRY_MAX_DELAY_MS ?? '30000', 10) || 30000
+);
+const LOCK_RETRY_DELAY_MIN_MS = Math.max(
+  50,
+  parseInt(process.env.DB_RETRY_LOCK_DELAY_MIN_MS ?? '500', 10) || 500
+);
+const LOCK_RETRY_DELAY_MAX_MS = Math.max(
+  LOCK_RETRY_DELAY_MIN_MS,
+  parseInt(process.env.DB_RETRY_LOCK_DELAY_MAX_MS ?? '900', 10) || 900
+);
 
 /**
  * Calculate exponential backoff delay
@@ -26,9 +40,52 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Retry function with exponential backoff
+ * Extracts a best-effort string error code from nested Prisma/MySQL error payloads.
  */
-async function retryWithBackoff<T>(
+function extractErrorCode(error: any): string {
+  const candidates = [
+    error?.code,
+    error?.errno,
+    error?.originalError?.code,
+    error?.originalError?.errno,
+    error?.cause?.code,
+    error?.cause?.errno,
+    error?.meta?.code,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate !== undefined && candidate !== null) {
+      return String(candidate);
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Returns true for known transient row-lock errors.
+ */
+function isTransientLockError(error: any): boolean {
+  const code = extractErrorCode(error);
+  const message = typeof error?.message === 'string' ? error.message : '';
+
+  // MySQL 1205: lock wait timeout, 1213: deadlock found
+  if (code === '1205' || code === '1213') {
+    return true;
+  }
+
+  return (
+    message.includes('Lock wait timeout') ||
+    message.includes('Deadlock found') ||
+    /MysqlError\s*\{\s*code:\s*1205/.test(message) ||
+    /MysqlError\s*\{\s*code:\s*1213/.test(message)
+  );
+}
+
+/**
+ * Retry function with exponential backoff (used by write path, health checks, and aggregation).
+ */
+export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   operation: string,
   maxRetries: number = MAX_RETRIES
@@ -52,14 +109,34 @@ async function retryWithBackoff<T>(
         throw error;
       }
 
+      if (isTransientLockError(error) && attempt < maxRetries) {
+        // Jitter avoids many workers retrying in lockstep and re-contending the same rows.
+        const delayRange = LOCK_RETRY_DELAY_MAX_MS - LOCK_RETRY_DELAY_MIN_MS;
+        const delay = LOCK_RETRY_DELAY_MIN_MS + Math.floor(Math.random() * (delayRange + 1));
+        logger.debug(
+          { operation, attempt: attempt + 1, maxRetries, delay },
+          'Lock wait timeout, retrying'
+        );
+        await sleep(delay);
+        continue;
+      }
+
+      // Prisma: pool saturated or engine busy — same remediation as pool exhaustion
+      const isTransactionStartTimeout =
+        typeof error?.message === 'string' &&
+        error.message.includes('Unable to start a transaction in the given time');
+
       // Check for connection pool exhaustion
-      const isConnectionPoolError = 
+      const isConnectionPoolError =
+        isTransactionStartTimeout ||
         error?.message?.includes('connection pool') ||
         error?.message?.includes('Timed out fetching a new connection');
-      
+
       if (isConnectionPoolError && attempt < maxRetries) {
-        // For connection pool errors, use longer delays to allow pool to recover
-        const delay = Math.min(calculateBackoffDelay(attempt) * 2, 60000); // Max 60 seconds
+        // Jitter prevents all waiting operations from retrying at exactly the same moment
+        // (thundering herd), which would immediately re-exhaust the pool.
+        const base = Math.min(calculateBackoffDelay(attempt) * 2, 30000);
+        const delay = base + Math.floor(Math.random() * base * 0.5);
         logger.warn(
           {
             operation,
@@ -106,7 +183,7 @@ async function retryWithBackoff<T>(
 /**
  * Create Prisma client with connection pool configuration
  * Connection pool is configured via DATABASE_URL query parameters:
- * - connection_limit: Maximum number of connections (default: 50, optimized for high concurrency)
+ * - connection_limit: Maximum number of connections (default: 100, optimized for high concurrency)
  * - pool_timeout: Connection timeout in seconds (default: 20)
  * - connect_timeout: Time to establish connection in seconds (default: 10)
  * 
@@ -115,26 +192,69 @@ async function retryWithBackoff<T>(
  * 
  * Example: mysql://user:pass@host:port/db?connection_limit=50&pool_timeout=20&connect_timeout=10
  */
-const prisma = new PrismaClient({
-  log: [
-    { level: 'error', emit: 'event' },
-    { level: 'warn', emit: 'event' },
-  ],
-  datasources: {
-    db: {
-      url: getOptimizedDatabaseUrl(),
-    },
-  },
-});
+// ---------------------------------------------------------------------------
+// Prisma client factory
+// ---------------------------------------------------------------------------
 
-prisma.$on('error', (e: any) => {
-  logger.error({ error: e }, 'Prisma error');
-  recordDatabaseError();
-});
+function makePrismaClient(url: string): PrismaClient {
+  const client = new PrismaClient({
+    log: [
+      { level: 'error', emit: 'event' },
+      { level: 'warn', emit: 'event' },
+    ],
+    datasources: { db: { url } },
+  });
 
-prisma.$on('warn', (e: any) => {
-  logger.warn({ warning: e }, 'Prisma warning');
-});
+  client.$on('error', (e: any) => {
+    const msg = typeof e?.message === 'string' ? e.message : String(e?.message ?? e);
+    if (isTransientLockError(e) || msg.includes('1205') || msg.includes('Lock wait timeout')) {
+      logger.debug({ error: e }, 'Prisma transient lock error (retries handle this)');
+      return;
+    }
+    if (msg.includes('Timed out fetching a new connection from the connection pool')) {
+      logger.debug({ error: e }, 'Prisma transient pool timeout (retries handle this)');
+      return;
+    }
+    logger.error({ error: e }, 'Prisma error');
+    recordDatabaseError();
+  });
+
+  client.$on('warn', (e: any) => {
+    logger.warn({ warning: e }, 'Prisma warning');
+  });
+
+  return client;
+}
+
+// ---------------------------------------------------------------------------
+// Named connection pools
+//
+//  writeDb       — write workers, batch-writer (INSERT-heavy path)   20 conns
+//  backgroundDb  — aggregation, archival, snapshots                    8 conns
+//  prisma        — API reads, health checks, general use              15 conns
+//
+// Total: 43, well under MySQL max_connections (300).
+// Sizes are tunable via env vars; defaults are chosen conservatively.
+// ---------------------------------------------------------------------------
+
+const WRITE_POOL_LIMIT      = parseInt(process.env.DB_WRITE_CONNECTION_LIMIT      ?? '20', 10);
+const BACKGROUND_POOL_LIMIT = parseInt(process.env.DB_BACKGROUND_CONNECTION_LIMIT ?? '8',  10);
+const READ_POOL_LIMIT       = parseInt(process.env.DB_CONNECTION_LIMIT             ?? '15', 10);
+
+/**
+ * Dedicated connection pool for write workers and batch-writer.
+ * All prismaWithRetry calls are backed by this pool.
+ */
+export const writeDb = makePrismaClient(getDatabaseUrlWithConnectionLimit(WRITE_POOL_LIMIT));
+
+/**
+ * Dedicated connection pool for background/aggregation jobs.
+ * Import this in daily-aggregation.ts, archival.ts, duplicate-ip-snapshot.ts.
+ */
+export const backgroundDb = makePrismaClient(getDatabaseUrlWithConnectionLimit(BACKGROUND_POOL_LIMIT));
+
+// General-purpose / API read pool (smaller now that writes have their own pool).
+const prisma = makePrismaClient(getDatabaseUrlWithConnectionLimit(READ_POOL_LIMIT));
 
 /**
  * Test database connection with retry
@@ -262,124 +382,160 @@ export async function checkDatabaseHealth(): Promise<{
 }
 
 /**
- * Wrapped Prisma client with retry logic for critical operations
+ * Strict capacity probe for heavy background jobs.
+ *
+ * Unlike checkDatabaseHealth(), this does NOT use cached success when the pool is exhausted.
+ * It is intended to decide whether expensive aggregation/snapshot jobs should run right now.
+ */
+export async function hasDatabaseCapacityForBackgroundJobs(): Promise<boolean> {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return true;
+  } catch (error: any) {
+    const isConnectionPoolError =
+      error?.message?.includes('connection pool') ||
+      error?.message?.includes('Timed out fetching a new connection');
+
+    if (isConnectionPoolError) {
+      logger.warn('Database pool exhausted, skipping heavy background job tick');
+      return false;
+    }
+
+    return false;
+  }
+}
+
+/**
+ * Wrapped Prisma client with retry logic for critical write-path operations.
+ * Backed by `writeDb` (dedicated 20-connection write pool) so background jobs
+ * and API reads cannot starve write workers.
  */
 export const prismaWithRetry = {
-  ...prisma,
+  ...writeDb,
   proxy: {
-    ...prisma.proxy,
+    ...writeDb.proxy,
     findUnique: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.proxy.findUnique(args), 'proxy.findUnique');
+      return retryWithBackoff(() => writeDb.proxy.findUnique(args), 'proxy.findUnique');
     },
     findMany: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.proxy.findMany(args), 'proxy.findMany');
+      return retryWithBackoff(() => writeDb.proxy.findMany(args), 'proxy.findMany');
     },
     create: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.proxy.create(args), 'proxy.create');
+      return retryWithBackoff(() => writeDb.proxy.create(args), 'proxy.create');
     },
     update: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.proxy.update(args), 'proxy.update');
+      return retryWithBackoff(() => writeDb.proxy.update(args), 'proxy.update');
     },
     upsert: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.proxy.upsert(args), 'proxy.upsert');
+      return retryWithBackoff(() => writeDb.proxy.upsert(args), 'proxy.upsert');
     },
   },
   proxyRequest: {
-    ...prisma.proxyRequest,
+    ...writeDb.proxyRequest,
     create: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.proxyRequest.create(args), 'proxyRequest.create');
+      return retryWithBackoff(() => writeDb.proxyRequest.create(args), 'proxyRequest.create');
     },
     createMany: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.proxyRequest.createMany(args), 'proxyRequest.createMany');
+      return retryWithBackoff(() => writeDb.proxyRequest.createMany(args), 'proxyRequest.createMany');
     },
     findMany: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.proxyRequest.findMany(args), 'proxyRequest.findMany');
+      return retryWithBackoff(() => writeDb.proxyRequest.findMany(args), 'proxyRequest.findMany');
     },
   },
   speedTest: {
-    ...prisma.speedTest,
+    ...writeDb.speedTest,
     create: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.speedTest.create(args), 'speedTest.create');
+      return retryWithBackoff(() => writeDb.speedTest.create(args), 'speedTest.create');
     },
     findMany: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.speedTest.findMany(args), 'speedTest.findMany');
+      return retryWithBackoff(() => writeDb.speedTest.findMany(args), 'speedTest.findMany');
     },
   },
   rotationCycle: {
-    ...prisma.rotationCycle,
+    ...writeDb.rotationCycle,
     create: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.rotationCycle.create(args), 'rotationCycle.create');
+      return retryWithBackoff(() => writeDb.rotationCycle.create(args), 'rotationCycle.create');
     },
     update: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.rotationCycle.update(args), 'rotationCycle.update');
+      return retryWithBackoff(() => writeDb.rotationCycle.update(args), 'rotationCycle.update');
     },
     findUnique: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.rotationCycle.findUnique(args), 'rotationCycle.findUnique');
+      return retryWithBackoff(() => writeDb.rotationCycle.findUnique(args), 'rotationCycle.findUnique');
     },
     findMany: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.rotationCycle.findMany(args), 'rotationCycle.findMany');
+      return retryWithBackoff(() => writeDb.rotationCycle.findMany(args), 'rotationCycle.findMany');
     },
   },
   ipRotation: {
-    ...prisma.ipRotation,
+    ...writeDb.ipRotation,
     create: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.ipRotation.create(args), 'ipRotation.create');
+      return retryWithBackoff(() => writeDb.ipRotation.create(args), 'ipRotation.create');
     },
     update: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.ipRotation.update(args), 'ipRotation.update');
+      return retryWithBackoff(() => writeDb.ipRotation.update(args), 'ipRotation.update');
     },
     findUnique: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.ipRotation.findUnique(args), 'ipRotation.findUnique');
+      return retryWithBackoff(() => writeDb.ipRotation.findUnique(args), 'ipRotation.findUnique');
     },
     findMany: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.ipRotation.findMany(args), 'ipRotation.findMany');
+      return retryWithBackoff(() => writeDb.ipRotation.findMany(args), 'ipRotation.findMany');
     },
     findFirst: async (args: any) => {
       recordDatabaseQuery();
-      return retryWithBackoff(() => prisma.ipRotation.findFirst(args), 'ipRotation.findFirst');
+      return retryWithBackoff(() => writeDb.ipRotation.findFirst(args), 'ipRotation.findFirst');
     },
   },
-  $transaction: async (args: any) => {
+  $transaction: async (first: any, second?: any) => {
     recordDatabaseQuery();
-    return retryWithBackoff(() => prisma.$transaction(args), 'transaction');
+    return retryWithBackoff(
+      () =>
+        second !== undefined
+          ? writeDb.$transaction(first, second)
+          : writeDb.$transaction(first),
+      'transaction'
+    );
   },
   $queryRaw: async (args: any) => {
     recordDatabaseQuery();
-    return retryWithBackoff(() => prisma.$queryRaw(args), 'queryRaw');
+    return retryWithBackoff(() => writeDb.$queryRaw(args), 'queryRaw');
   },
   $queryRawUnsafe: async (...args: any[]) => {
     recordDatabaseQuery();
-    return retryWithBackoff(() => (prisma.$queryRawUnsafe as any)(...args), 'queryRawUnsafe');
+    return retryWithBackoff(() => (writeDb.$queryRawUnsafe as any)(...args), 'queryRawUnsafe');
   },
   $executeRawUnsafe: async (...args: any[]) => {
     recordDatabaseQuery();
-    return retryWithBackoff(() => (prisma.$executeRawUnsafe as any)(...args), 'executeRawUnsafe');
+    return retryWithBackoff(() => (writeDb.$executeRawUnsafe as any)(...args), 'executeRawUnsafe');
   },
 };
 
 // Export both - use prismaWithRetry for critical operations, prisma for non-critical
 export { prisma };
 
-// Ensure the Prisma client disconnects when the process exits
+// Ensure all Prisma clients disconnect when the process exits
 process.on('beforeExit', async () => {
-  await prisma.$disconnect();
-  logger.info('Prisma client disconnected');
+  await Promise.allSettled([
+    prisma.$disconnect(),
+    writeDb.$disconnect(),
+    backgroundDb.$disconnect(),
+  ]);
+  logger.info('Prisma clients disconnected');
 });

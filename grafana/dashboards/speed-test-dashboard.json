@@ -54,7 +54,8 @@
         }
       ],
       "title": "Avg Download Speed",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of avg download speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -101,7 +102,8 @@
         }
       ],
       "title": "Median Download Speed",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of median download speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -148,7 +150,8 @@
         }
       ],
       "title": "Avg Upload Speed",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of avg upload speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -195,7 +198,8 @@
         }
       ],
       "title": "Median Upload Speed",
-      "type": "stat"
+      "type": "stat",
+      "description": "This metric shows the current value of median upload speed for the selected period. It should be used as a quick health checkpoint before deeper drill-down."
     },
     {
       "fieldConfig": {
@@ -225,7 +229,8 @@
         }
       ],
       "title": "Avg Download Speed History",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
     },
     {
       "fieldConfig": {
@@ -255,7 +260,8 @@
         }
       ],
       "title": "Avg Upload Speed History",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
     },
     {
       "gridPos": {
@@ -297,14 +303,18 @@
       },
       "targets": [
         {
-          "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+          "datasource": {
+            "type": "mysql",
+            "uid": "xproxy-tester-mysql"
+          },
           "format": "table",
           "rawSql": "WITH ProxyStats AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) AS avg_download,\n      MIN(download_speed_mbps) AS min_download,\n      MAX(download_speed_mbps) AS max_download,\n      AVG(upload_speed_mbps) AS avg_upload,\n      MIN(upload_speed_mbps) AS min_upload,\n      MAX(upload_speed_mbps) AS max_upload,\n      MAX(timestamp) AS last_test,\n      COUNT(*) AS test_count\n    FROM speed_tests\n    WHERE $__timeFilter(timestamp)\n    GROUP BY proxy_id\n),\n\nMedianDL AS (\n    SELECT\n      proxy_id,\n      AVG(download_speed_mbps) AS median_download\n    FROM (\n      SELECT\n        proxy_id,\n        download_speed_mbps,\n        ROW_NUMBER() OVER (\n          PARTITION BY proxy_id\n          ORDER BY download_speed_mbps\n        ) AS row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) AS total_count\n      FROM (\n        SELECT DISTINCT\n          proxy_id,\n          download_speed_mbps\n        FROM speed_tests\n        WHERE $__timeFilter(timestamp)\n          AND download_speed_mbps IS NOT NULL\n      ) d\n    ) t\n    WHERE row_num IN (\n      (total_count + 1) / 2,\n      (total_count + 2) / 2\n    )\n    GROUP BY proxy_id\n),\n\nMedianUL AS (\n    SELECT\n      proxy_id,\n      AVG(upload_speed_mbps) AS median_upload\n    FROM (\n      SELECT\n        proxy_id,\n        upload_speed_mbps,\n        ROW_NUMBER() OVER (\n          PARTITION BY proxy_id\n          ORDER BY upload_speed_mbps\n        ) AS row_num,\n        COUNT(*) OVER (PARTITION BY proxy_id) AS total_count\n      FROM (\n        SELECT DISTINCT\n          proxy_id,\n          upload_speed_mbps\n        FROM speed_tests\n        WHERE $__timeFilter(timestamp)\n          AND upload_speed_mbps IS NOT NULL\n      ) d\n    ) t\n    WHERE row_num IN (\n      (total_count + 1) / 2,\n      (total_count + 2) / 2\n    )\n    GROUP BY proxy_id\n)\n\nSELECT\n  p.name,\n  p.device_id,\n  p.location,\n  p.version,\n  ps.last_test,\n  ps.avg_download,\n  md.median_download,\n  ps.min_download,\n  ps.max_download,\n  ps.avg_upload,\n  mu.median_upload,\n  ps.min_upload,\n  ps.max_upload,\n  ps.test_count\nFROM proxies p\nLEFT JOIN ProxyStats ps ON p.device_id = ps.proxy_id\nLEFT JOIN MedianDL md ON p.device_id = md.proxy_id\nLEFT JOIN MedianUL mu ON p.device_id = mu.proxy_id\nWHERE p.location IN ($location)\n  AND p.device_id IN ($proxy)\nORDER BY ps.avg_download DESC;\n",
           "refId": "A"
         }
       ],
       "title": "Proxy Speed Metrics (All)",
-      "type": "table"
+      "type": "table",
+      "description": "This panel provides proxy-level performance and behavior detail for the selected period. It helps identify exactly which proxies are driving risk so triage is targeted."
     }
   ],
   "refresh": "",
@@ -316,24 +326,65 @@
   "templating": {
     "list": [
       {
-        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
-        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
         "definition": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
-        "hide": 0, "includeAll": true, "multi": true, "name": "location", "options": [],
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "location",
+        "options": [],
         "query": "SELECT DISTINCT location FROM proxies WHERE location IS NOT NULL",
-        "refresh": 1, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
       },
       {
-        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
-        "datasource": { "type": "mysql", "uid": "xproxy-tester-mysql" },
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "xproxy-tester-mysql"
+        },
         "definition": "SELECT CONCAT(name, ' - ', device_id) as __text, device_id as __value FROM proxies WHERE location IN ($location)",
-        "hide": 0, "includeAll": true, "multi": true, "name": "proxy", "options": [],
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "proxy",
+        "options": [],
         "query": "SELECT CONCAT(name, ' - ', device_id) as __text, device_id as __value FROM proxies WHERE location IN ($location)",
-        "refresh": 1, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
       }
     ]
   },
-  "time": { "from": "now-24h", "to": "now" },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "XProxy Tester - Speed Metrics",

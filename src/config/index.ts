@@ -61,6 +61,18 @@ interface Config {
     rotationCooldownMs: number;
     preferUniqueRotation: boolean;
     periodicRotationIntervalMs: number;
+    /**
+     * Concurrency for sending rotation commands during a cycle.
+     * Independent from `database.proxySyncConcurrency` because command sending
+     * is API-bound, not Prisma-pool-bound. Default: 50.
+     */
+    commandConcurrency: number;
+    /**
+     * Max retries for the rotateIp/rotateUniqueIp HTTP call inside a periodic
+     * rotation cycle. Periodic cycles run repeatedly, so aggressive retrying
+     * just inflates cycle time. Default: 1.
+     */
+    periodicCommandMaxRetries: number;
   };
   ipRotationTesting: {
     enabled: boolean;
@@ -127,6 +139,20 @@ function validateConfig(): Config {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
+  // Security warnings — logged at startup; not hard failures to allow local dev
+  const redisPassword = process.env.REDIS_PASSWORD;
+  if (!redisPassword || redisPassword.trim() === '') {
+    console.warn('WARNING: REDIS_PASSWORD not set. BullMQ job payloads may contain device credentials. Set a strong password in production.');
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    const encKey = process.env.ENCRYPTION_KEY;
+    const defaultKey = 'x-proxy-tester-default-key-change-in-production';
+    if (!encKey || encKey === defaultKey) {
+      throw new Error('ENCRYPTION_KEY must be set to a unique value in production. Run: node -e "require(\'crypto\').randomBytes(32).toString(\'hex\')" to generate one.');
+    }
+  }
+
   const testIntervalMs = parseInt(process.env.TEST_INTERVAL_MS || '5000', 10);
   const requestTimeoutMs = parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10);
   const rotationThreshold = parseInt(process.env.ROTATION_THRESHOLD || '10', 10);
@@ -189,6 +215,20 @@ function validateConfig(): Config {
     process.env.PERIODIC_IP_ROTATION_INTERVAL_MS || '600000',
     10
   ); // 10 minutes (600000ms) default for periodic rotation
+
+  // Concurrency for sending rotation commands. Higher than proxySyncConcurrency
+  // because command sending is API-bound, not DB-bound.
+  const rotationCommandConcurrency = parseInt(
+    process.env.ROTATION_COMMAND_CONCURRENCY || '50',
+    10
+  );
+
+  // Retries on rotateIp/rotateUniqueIp inside periodic cycles.
+  // Default 1 (fast-fail) — failed devices will simply be retried on the next cycle.
+  const periodicRotationCommandMaxRetries = parseInt(
+    process.env.PERIODIC_ROTATION_COMMAND_MAX_RETRIES || '1',
+    10
+  );
 
   // IP rotation testing configuration
   const ipRotationTestingEnabled = process.env.IP_ROTATION_TESTING_ENABLED !== 'false'; // Default: true
@@ -259,6 +299,12 @@ function validateConfig(): Config {
   }
   if (periodicRotationIntervalMs < 1000) {
     throw new Error('PERIODIC_IP_ROTATION_INTERVAL_MS must be at least 1000ms (1 second)');
+  }
+  if (rotationCommandConcurrency < 1) {
+    throw new Error('ROTATION_COMMAND_CONCURRENCY must be at least 1');
+  }
+  if (periodicRotationCommandMaxRetries < 0) {
+    throw new Error('PERIODIC_ROTATION_COMMAND_MAX_RETRIES must be at least 0');
   }
   if (ipRotationTestingIntervalMs < 60000) {
     throw new Error('IP_ROTATION_TESTING_INTERVAL_MS must be at least 60000ms (1 minute)');
@@ -339,6 +385,8 @@ function validateConfig(): Config {
       rotationCooldownMs,
       preferUniqueRotation,
       periodicRotationIntervalMs,
+      commandConcurrency: rotationCommandConcurrency,
+      periodicCommandMaxRetries: periodicRotationCommandMaxRetries,
     },
     ipRotationTesting: {
       enabled: ipRotationTestingEnabled,

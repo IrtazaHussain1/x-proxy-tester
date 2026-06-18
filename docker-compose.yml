@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:9.0
+    image: mysql:8.4
     container_name: x-proxy-tester-mysql
     restart: unless-stopped
     environment:
@@ -13,7 +13,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts/init-grafana-views.sh:/docker-entrypoint-initdb.d/init-grafana-views.sh:ro
-      - ./mysql-docker-config.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      - ./mysql/primary.cnf:/etc/mysql/conf.d/custom.cnf:ro
     logging:
       driver: "json-file"
       options:
@@ -27,6 +27,10 @@ services:
       start_period: 60s
     networks:
       - proxy-network
+    # Resource allocation for 8 vCPU / 16GB RAM host
+    cpus: "2.0"
+    mem_limit: 8g
+    mem_reservation: 6g
 
   app:
     build:
@@ -40,9 +44,9 @@ services:
     environment:
       # Database
       DATABASE_URL: mysql://${MYSQL_USER:-xproxy}:${MYSQL_PASSWORD:-xproxy}@mysql:3306/${MYSQL_DATABASE:-xproxy_tester}
-      # Caps concurrent portal→DB proxy row updates (default 20) to avoid Prisma pool exhaustion on refresh/rebuild
-      PROXY_SYNC_CONCURRENCY: ${PROXY_SYNC_CONCURRENCY:-20}
-      
+      # Caps concurrent portal→DB proxy row updates to avoid DB saturation on smaller hosts.
+      PROXY_SYNC_CONCURRENCY: ${PROXY_SYNC_CONCURRENCY:-12}
+      PROXY_TEST_WRITE_WORKER_CONCURRENCY: ${PROXY_TEST_WRITE_WORKER_CONCURRENCY:-4}
       # XProxy API
       XPROXY_API_URL: ${XPROXY_API_URL:-https://jmui.vercel.app}
       XPROXY_API_ENDPOINT: ${XPROXY_API_ENDPOINT:-/api/devices}
@@ -88,7 +92,7 @@ services:
       IP_ROTATION_TESTING_ENABLED: ${IP_ROTATION_TESTING_ENABLED:-true}
       IP_ROTATION_TESTING_INTERVAL_MS: ${IP_ROTATION_TESTING_INTERVAL_MS:-900000}
       IP_ROTATION_TESTING_WAIT_AFTER_ROTATION_MS: ${IP_ROTATION_TESTING_WAIT_AFTER_ROTATION_MS:-10000}
-      IP_ROTATION_TESTING_CONCURRENCY: ${IP_ROTATION_TESTING_CONCURRENCY:-10}
+      IP_ROTATION_TESTING_CONCURRENCY: ${IP_ROTATION_TESTING_CONCURRENCY:-6}
       IP_ROTATION_TESTING_BATCH_SIZE: ${IP_ROTATION_TESTING_BATCH_SIZE:-50}
       
       # Runtime
@@ -105,20 +109,29 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       ENCRYPTION_SALT: ${ENCRYPTION_SALT}
       
+      # Timezone — keep Node.js and MySQL aligned for UTC-based day boundaries
+      TZ: UTC
+
       # Health Check
       HEALTH_CHECK_PORT: ${HEALTH_CHECK_PORT:-3000}
       
-      # Archival
-      # Reduced retention to 14 days to manage rapid database growth
+      # Archival — raw data is deleted after retention period (daily summaries kept forever)
       ENABLE_ARCHIVAL: ${ENABLE_ARCHIVAL:-true}
-      DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-14}
+      DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-30}
       # Run archival every 12 hours (instead of 24) to keep database size manageable
       ARCHIVAL_INTERVAL_MS: ${ARCHIVAL_INTERVAL_MS:-43200000}
       ARCHIVAL_BATCH_SIZE: ${ARCHIVAL_BATCH_SIZE:-1000}
+
+      # Daily aggregation and schema sync controls
+      AGGREGATION_SCHEDULE: ${AGGREGATION_SCHEDULE:-0 1 * * *}
+      ENABLE_DAILY_AGGREGATION_ON_START: ${ENABLE_DAILY_AGGREGATION_ON_START:-true}
+      STARTUP_DAILY_BACKFILL_DAYS: ${STARTUP_DAILY_BACKFILL_DAYS:-2}
+      AGGREGATION_PROXY_DELAY_MS: ${AGGREGATION_PROXY_DELAY_MS:-50}
+      DB_SCHEMA_SYNC_MODE: ${DB_SCHEMA_SYNC_MODE:-push}
       
       # Speed Test
       SPEED_TEST_INTERVAL_MS: ${SPEED_TEST_INTERVAL_MS:-300000}
-      SPEED_TEST_MAX_CONCURRENT: ${SPEED_TEST_MAX_CONCURRENT:-25}
+      SPEED_TEST_MAX_CONCURRENT: ${SPEED_TEST_MAX_CONCURRENT:-12}
       
       # Alert Monitoring
       ENABLE_ALERT_MONITORING: ${ENABLE_ALERT_MONITORING:-true}
@@ -142,6 +155,10 @@ services:
       timeout: 10s
       retries: 5
       start_period: 180s
+    # Resource allocation for 8 vCPU / 16GB RAM host
+    cpus: "4.0"
+    mem_limit: 5g
+    mem_reservation: 4g
 
   grafana:
     image: grafana/grafana:latest
@@ -150,8 +167,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-      app:
-        condition: service_healthy
+      # app:
+      #   condition: service_healthy
     ports:
       - "3312:3000"
     environment:
@@ -214,18 +231,10 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - proxy-network
-    # Resource limits optimized for 8GB RAM / 4 vCPU server
-    # Note: deploy.resources only works in Docker Swarm mode
-    # For standalone docker-compose, set limits manually:
-    # docker update --memory=4g --memory-reservation=1g --cpus=3.0 x-proxy-tester-grafana
-    deploy:
-      resources:
-        limits:
-          cpus: '3.0'
-          memory: 4G
-        reservations:
-          cpus: '1.0'
-          memory: 1G
+    # Resource allocation for 8 vCPU / 16GB RAM host
+    cpus: "2.0"
+    mem_limit: 2g
+    mem_reservation: 1g
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s

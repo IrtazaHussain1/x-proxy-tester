@@ -62,27 +62,39 @@ class BatchWriter {
       const proxyCreates = items.filter((i) => i.model === 'proxy' && i.type === 'create');
       const proxyUpdates = items.filter((i) => i.model === 'proxy' && i.type === 'update');
       const requestCreates = items.filter((i) => i.model === 'proxyRequest' && i.type === 'create');
+      const requestCreateChunkSize = parseInt(process.env.PROXY_REQUEST_BATCH_WRITE_CHUNK_SIZE || '200', 10);
 
-      // Execute in transaction
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        // Create proxies
-        for (const item of proxyCreates) {
-          await tx.proxy.create({ data: item.data });
-        }
+      // Keep lock-heavy request bulk inserts out of interactive transactions.
+      // This shortens lock hold times and avoids transaction-level contention escalation.
+      if (proxyCreates.length > 0 || proxyUpdates.length > 0) {
+        await prisma.$transaction(
+          async (tx: Prisma.TransactionClient) => {
+            // Create proxies
+            for (const item of proxyCreates) {
+              await tx.proxy.create({ data: item.data });
+            }
 
-        // Update proxies
-        for (const item of proxyUpdates) {
-          await tx.proxy.update({ where: item.where, data: item.data });
-        }
+            // Update proxies
+            for (const item of proxyUpdates) {
+              await tx.proxy.update({ where: item.where, data: item.data });
+            }
+          },
+          { maxWait: 20_000, timeout: 120_000 }
+        );
+      }
 
-        // Create requests in batch
-        if (requestCreates.length > 0) {
-          await tx.proxyRequest.createMany({
-            data: requestCreates.map((item) => item.data),
+      if (requestCreates.length > 0) {
+        const safeChunkSize = !isNaN(requestCreateChunkSize) && requestCreateChunkSize > 0
+          ? requestCreateChunkSize
+          : 200;
+        for (let i = 0; i < requestCreates.length; i += safeChunkSize) {
+          const chunk = requestCreates.slice(i, i + safeChunkSize);
+          await prisma.proxyRequest.createMany({
+            data: chunk.map((item) => item.data),
             skipDuplicates: true,
           });
         }
-      });
+      }
 
       logger.debug(
         {
@@ -93,9 +105,8 @@ class BatchWriter {
         'Batch write completed'
       );
     } catch (error) {
-      logger.error({ error, batchSize: items.length }, 'Batch write failed');
-      // Re-add items to batch for retry (optional - could also drop them)
-      // this.batch.unshift(...items);
+      logger.error({ error, batchSize: items.length }, 'Batch write failed, re-queuing items');
+      this.batch = [...items, ...this.batch];
     }
   }
 
