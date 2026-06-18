@@ -82,7 +82,7 @@ function dailyDataLifecycle():
 
 | Endpoint | Handler | Service/Module | Data Path |
 |---|---|---|---|
-| `GET /health` | `getHealthStatus` | `src/api/health.ts` | runtime + DB checks |
+| `GET /health` | `getHealthStatus` | `src/api/health.ts` | runtime + DB checks + scheduler job telemetry |
 | `GET /ready` | `getReadiness` | `src/api/health.ts` | readiness checks |
 | `GET /live` | `getLiveness` | `src/api/health.ts` | liveness checks |
 | `GET /metrics` | `exportPrometheusMetrics` | `src/lib/metrics.ts` | in-memory registry |

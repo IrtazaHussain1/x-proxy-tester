@@ -123,7 +123,10 @@ export function startPeriodicArchival(
     async () => {
       await archiveOldRequests(retentionDays);
     },
-    { runImmediately: true }
+    {
+      runImmediately: true,
+      description: 'Deletes expired speed_tests rows according to retention settings.',
+    }
   );
 }
 

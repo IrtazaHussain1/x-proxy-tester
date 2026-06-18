@@ -363,15 +363,25 @@ export function startDuplicateIpSnapshotService(intervalMs: number, retentionDay
     });
   };
 
-  registerIntervalJob('duplicate-ip-snapshot-tick', intervalMs, tick, { runImmediately: true });
+  registerIntervalJob('duplicate-ip-snapshot-tick', intervalMs, tick, {
+    runImmediately: true,
+    description: 'Captures duplicate-IP snapshot rows for active and all proxy scopes.',
+  });
 
   const dayMs = 24 * 60 * 60 * 1000;
-  registerIntervalJob('duplicate-ip-snapshot-retention', dayMs, async () => {
-    const deleted = await pruneDuplicateIpSnapshotsOlderThanDays(retentionDays);
-    if (deleted > 0) {
-      logger.info({ deleted, retentionDays }, 'Duplicate IP snapshot daily retention prune');
+  registerIntervalJob(
+    'duplicate-ip-snapshot-retention',
+    dayMs,
+    async () => {
+      const deleted = await pruneDuplicateIpSnapshotsOlderThanDays(retentionDays);
+      if (deleted > 0) {
+        logger.info({ deleted, retentionDays }, 'Duplicate IP snapshot daily retention prune');
+      }
+    },
+    {
+      description: 'Purges duplicate-IP snapshot rows older than the configured retention window.',
     }
-  });
+  );
 
   logger.info({ intervalMs, retentionDays }, 'Duplicate IP snapshot service started');
 }

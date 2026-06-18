@@ -1093,17 +1093,25 @@ export function startDailyAggregationService(): void {
     'Scheduled daily aggregation'
   );
 
-  registerCronJob('daily-aggregation', schedule, async () => {
-    await aggregateDayInApp();
-    const run = lastAggregationRun;
-    if (run) {
-      const logFn = run.status === 'success' ? logger.info : run.status === 'empty' ? logger.info : logger.error;
-      logFn(
-        { status: run.status, day: run.day, upserted: run.upserted, durationMs: run.durationMs, reason: run.reason },
-        `Daily aggregation job finished: ${run.status}`
-      );
+  registerCronJob(
+    'daily-aggregation',
+    schedule,
+    async () => {
+      await aggregateDayInApp();
+      const run = lastAggregationRun;
+      if (run) {
+        const logFn = run.status === 'success' ? logger.info : run.status === 'empty' ? logger.info : logger.error;
+        logFn(
+          { status: run.status, day: run.day, upserted: run.upserted, durationMs: run.durationMs, reason: run.reason },
+          `Daily aggregation job finished: ${run.status}`
+        );
+      }
+    },
+    {
+      timezone: process.env.CRON_TZ ?? 'UTC',
+      description: 'Aggregates previous-day proxy request data into daily summary records.',
     }
-  });
+  );
 }
 
 /**
